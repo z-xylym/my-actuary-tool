@@ -1,4 +1,3 @@
-
 import pdfplumber
 import fitz  # PyMuPDF
 import json
@@ -42,9 +41,26 @@ DEFAULT_RULES = [
     {"规则名称": "18. 综合收益总额相等", "公式": "curr['综合收益总额'] == curr['综合收益总额']", "类型": "single"},
     {"规则名称": "19. 费用分类一致性", "公式": "abs((curr['获取费用'] + curr['维持费用'] + curr['非履约费用']) - (curr['职工薪酬'] + curr['物业及设备支出'] + curr['业务投入及监管费用支出'] + curr['行政办公支出'] + curr['其他支出'])) < 10", "类型": "single"}
 ]
-# ==================== 1. 页面基础配置 (必须在最顶端) ====================
-st.set_page_config(page_title="寿研数智・年报提取平台", layout="wide", page_icon="💠")
+# ==================== 1. 页面基础配置 (必须在最顶端且仅此一份) ====================
+st.set_page_config(
+    page_title="DigiLife 寿研数智 | 年报处理平台", 
+    page_icon="Digi.png",  # ✨ 修改点：加上 .png 后缀
+    layout="wide"
+)
 
+# ==================== 2. 设置左上角 Logo ====================
+# 注意：确保 Digi.png 文件和 app.py 在同一个文件夹里
+try:
+    st.logo(
+        "Digi.png",       # ✨ 修改点：加上 .png 后缀
+        icon_image="Digi.png" # ✨ 修改点：加上 .png 后缀
+    )
+except Exception as e:
+    st.error(f"Logo 加载失败，请检查文件名是否为 Digi.png。错误信息: {e}")
+
+
+
+# !!! 注意：请删除你代码后面那行重复的 st.set_page_config(...) !!!
 # ==================== 辅助函数：单位嗅探 ====================
 def get_report_unit(text):
     """该公司披露年报的金额单位"""
