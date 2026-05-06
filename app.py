@@ -1,3 +1,4 @@
+#左下角搜索并打开 Anaconda Prompt（那个黑框框）。
 import pdfplumber
 import fitz  # PyMuPDF
 import json
@@ -1012,7 +1013,7 @@ with tab4:
             return ''
 
         st.dataframe(
-            res_display_df.style.applymap(color_status, subset=['检查结果']),
+            res_display_df.style.map(color_status, subset=['检查结果']),
             use_container_width=True, hide_index=True
         )
 
