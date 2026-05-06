@@ -59,8 +59,6 @@ except Exception as e:
     st.error(f"Logo 加载失败，请检查文件名是否为 Digi.png。错误信息: {e}")
 
 
-
-# !!! 注意：请删除你代码后面那行重复的 st.set_page_config(...) !!!
 # ==================== 辅助函数：单位嗅探 ====================
 def get_report_unit(text):
     """该公司披露年报的金额单位"""
@@ -281,6 +279,7 @@ def ai_find_pages(pdf_bytes, api_key, target_tables):
 
 【强制输出格式】
 只输出合法 JSON，键为表单名，值为物理页码数组。找不到填 [0]。
+⚠️ 警告：输出的 JSON 的键（Key）必须【完全包含】《需求表单列表》中的所有字段，【绝对不能有任何遗漏】！如果文中真的找不到，请严格对应填写 [0]。
 格式示例：{{"合并利润表": [8, 9], "资产负债表 (合并优先)": [2, 3, 4]}}"""
 
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
@@ -512,7 +511,11 @@ with tab1:
                 st.caption("提示：若表格跨页，请以英文逗号分隔页码（如 64, 65）。可结合右侧预览进行校准。")
                 
                 edited_pages = {}
-                for table_name, page_data in st.session_state['found_pages'].items():
+                # ✅ 关键修改点：强制遍历用户选择的 target_tables！
+                for table_name in target_tables:
+                    # 如果 AI 返回了结果就用 AI 的，如果 AI 偷懒漏掉了，就默认给 [0]
+                    page_data = st.session_state['found_pages'].get(table_name, [0])
+                    
                     if isinstance(page_data, int):
                         page_data = [page_data]
                     str_val = ", ".join(map(str, page_data))
@@ -532,8 +535,11 @@ with tab1:
         with col_right:
             st.markdown("#### 页面预览")
             if 'found_pages' in st.session_state and 'edited_pages' in st.session_state:
-                table_to_view = st.selectbox("选择要预览的报表：", options=list(st.session_state['found_pages'].keys()))
-                pages_to_preview = st.session_state['edited_pages'].get(table_to_view, [1])
+                # ✅ 修改点：换成依赖左侧整理好的完整字典（edited_pages）！
+                table_to_view = st.selectbox("选择要预览的报表：", options=list(st.session_state['edited_pages'].keys()))
+                
+                # 获取该表对应的页码，如果是空，默认给个 [0] 兜底
+                pages_to_preview = st.session_state['edited_pages'].get(table_to_view, [0])
                 if not pages_to_preview:
                     pages_to_preview = [0]
                 
@@ -549,9 +555,9 @@ with tab1:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     st.image(pix.tobytes("png"), caption=f"当前预览：第 {current_page} 页 / 共 {total_pages} 页", use_column_width=True)
                 elif current_page == 0:
-                    st.info("尚未识别到页码，请在左侧手动输入。")
+                    st.info("尚未识别到页码，请在左侧输入框中手动填入。")
                 else:
-                    st.warning("该页码超出了文档总页数，请检查修改。")
+                    st.warning("该页码超出了文档总页数，请检查左侧修改。")
             else:
                 st.markdown("")
                 st.info("上传文件并启动检索后，此处将显示对应页面。")
@@ -764,7 +770,7 @@ with tab3:
                             for idx, row in working_df.iterrows():
                                 fname = str(row.get(COL_FIELD_NAME, "")).strip()
                                 if fname in ai_data:
-                                    
+                                    item_data = ai_data[fname]
                                     def process_final_val(v):
                                         if v is None or str(v).lower() in ["null", "none", "", "—", "无"]: 
                                             return 0.0
@@ -794,8 +800,15 @@ with tab3:
                                         except:
                                             return s # 如果是文字，保留文字原样
 
-                                    working_df.at[idx, col_2024] = process_final_val(ai_data[fname].get("y24"))
-                                    working_df.at[idx, col_2025] = process_final_val(ai_data[fname].get("y25"))
+                                    if isinstance(item_data, dict):
+                                        val_24 = item_data.get("y24")
+                                        val_25 = item_data.get("y25")
+                                        working_df.at[idx, col_2024] = process_final_val(val_24)
+                                        working_df.at[idx, col_2025] = process_final_val(val_25)
+                                    else:
+                                        # 如果 AI 返回的是 null 或其他非字典内容，直接填充 0
+                                        working_df.at[idx, col_2024] = 0.0
+                                        working_df.at[idx, col_2025] = 0.0
                             # --- 🚀 注入 Excel 单元格公式引擎 ---
                             st.write("⚙️ 正在生成可追溯的单元格公式...")
                             temp_buffer = io.BytesIO()
