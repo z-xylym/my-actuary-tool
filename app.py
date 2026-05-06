@@ -1,3 +1,4 @@
+
 import pdfplumber
 import fitz  # PyMuPDF
 import json
@@ -12,11 +13,39 @@ from openai import OpenAI
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+import plotly.express as px
+import plotly.graph_objects as go
 
-# ==================== 1. 页面基础配置  ====================
+# --- 全局配置：勾稽校验规则 ---
+# 说明：'check_type' 为 'cross' 表示跨年，'single' 表示年度内自校
+DEFAULT_RULES = [
+    # 跨年规则
+    {"规则名称": "1. 股东权益期初平衡", "公式": "y25['期初股东权益'] == y24['期末股东权益']", "类型": "cross", "描述": "25期初=24期末"},
+    {"规则名称": "2. CSM期初平衡", "公式": "y25['CSM期初余额'] == y24['CSM期末余额']", "类型": "cross", "描述": "25期初=24期末"},
+    
+    # 年度内规则 (程序会自动为 2024 和 2025 各跑一次)
+    {"规则名称": "3. CSM余额勾稽", "公式": "abs(curr['CSM期末余额'] - (curr['CSM期初余额'] + curr['新业务CSM（集团口径）'] + curr['CSM计息'] + curr['CSM调整'] + curr['CSM摊销'] + curr['CSM其他'])) < 5", "类型": "single"},
+    {"规则名称": "4. 新业务现值拆分", "公式": "abs(curr['新业务未来现金流入现值'] - (curr['新业务未来现金流入现值（盈利）'] + curr['新业务未来现金流入现值（亏损）'])) < 1", "类型": "single"},
+    {"规则名称": "5. 保险服务收入合计", "公式": "abs(curr['保险服务收入合计'] - (curr['未采用保费分配法计量的保险合同保险服务收入'] + curr['采用保费分配法计量的保险合同保险服务收入'])) < 1", "类型": "single"},
+    {"规则名称": "6. 非PAA收入拆分", "公式": "abs(curr['未采用保费分配法计量的保险合同保险服务收入'] - (curr['合同服务边际的摊销'] + curr['非金融风险调整的变动'] + curr['预计当期发生的保险服务费用'] + curr['与当期服务或过去服务相关得保费经验调整'] + curr['其他收入调整'] + curr['保险获取现金流的摊销（保险服务收入）'])) < 5", "类型": "single"},
+    {"规则名称": "7. 保险服务费用合计", "公式": "abs(curr['保险服务费用合计'] - (curr['未采用保费分配法计量的保险合同保险服务费用'] + curr['采用保费分配法计量的保险合同保险服务费用'])) < 1", "类型": "single"},
+    {"规则名称": "8. 非PAA费用拆分", "公式": "abs(curr['未采用保费分配法计量的保险合同保险服务费用'] - (curr['保险获取现金流的摊销（保险服务费用）'] + curr['亏损部分的确认及转回'] + curr['当期发生的赔款及其他相关费用'] + curr['已发生赔款负债相关的履约现金流量变动'])) < 5", "类型": "single"},
+    {"规则名称": "9. 获取费用摊销一致性", "公式": "curr['保险获取现金流的摊销（保险服务收入）'] == curr['保险获取现金流的摊销（保险服务费用）']", "类型": "single"},
+    {"规则名称": "10. PAA保险业绩", "公式": "abs(curr['采用保费分配法计量的保险合同保险业绩'] - (curr['采用保费分配法计量的保险合同保险服务收入'] - curr['采用保费分配法计量的保险合同保险服务费用'])) < 1", "类型": "single"},
+    {"规则名称": "11. 服务收入总表一致性", "公式": "curr['保险服务收入'] == curr['保险服务收入合计']", "类型": "single"},
+    {"规则名称": "12. 税前利润勾稽", "公式": "abs(curr['税前利润总额'] - (curr['保险利润'] + curr['投资利润'] + curr['其他利润'])) < 5", "类型": "single"},
+    {"规则名称": "13. 分出保费的分摊相等", "公式": "curr['分出保费的分摊'] == curr['分出保费的分摊']", "类型": "single"},
+    {"规则名称": "14. 摊回保险服务费用相等", "公式": "curr['减：摊回保险服务费用'] == curr['减：摊回保险服务费用']", "类型": "single"},
+    {"规则名称": "15. 承保财务损益相等", "公式": "curr['承保财务损益'] == curr['承保财务损益']", "类型": "single"},
+    {"规则名称": "16. 投资利润勾稽", "公式": "abs(curr['投资利润'] - (curr['净投资回报'] + curr['承保财务损益'] + curr['分出再保险财务损益'])) < 5", "类型": "single"},
+    {"规则名称": "17. 净利润相等", "公式": "curr['净利润'] == curr['净利润']", "类型": "single"},
+    {"规则名称": "18. 综合收益总额相等", "公式": "curr['综合收益总额'] == curr['综合收益总额']", "类型": "single"},
+    {"规则名称": "19. 费用分类一致性", "公式": "abs((curr['获取费用'] + curr['维持费用'] + curr['非履约费用']) - (curr['职工薪酬'] + curr['物业及设备支出'] + curr['业务投入及监管费用支出'] + curr['行政办公支出'] + curr['其他支出'])) < 10", "类型": "single"}
+]
+# ==================== 1. 页面基础配置 (必须在最顶端) ====================
 st.set_page_config(page_title="寿研数智・年报提取平台", layout="wide", page_icon="💠")
 
-# ==================== 辅助函数：单位====================
+# ==================== 辅助函数：单位嗅探 ====================
 def get_report_unit(text):
     """该公司披露年报的金额单位"""
     if not text: return None
@@ -93,12 +122,15 @@ def ai_find_pages(pdf_bytes, api_key, target_tables):
     """混合双引擎：AI负责读目录推算主表，Python雷达负责深潜寻找附注表"""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     
-    # 1. 提取前 40 页
+    # 1. 提取前 60 页（扩大视野，确保覆盖大型公司报表区）
     toc_text = ""
-    for i in range(min(30, len(doc))):
-        page_text = doc.load_page(i).get_text("text").replace("\n", " ")
-        toc_text += f"---第{i+1}页---\n{page_text}\n"
-        
+    for i in range(min(60, len(doc))):
+        page = doc.load_page(i)
+        # 获取文本并去掉多余换行，保留前 1200 个字（通常页眉和目录都在这里）
+        page_text = page.get_text("text").replace("\n", " ")
+        # 压缩多余空格，节省 AI 的 Token，让它看得更多
+        page_text = " ".join(page_text.split())
+        toc_text += f"---第{i+1}页---\n{page_text[:1200]}\n"
     # 2. ⚡ 附注专属雷达特征矩阵
     feature_matrix = {
         "保险合同-未采用保费分配法按计量组成部分分析 (原保险)": [
@@ -122,10 +154,11 @@ def ai_find_pages(pdf_bytes, api_key, target_tables):
             ["未来现金流出", "未来现金流入", "保险获取现金流量"] 
         ],
         "业务及管理费 (附注)": [
-            ["业务及管理费"]
+            ["业务及管理费"],
+            ["职工薪酬", "折旧", "办公费", "宣传费", "租赁"] # 增加二级科目关键词
         ],
         "评估假设-折现率假设": [
-            ["折现率假设", "折现率曲线"]
+            ["折现率假设", "折现率曲线","精算假设"]
         ]
     }
     
@@ -203,27 +236,37 @@ def ai_find_pages(pdf_bytes, api_key, target_tables):
             pages = sorted(list(set(pages)))
             hint_text += f"- {table} 真实表格物理页码位于: {pages[:4]}\n"
     
-    prompt = f"""你是一个四大寿险精算咨询专家。以下是一份寿险公司年报的前20页文本（主要是目录），以及程序全量扫描的极其精准的附注辅助线索。
-请帮我找出以下核心报表在年报中的【物理页码】。
+    prompt = f"""你是一个顶级的寿险审计专家，任务是定位 PDF 中的核心财务报表页码。
 
-【核心精算业务规则】（非常重要）：
-1. 🎯 主表依靠目录推算（重点！）：对于“资产负债表”、“利润表”、“现金流量表”、“股东/所有者权益变动表”，请你【务必仔细阅读前20页的目录文本】，找到它们标注的页码，并加上封面偏移量得出真实物理页码！特别注意“现金流量表”，它一定在目录中，请千万不要漏掉！
-2. 🎯 附注表无脑信任线索：对于带有“(附注)”或“保险合同”字眼的表单，目录里找不到，请【无脑完全信任】下面提供的【Python程序附注雷达线索】！直接将线索里的数字转化为数组返回。
-3. 合并报表优先：对于三大主表，如果同时存在“合并”和无合并字样，必定提取“合并”的页码；若无“合并”字样则提取原表。
-4. 跨页数组返回：因为要连续两年数据，大部分表格跨越连续两页。请返回包含所有相关物理页码的【数组格式】。
+【关键定位逻辑（双模式自适应）】
+模式 A：目录驱动（适用于有目录的报表）
+- 如果前几页存在“目录”或“Contents”，请识别目标报表对应的页码。
+- 计算物理偏移量（封面/说明页占用的页数），得出真实的物理页码。
+
+模式 B：标题驱动（适用于无目录或目录不全的报表，如太平人寿）
+- 如果没有明确目录，请直接扫描文本中 `---第N页---` 标记下方的页眉或正文大标题。
+- 例如：若在 `---第8页---` 下方看到“合并利润表”，则物理页码即为 8。
+
+【通用执行准则】
+1. 🎯 三大主表（资产负债表、利润表、现金流量表）：优先寻找“合并”版本。
+2. 🎯 跨页逻辑：由于财务报表通常包含“(续)”，请务必返回所有相关的物理页码数组。
+   - 示例：若第 3 页是资产负债表，第 4 页是其负债部分的续表，返回 [3, 4]。
+3. 🎯 附注表线索（最高优先级）：对于带有“(附注)”或“保险合同”字样的复杂底表，请【无脑完全信任】下方提供的【Python程序附注雷达线索】，直接返回线索中的页码。
+4. 🎯 特别提醒：现金流量表有时在目录中比较隐蔽，请仔细搜寻；若无目录，请在资产负债表和利润表之后的 5-10 页内搜寻其标题。
 
 需求表单列表：
 {json.dumps(target_tables, ensure_ascii=False)}
 
-年报前20页文本（供你寻找主表和推算偏移量）：
+【待扫描文本内容（前 60 页）】：
 {toc_text}
+
+【⚡ Python程序附注雷达辅助线索】：
 {hint_text}
 
-【强制要求】
-1. 只输出合法的 JSON 格式。不要输出任何 Markdown 标记。
-2. 键为表单名称，值为纯数字的【数组（List）】。找不到填 [0]。
-示例：{{"现金流量表 (合并优先)": [125, 126], "保险合同-未采用保费分配法按计量组成部分分析 (原保险)": [150, 151]}}"""
-    
+【强制输出格式】
+只输出合法 JSON，键为表单名，值为物理页码数组。找不到填 [0]。
+格式示例：{{"合并利润表": [8, 9], "资产负债表 (合并优先)": [2, 3, 4]}}"""
+
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
     response = client.chat.completions.create(
         model="deepseek-chat",
@@ -309,13 +352,14 @@ with st.sidebar:
 st.title("📊 寿研数智・年报处理平台")
 
 # 创建包含 Step 0 的全新导航栏
-tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     " 🌐 Step 0 ／ 官网年报监控 ",
     " 📑 Step 1 ／ 智能页码检索 ",
     " ⚡ Step 2 ／ 表格智能转换 ",
     " 📝 Step 3 ／ 目标表标准填报 ",
     " 🔍 Step 4 ／ 数据勾稽检查 ",
-    " 📊 Step 5 ／ 可视化分析 "
+    " ⛓️‍💥 Step 5 ／ 多公司数据合并",
+    " 📊 Step 6 ／ 可视化分析 "
 ])
 
 # ─────────── Step 0：官网监控雷达 ───────────
@@ -324,7 +368,7 @@ with tab0:
     st.markdown("""
     <div class="info-card green">
         <h4>功能说明</h4>
-        <p>上传包含保险公司官网链接的 Excel，系统将像雷达一样自动扫描各个网站，帮你侦测最新年份的年报是否已经发布。<b>（避免每天人工刷网页的烦恼）</b></p>
+        <p>上传包含保险公司官网链接的 Excel，系统将自动扫描各个网站，帮你检测最新年份的年报是否已经发布。<b>（避免每天人工刷网页）</b></p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -654,14 +698,30 @@ with tab3:
                         extracted_data = st.session_state['extracted_data']
                         context_text = "".join([f"\n[表名: {name}]\n{df.to_csv(index=False, sep='|')}\n" for name, df in extracted_data.items()])
                             
-                        SYSTEM_PROMPT = """你是一个专业的寿险精算审计助手。请在数据中寻找指定指标，并区分 2024 和 2025 年。
-注意：
-1. 别名匹配：若标准名找不到，请查看“别名参考”列。
-2. 新业务指标：务必在包含“当期确认”、“初始确认”或“新业务价值”字样的表格中查找。
-3. ⚠️绝对指令：输出时，务必【原封不动地照抄】原文里的文本！如果原文带有括号（表示负数）或逗号，比如 "(295,992)"，请直接将其作为【字符串】输出！千万不要删掉括号或负号！
-4. 若原文为“—”或“无”请输出 "0"。找不到填 null。
-5. 仅输出合法的 JSON，格式为: {"字段名": {"y24": "原样字符串", "y25": "原样字符串"}}"""
+                        SYSTEM_PROMPT = """你是一个资深的寿险精算审计专家。任务：将 PDF 提取的财务明细精准填入目标底稿，并严格区分 2024 和 2025 年度。
 
+【通用执行准则：绝对原样提取】
+1. ⚠️ 绝对指令：除了下述特殊的“业务及管理费”加总需求外，所有指标必须【原封不动地照抄】原文里的文本！
+   - 必须保留括号（表示负数）、逗号、正负号。例如原文是 "(295,992.00)"，必须输出为 "(295,992.00)"。
+   - 严禁擅自删除符号、严禁自行进行四舍五入。
+2. 别名匹配：若标准名找不到，请查看“别名参考”列，或利用你的精算知识寻找同义词。
+3. 报表锁定：提取“新业务相关指标”时，务必在包含“当期确认”、“初始确认”或“新业务价值”字样的表格中查找。
+4. 空值处理：若原文为“—”或“无”请输出 "0"。若完全找不到该指标，请输出 null。
+
+【特殊指令：业务及管理费（业管费）科目拆分】
+业务及管理费附注表通常包含“小计/明细”和“减项”。请按以下精算逻辑进行识别：
+1. 【获取费用】：必须提取“减：与保险合同履约直接相关的支出”下方，明确标注为“计入...保险获取现金流量”或“保险获取”字样的数值。
+2. 【维持费用】：必须提取“减：与保险合同履约直接相关的支出”下方，明确标注为“计入保险服务费用”或“维持费用”字样的数值。
+3. 【非履约费用】：提取该附注表最底部的“合计”项数值。逻辑上，该合计 = 总支出 - 获取费用 - 维持费用。
+4. 【二级明细归类】（若目标字段属于明细科目且无汇总）：
+   - 【职工薪酬】：加总 工资, 奖金, 补贴, 社保, 福利, 公积金, 辞退福利等。
+   - 【物业及设备】：加总 折旧, 摊销, 租赁费, 物业费, 维修费等。
+   - 【业务投入及监管】：加总 宣传费, 招待费, 保障基金, 监管费, 服务费, 咨询审计费。
+   - 【行政办公】：加总 差旅费, 办公费, 邮电印刷, 会议费等。
+
+【输出格式】
+仅输出合法的 JSON 格式，严禁带有任何 Markdown 标记或文字说明。
+格式示例：{"字段名": {"y24": "(1,234.0) + 500.0", "y25": "9,876.54"}}"""
                         st.write("🚀 正在呼叫 DeepSeek 进行语义映射与精准取数...")
                         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
                         try:
@@ -684,35 +744,76 @@ with tab3:
                             if COL_COMPANY in working_df.columns:
                                 working_df[COL_COMPANY] = company_short
                                 
+                            # --- 兼容“绝对原样”与“公式回放”的回填引擎 ---
                             for idx, row in working_df.iterrows():
                                 fname = str(row.get(COL_FIELD_NAME, "")).strip()
                                 if fname in ai_data:
-                                    def to_num(v):
-                                        if v is None: return None
-                                        s = str(v).strip()
-                                        if s in ["", "null", "None", "—", "-", "无"]: return 0.0
-                                        s = s.replace(',', '')
-                                        if (s.startswith('(') and s.endswith(')')) or (s.startswith('（') and s.endswith('）')): s = '-' + s[1:-1].strip()
-                                        try: return float(s)
-                                        except: return None
-                                            
-                                    working_df.at[idx, col_2024] = to_num(ai_data[fname].get("y24"))
-                                    working_df.at[idx, col_2025] = to_num(ai_data[fname].get("y25"))
                                     
-                            st.write("⚙️ 正在向 Excel 注入计算项目的公式...")
+                                    def process_final_val(v):
+                                        if v is None or str(v).lower() in ["null", "none", "", "—", "无"]: 
+                                            return 0.0
+                                        
+                                        s = str(v).strip()
+                                        
+                                        # 内部函数：把财务括号 "(1,234)" 转为可计算的 "-1234"
+                                        def to_calc_str(val_str):
+                                            tmp = val_str.replace(',', '').strip()
+                                            if (tmp.startswith('(') and tmp.endswith(')')) or (tmp.startswith('（') and tmp.endswith('）')):
+                                                return "-" + tmp[1:-1].strip()
+                                            return tmp
+
+                                        # 情况 1：如果是业务及管理费的加总公式
+                                        if "+" in s:
+                                            parts = s.split("+")
+                                            # 处理每一项的括号和逗号，转化为标准数字字符串
+                                            cleaned_parts = [to_calc_str(p) for p in parts]
+                                            # 返回 Excel 公式格式：=-100+200
+                                            return "=" + "+".join(cleaned_parts)
+                                        
+                                        # 情况 2：如果是通用项目的原样提取
+                                        # 先处理掉括号和逗号看能不能转成数字
+                                        num_candidate = to_calc_str(s)
+                                        try:
+                                            return float(num_candidate)
+                                        except:
+                                            return s # 如果是文字，保留文字原样
+
+                                    working_df.at[idx, col_2024] = process_final_val(ai_data[fname].get("y24"))
+                                    working_df.at[idx, col_2025] = process_final_val(ai_data[fname].get("y25"))
+                            # --- 🚀 注入 Excel 单元格公式引擎 ---
+                            st.write("⚙️ 正在生成可追溯的单元格公式...")
                             temp_buffer = io.BytesIO()
                             working_df.to_excel(temp_buffer, index=False)
                             temp_buffer.seek(0)
                             
                             wb = openpyxl.load_workbook(temp_buffer)
                             ws = wb.active
-                            cols = {cell.value: cell.column for cell in ws[1]}
-                            c24_idx, c25_idx = cols.get(col_2024), cols.get(col_2025)
-                            c24_let, c25_let = get_column_letter(c24_idx), get_column_letter(c25_idx)
                             
-                            field_to_row = {str(ws.cell(row=r, column=cols[COL_FIELD_NAME]).value).strip(): r for r in range(2, ws.max_row + 1) if ws.cell(row=r, column=cols[COL_FIELD_NAME]).value}
+                            # 获取列索引
+                            cols = {cell.value: cell.column for cell in ws[1]}
+                            c24_idx = cols.get(col_2024)
+                            c25_idx = cols.get(col_2025)
+                            
+                            # 1. 激活“输入项”中的 AI 相加公式 (例如：=-123+456)
+                            for r in range(2, ws.max_row + 1):
+                                for c_idx in [c24_idx, c25_idx]:
+                                    if c_idx:
+                                        cell = ws.cell(row=r, column=c_idx)
+                                        # 如果格子里是字符串且以 = 开头，openpyxl 会自动将其识别为公式
+                                        if isinstance(cell.value, str) and cell.value.startswith('='):
+                                            # 无需特殊操作，重新赋值即可触发 openpyxl 的公式识别
+                                            cell.value = cell.value 
+
+                            # 2. 执行原本的针对“计算”类型字段的公式生成逻辑 (例如：A+B 变 A2+B2)
+                            # 这里是你原本的代码逻辑...
+                            field_to_row = {str(ws.cell(row=r, column=cols[COL_FIELD_NAME]).value).strip(): r 
+                                            for r in range(2, ws.max_row + 1) 
+                                            if ws.cell(row=r, column=cols[COL_FIELD_NAME]).value}
                             sorted_fields = sorted(field_to_row.keys(), key=len, reverse=True)
                             
+                            c24_let = get_column_letter(c24_idx) if c24_idx else ""
+                            c25_let = get_column_letter(c25_idx) if c25_idx else ""
+
                             for r in range(2, ws.max_row + 1):
                                 ftype = str(ws.cell(row=r, column=cols[COL_FIELD_TYPE]).value).strip()
                                 rule = str(ws.cell(row=r, column=cols[COL_RULE]).value).strip()
@@ -721,18 +822,39 @@ with tab3:
                                     for f in sorted_fields:
                                         if f in rule:
                                             row_num = field_to_row[f]
-                                            f24, f25 = f24.replace(f, f"{{{{R{row_num}C24}}}}"), f25.replace(f, f"{{{{R{row_num}C25}}}}")
-                                    for row_num in field_to_row.values():
-                                        f24, f25 = f24.replace(f"{{{{R{row_num}C24}}}}", f"{c24_let}{row_num}"), f25.replace(f"{{{{R{row_num}C25}}}}", f"{c25_let}{row_num}")
-                                    try: ws.cell(row=r, column=c24_idx).value, ws.cell(row=r, column=c25_idx).value = f"={f24}", f"={f25}"
-                                    except: pass
+                                            if c24_let: f24 = f24.replace(f, f"{c24_let}{row_num}")
+                                            if c25_let: f25 = f25.replace(f, f"{c25_let}{row_num}")
                                     
+                                    # 写入计算项公式
+                                    try:
+                                        if c24_idx: ws.cell(row=r, column=c24_idx).value = f"={f24}"
+                                        if c25_idx: ws.cell(row=r, column=c25_idx).value = f"={f25}"
+                                    except: pass
+                              # 遍历所有数据格，设置格式并确保数字类型正确
+                            for r in range(2, ws.max_row + 1):
+                                for c_idx in [c24_idx, c25_idx]:
+                                    if c_idx:
+                                        cell = ws.cell(row=r, column=c_idx)
+                                        # 1. 财务格式定义：正数千分位，负数括号，零显示为横杠
+                                        cell.number_format = '#,##0_ ;(#,##0);"-"'
+                                        
+                                        # 2. 数据类型微调：确保数字不是以字符串形式存在
+                                        # 如果单元格不是公式且能转成数字，强制转成 float
+                                        if cell.value and not str(cell.value).startswith('='):
+                                            try:
+                                                # 先清洗掉可能存在的干扰字符
+                                                clean_val = str(cell.value).replace(',','').replace('(','-').replace(')','')
+                                                cell.value = float(clean_val)
+                                            except:
+                                                pass
+
+                            # 最后保存到最终的二进制流
                             final_buffer = io.BytesIO()
                             wb.save(final_buffer)
+
                             final_buffer.seek(0)
-                            
                             st.session_state['filled_excel'] = final_buffer.getvalue()
-                            st.session_state['working_df'] = working_df 
+                            st.session_state['final_df'] = working_df 
                             status_box.update(label="🎉 填报与公式生成完毕！", state="complete", expanded=False)
 
                         except Exception as e:
@@ -752,34 +874,378 @@ with tab3:
             use_container_width=True
         )
         st.markdown("💡 *预览表仅展示数值，下载后的 Excel 已包含自动关联公式。*")
-        st.dataframe(st.session_state['working_df'], use_container_width=True)
+        st.dataframe(st.session_state['final_df'], use_container_width=True)
 
-# ─────────── Step 4 & 5：分析与校验 ───────────
+
+# ─────────── Step 4 分析与校验 ───────────
+
 with tab4:
-    st.markdown("### 🔍 数据勾稽检查")
-    st.info("此模块正在开发中，未来将自动检查报表间的逻辑平衡关系...")
+    col_title, col_btn = st.columns([4, 1])
+    with col_title:
+        st.subheader("🏁 精算数据勾稽关系检查")
+    with col_btn:
+        # 💡 增加一个手动刷新按钮，点击后会清空缓存重新运行本页逻辑
+        if st.button("🔄 重新执行检查", use_container_width=True):
+            st.rerun() 
+            
+    if 'final_df' in st.session_state:
+        df = st.session_state['final_df'].copy()
+        
+        with st.expander("🛠️ 勾稽规则配置 (点击展开/修改公式)"):
+            st.info("可以在此处修改勾稽公式。'curr' 代表当前年度数据，'y24/y25' 代表特定年度。")
+            rules_df = st.data_editor(pd.DataFrame(DEFAULT_RULES), num_rows="dynamic", key="rules_editor_v3")
+
+        target_24 = str(st.session_state.get('col_2024', '2024'))
+        target_25 = str(st.session_state.get('col_2025', '2025'))
+        
+        col_24_name = next((col for col in df.columns if target_24 in str(col)), None)
+        col_25_name = next((col for col in df.columns if target_25 in str(col)), None)
+        
+        if not col_24_name or not col_25_name:
+            st.error(f"❌ 表格中找不到包含 '{target_24}' 和 '{target_25}' 的列。当前列名: {list(df.columns)}")
+            st.stop()
+
+        def parse_finance_num(val):
+            if pd.isnull(val): return 0.0
+            v_str = str(val).strip()
+            if v_str in ['-', '']: return 0.0
+            if v_str.startswith('(') and v_str.endswith(')'): v_str = '-' + v_str[1:-1]
+            v_str = v_str.replace(',', '')
+            try: return float(v_str)
+            except ValueError: return 0.0
+
+        # —— 💡 黑科技黑科技：智能容错字典 —— 
+        class SmartDict(dict):
+            """一个无视空格、全半角冒号/括号的字典"""
+            def _clean(self, k):
+                if not isinstance(k, str): return k
+                # 统一转成英文标点，并删除所有空格、换行
+                return k.replace('（','(').replace('）',')').replace('：',':').replace(' ','').replace('\n','').replace('\xa0','')
+            
+            def __init__(self, mapping):
+                super().__init__(mapping)
+                # 建立 [清洗后的名字 : 原名] 的映射
+                self._map = {self._clean(k): k for k in mapping.keys()}
+                
+            def __getitem__(self, k):
+                clean_k = self._clean(k)
+                if clean_k in self._map:
+                    return super().__getitem__(self._map[clean_k])
+                raise KeyError(k) # 如果连清洗后都找不到，才报错原名
+        # ————————————————————————————————
+
+        # 3. 提取数据，并使用 SmartDict 包装！
+        base_y24 = {str(k).strip(): parse_finance_num(v) for k, v in zip(df['字段名'], df[col_24_name])}
+        base_y25 = {str(k).strip(): parse_finance_num(v) for k, v in zip(df['字段名'], df[col_25_name])}
+        
+        y24_map = SmartDict(base_y24)
+        y25_map = SmartDict(base_y25)
+        
+        check_results = []
+
+        # 4. 执行校验与智能诊断
+        for _, rule in rules_df.iterrows():
+            rule_name = rule['规则名称']
+            formula = rule['公式']
+            rule_type = rule.get('类型', 'single')
+
+            targets = [("2024-2025", None)] if rule_type == "cross" else [("2024", y24_map), ("2025", y25_map)]
+
+            for year_label, curr_map in targets:
+                ctx = {'curr': curr_map, 'y24': y24_map, 'y25': y25_map, 'abs': abs}
+                try:
+                    is_pass = eval(formula, {"__builtins__": None}, ctx)
+                    status = "✅ PASS" if is_pass else "❌ FALSE"
+                    detail = "勾稽无误" if is_pass else "差额超过允许阈值"
+                except KeyError as e:
+                    status = "⚠️ ERROR"
+                    detail = f"缺失字段: 找不到 {str(e)}"
+                    is_pass = False
+                except Exception as e:
+                    status = "⚠️ ERROR"
+                    detail = "公式语法错误"
+                    is_pass = False
+
+                check_results.append({
+                    "年度": year_label, 
+                    "规则名称": rule_name, 
+                    "检查结果": status, 
+                    "诊断详情": detail
+                })
+
+        # 5. 展示结果报表
+        res_display_df = pd.DataFrame(check_results)
+        
+        def color_status(val):
+            if '✅' in str(val): return 'background-color: #C6EFCE; color: #006100;'
+            elif '❌' in str(val): return 'background-color: #FFC7CE; color: #9C0006;'
+            elif '⚠️' in str(val): return 'background-color: #FFEB9C; color: #9C5700;'
+            return ''
+
+        st.dataframe(
+            res_display_df.style.applymap(color_status, subset=['检查结果']),
+            use_container_width=True, hide_index=True
+        )
+
+        # 6. 导出逻辑（接力模式：确保保留 Step 3 的所有原始公式）
+        if st.button("📥 导出带勾稽结果的报告"):
+            if 'filled_excel' not in st.session_state:
+                st.error("❌ 找不到填报后的数据，请先重新运行 Step 3")
+                st.stop()
+                
+            # --- 💡 接力核心：从 session_state 加载 Step 3 已经写好的 Excel ---
+            input_buffer = io.BytesIO(st.session_state['filled_excel'])
+            workbook = openpyxl.load_workbook(input_buffer)
+            
+            # --- 💡 动作 1：处理数据明细页的格式 ---
+            # 这一步是为了确保即便 Step 3 漏了格式，这里也能补上
+            ws_data = workbook.active  # 默认第一个 Sheet 是数据明细
+            ws_data.title = "数据明细" # 统一命名
+            
+            # --- 💡 动作 2：新建勾稽报告页 ---
+            # 如果已存在则删除，防止重复点击报错
+            if "勾稽报告" in workbook.sheetnames:
+                del workbook["勾稽报告"]
+            ws_res = workbook.create_sheet("勾稽报告")
+            
+            # 写入勾稽报告表头
+            headers = list(res_display_df.columns)
+            for c_idx, header in enumerate(headers, 1):
+                ws_res.cell(row=1, column=c_idx).value = header
+            
+            # 写入勾稽报告内容
+            from openpyxl.styles import PatternFill
+            fill_green = PatternFill(start_color='C6EFCE', fill_type='solid')
+            fill_red = PatternFill(start_color='FFC7CE', fill_type='solid')
+            fill_yellow = PatternFill(start_color='FFEB9C', fill_type='solid')
+            
+            for r_idx, row_data in enumerate(res_display_df.values, 2):
+                for c_idx, value in enumerate(row_data, 1):
+                    cell = ws_res.cell(row=r_idx, column=c_idx)
+                    cell.value = value
+                    # 在结果列（第3列）加颜色
+                    if c_idx == 3:
+                        val_str = str(value)
+                        if "PASS" in val_str: cell.fill = fill_green
+                        elif "FALSE" in val_str: cell.fill = fill_red
+                        elif "ERROR" in val_str: cell.fill = fill_yellow
+            
+            # 自动调整列宽
+            ws_res.column_dimensions['B'].width = 30
+            ws_res.column_dimensions['C'].width = 15
+            ws_res.column_dimensions['D'].width = 40
+
+            # --- 💡 动作 3：保存并导出 ---
+            output = io.BytesIO()
+            workbook.save(output)
+            
+            st.download_button(
+                label="点击下载精算复核底稿", 
+                data=output.getvalue(), 
+                file_name=f"勾稽复核底稿_{st.session_state.get('pdf_name','未命名').replace('.pdf','')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    else:
+        st.info("💡 提取结果将在此处显示。请先在上方点击“开始提取”按钮。")
+        
+# ─────────── Step 5 多公司合并目标表 ───────────
 
 with tab5:
-    st.markdown("### 📊 自定义可视化分析")
-    st.caption("上传结构化数据文件（Excel / CSV），自由选择维度与指标进行探索式制图。")
+    st.header("📊 多公司数据集成与汇率转换")
+    st.info("功能说明：上传多家公司已核查完的“勾稽复核底稿”，系统将自动进行年度拆分、汇率换算并合并为可画图的行业对标长表。")
+
+    # 1. 汇率设置区
+    col_rate1, col_rate2 = st.columns(2)
+    with col_rate1:
+        rate_24 = st.number_input("💵 2024年汇率 (1外币=?人民币)", value=1.0, step=0.0001, format="%.4f")
+    with col_rate2:
+        rate_25 = st.number_input("💵 2025年汇率 (1外币=?人民币)", value=1.0, step=0.0001, format="%.4f")
+
+    # 2. 多文件上传
+    uploaded_files = st.file_uploader("请上传多家公司的勾稽底稿 (可多选)", type="xlsx", accept_multiple_files=True)
+
+    if uploaded_files:
+        combined_list = []
+        
+        for file in uploaded_files:
+            # 读取第一个 Sheet (数据明细)
+            df_single = pd.read_excel(file, sheet_name=0)
+            
+            # 识别列名 (兼容你之前的定义)
+            c_24 = next((c for c in df_single.columns if '2024' in str(c)), None)
+            c_25 = next((c for c in df_single.columns if '2025' in str(c)), None)
+            
+            if not c_24 or not c_25:
+                st.error(f"文件 {file.name} 格式不正确，找不到年份列。")
+                continue
+
+            # 基础列
+            base_cols = ["公司", "类别", "字段名", "字段类型"]
+            existing_base = [c for c in base_cols if c in df_single.columns]
+
+            # 提取 2024 数据
+            df_24 = df_single[existing_base + [c_24]].copy()
+            df_24["报告年份"] = "2024"
+            df_24["汇率"] = rate_24
+            df_24 = df_24.rename(columns={c_24: "原币金额"})
+            
+            # 提取 2025 数据
+            df_25 = df_single[existing_base + [c_25]].copy()
+            df_25["报告年份"] = "2025"
+            df_25["汇率"] = rate_25
+            df_25 = df_25.rename(columns={c_25: "原币金额"})
+
+            # 合并当年两载数据
+            df_merged = pd.concat([df_24, df_25], ignore_index=True)
+            
+            # 计算本币金额 (处理可能的清洗逻辑)
+            def clean_to_float(val):
+                try:
+                    if isinstance(val, str):
+                        val = val.replace(',','').replace('(','-').replace(')','')
+                    return float(val)
+                except: return 0.0
+
+            df_merged["(百万)原币"] = df_merged["原币金额"].apply(clean_to_float)
+            df_merged["(百万)人民币"] = df_merged["(百万)原币"] * df_merged["汇率"]
+            
+            combined_list.append(df_merged)
+
+        if combined_list:
+            final_all_df = pd.concat(combined_list, ignore_index=True)
+            
+            # 调整列顺序对齐图二
+            final_cols = ["公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
+            # 只取存在的列
+            actual_cols = [c for c in final_cols if c in final_all_df.columns]
+            final_all_df = final_all_df[actual_cols]
+
+            st.success(f"✅ 已成功合并 {len(uploaded_files)} 家公司数据！")
+            
+            # 展示预览
+            st.dataframe(final_all_df, use_container_width=True)
+
+            # 下载集成后的表
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                final_all_df.to_excel(writer, index=False, sheet_name='行业集成分析表')
+                # 可以在这里给数值列加格式...
+            
+            st.download_button(
+                label="📥 下载行业集成对标表 (长表格式)",
+                data=output.getvalue(),
+                file_name="行业集成对标分析表.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary"
+            )
+# ─────────── Step 6 可视化 ───────────
+# KPMG 官方色卡 (RGB 转换为 Hex 方便 Plotly 使用)
+KPMG_COLORS = {
+    "KPMG Blue": "#00338D",      # (0, 51, 141)
+    "Cobalt Blue": "#1E49E2",    # (30, 73, 226)
+    "Dark Blue": "#0C233C",      # (12, 35, 60)
+    "Light Blue": "#ACEAFF",     # (172, 234, 255)
+    "Pacific Blue": "#00B8F5",   # (0, 184, 245)
+    "Purple": "#7213EA",         # (114, 19, 234)
+    "Pink": "#FD349C",           # (253, 52, 156)
+    "Grey 1": "#333333",
+    "Grey 2": "#666666",
+    "Light Green": "#63EBB2"
+}
+# 定义用于图表的颜色序列
+COLOR_SEQUENCE = [KPMG_COLORS["KPMG Blue"], KPMG_COLORS["Pacific Blue"], KPMG_COLORS["Cobalt Blue"], 
+                  KPMG_COLORS["Pink"], KPMG_COLORS["Purple"], KPMG_COLORS["Light Green"]]
+
+
+with tab6:
+    st.markdown("### 📊 年报可视化分析")
     
-    viz_file = st.file_uploader("拖拽结构化数据文件至此处", type=["xlsx", "csv"], key="viz_uploader")
+    viz_file = st.file_uploader("上传已填写的标准目标表 (Excel)", type=["xlsx"], key="viz_uploader")
+    
     if viz_file:
-        st.success(f"已成功加载：{viz_file.name}")
-        st.markdown("---")
-        st.markdown("#### 分析维度配置")
-        col_v1, col_v2 = st.columns(2)
-        with col_v1: st.selectbox("X 轴（横轴维度）", ["2023", "2024", "2025", "按公司横向对比"], index=2)
-        with col_v2: st.multiselect("Y 轴（纵轴指标）", ["新业务价值", "合同服务边际", "净利润", "内含价值", "保险服务收入", "保险合同负债"], default=["净利润"])
-        st.selectbox("图表类型", ["折线图（趋势分析）", "柱状图（横向对比）", "堆叠柱状图（结构分析）", "散点图（相关性分析）"])
-        st.button("生成分析图表（开发中）", use_container_width=True)
+        df_viz = pd.read_excel(viz_file)
+        # 🟢 解决 2024.5 问题的关键：强制转为字符串且去掉小数点
+        df_viz['报告年份'] = df_viz['报告年份'].astype(str).str.replace('.0', '', regex=False)
+        
+        # 1. 基础配置
+        all_companies = df_viz['公司'].unique().tolist()
+        all_fields = df_viz['字段名'].unique().tolist()
+        val_col = '(百万)元人民币' if '(百万)元人民币' in df_viz.columns else df_viz.columns[-1]
+
+        # 2. 交互控制区
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            selected_cos = st.multiselect("🏗️ 选择对比公司", all_companies, default=all_companies[:3])
+            selected_field = st.selectbox("🎯 选择分析指标", all_fields, index=0)
+            
+            # 🟢 让领导可以修改代码的开关
+            show_editor = st.checkbox("🛠️ 开启代码编辑器 (高级模式)")
+
+        # 准备绘图数据
+        filtered_df = df_viz[(df_viz['公司'].isin(selected_cos)) & (df_viz['字段名'] == selected_field)]
+
+        # 3. 默认绘图脚本（作为初始代码）
+        default_code = f"""# 你可以修改这里的代码来调整图表呈现
+fig = px.bar(
+    filtered_df, 
+    x="公司", 
+    y="{val_col}", 
+    color="报告年份", 
+    barmode="group",
+    text_auto='.2s',
+    title=f"{{selected_field}} 年度对比",
+    color_discrete_sequence=["#00338D", "#00B8F5"] # KPMG Blue, Pacific Blue
+)
+
+fig.update_layout(
+    font_family="Microsoft YaHei",
+    plot_bgcolor="rgba(0,0,0,0)",
+    xaxis_type='category' # 🟢 强制 X 轴为分类，解决 2024.5 问题
+)
+"""
+
+        # 4. 代码编辑沙盒
+        if show_editor:
+            st.info("💡 你可以直接在下方修改代码，变量名为 `filtered_df`。修改后点击下方‘运行代码’。")
+            user_code = st.text_area("可视化代码编辑器", value=default_code, height=300)
+        else:
+            user_code = default_code
+
+        # 5. 执行代码并渲染
+        if st.button("🚀 运行/刷新图表", use_container_width=True) or not show_editor:
+            try:
+                # 环境准备：将变量传递给 exec 内部
+                local_vars = {
+                    'px': px, 'go': go, 'filtered_df': filtered_df, 
+                    'selected_field': selected_field, 'KPMG_COLORS': KPMG_COLORS
+                }
+                # 运行用户编写的代码
+                exec(user_code, {}, local_vars)
+                
+                # 获取执行后的 fig 对象
+                if 'fig' in local_vars:
+                    st.plotly_chart(local_vars['fig'], use_container_width=True)
+                else:
+                    st.error("代码中未定义 `fig` 变量！请确保代码最后生成了 fig 对象。")
+                    
+            except Exception as e:
+                st.error(f"代码运行出错: {e}")
+
+        # 6. 辅助饼图（修复之前的 NameError）
+        if not show_editor:
+            st.divider()
+            st.markdown("#### 其他预设维度")
+            # 修正后的饼图逻辑
+            pie_fig = px.pie(
+                filtered_df[filtered_df['报告年份'] == filtered_df['报告年份'].max()], 
+                values=val_col, names="公司", 
+                title=f"最新年份 {selected_field} 市场份额分布",
+                color_discrete_sequence=px.colors.qualitative.Prism
+            )
+            st.plotly_chart(pie_fig, use_container_width=True)
+
     else:
-        st.markdown("""
-        <div class="placeholder-section">
-            <div class="big-icon">📊</div>
-            <p>请先完成前方流程提取数据后，将生成的 Excel 文件拖入此处进行可视化。</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("请先上传目标表 Excel 以开启可视化。")
 
 # ==================== 页脚 ====================
 st.markdown("""
