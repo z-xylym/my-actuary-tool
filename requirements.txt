@@ -6,3 +6,4 @@ openpyxl
 openai
 requests
 beautifulsoup4
+plotly
