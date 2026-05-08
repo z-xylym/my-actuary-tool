@@ -1,9 +1,3 @@
-#左下角搜索并打开 Anaconda Prompt（那个黑框框）。
-#输入 D: 并按回车。
-#输入 cd D:\桌面备份\毕马威实习\网页实现 并按回车。
-#输入 streamlit run app.py 并按回车。
-
-
 
 import pdfplumber
 import fitz  # PyMuPDF
