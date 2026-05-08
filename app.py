@@ -1,4 +1,3 @@
-
 import pdfplumber
 import fitz  # PyMuPDF
 import json
@@ -1399,26 +1398,34 @@ with tab5:
 
         # 3. 执行合并逻辑
         if st.button("🚀 开始集成并换算数据", type="primary", use_container_width=True):
+            # 🌟 精确匹配白名单：只有【完全等于】以下名称的字段，才会被豁免换算
+            exact_exempt_fields = [
+                "折现率假设",
+                "非金融风险的置信水平",
+                "1年及1年以内合同服务边际",
+                "1-5年合同服务边际",
+                "5-10年合同服务边际",
+                "10-20年合同服务边际",
+                "20年合同服务边际"
+            ]
+            
             combined_list = []
             
             for item in all_temp_data:
                 df_single = item["df"]
                 comp_name = item["comp"]
                 rate = rate_config[comp_name]
-                unit_mult = unit_config[comp_name] # 🌟 获取该公司的单位转换系数
+                unit_mult = unit_config[comp_name]
                 
-                # 识别年份列 (兼容 y24, y25 或包含 2024, 2025 的列)
                 c_24 = next((c for c in df_single.columns if '24' in str(c)), None)
                 c_25 = next((c for c in df_single.columns if '25' in str(c)), None)
                 
                 if not c_24 or not c_25:
-                    continue # 跳过不规范的 Sheet
+                    continue
 
-                # 提取基础信息
                 base_cols = ["公司", "类别", "字段名", "字段类型"]
                 existing_base = [c for c in base_cols if c in df_single.columns]
 
-                # 数据清洗函数
                 def clean_to_float(val):
                     try:
                         if isinstance(val, (int, float)): return float(val)
@@ -1429,49 +1436,50 @@ with tab5:
                         return 0.0
                     except: return 0.0
 
-                # 拆分 2024 和 2025 为长表格式
                 for year_label, col_name in [("2024", c_24), ("2025", c_25)]:
                     df_year = df_single[existing_base + [col_name]].copy()
-                    df_year["公司"] = comp_name # 强制统一公司名
+                    df_year["公司"] = comp_name
                     df_year["报告年份"] = year_label
                     df_year["汇率"] = rate
                     
-                    # 🌟 金额计算：先乘以单位系数化为百万元，再乘以汇率化为人民币
-                    df_year["(百万)原币"] = df_year[col_name].apply(clean_to_float) * unit_mult
-                    df_year["(百万)人民币"] = df_year["(百万)原币"] * rate
+                    # 1. 先把所有文本转为干净的浮点数
+                    cleaned_series = df_year[col_name].apply(clean_to_float)
                     
-                    # 仅保留核心展示列
+                    # 🌟 2. 核心修改：使用 isin() 进行【精确匹配】
+                    # 使用 str.strip() 去除 Excel 单元格可能自带的头尾空格，防止因为多按了一个空格导致匹配失败
+                    is_exempt = df_year["字段名"].astype(str).str.strip().isin(exact_exempt_fields)
+                    
+                    # 🌟 3. 条件赋值运算
+                    df_year["(百万)原币"] = np.where(is_exempt, cleaned_series, cleaned_series * unit_mult)
+                    df_year["(百万)人民币"] = np.where(is_exempt, cleaned_series, df_year["(百万)原币"] * rate)
+                    
+                    # 如果是被豁免的行，强行把汇率和单位说明改掉
+                    df_year.loc[is_exempt, "汇率"] = "豁免换算(绝对值项)"
+                    
                     final_cols = ["公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
                     actual_cols = [c for c in final_cols if c in df_year.columns]
                     combined_list.append(df_year[actual_cols])
 
             if combined_list:
                 final_all_df = pd.concat(combined_list, ignore_index=True)
-                
-                # 🟢 存入 session_state 供 Step 6 自动读取
                 st.session_state['integrated_data'] = final_all_df
                 
                 st.success(f"✅ 集成与换算完毕！共处理 {len(found_companies)} 家公司，生成 {len(final_all_df)} 条对标数据。")
-                
-                # 展示预览
                 st.dataframe(final_all_df, use_container_width=True)
 
-                # 下载集成后的表
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     final_all_df.to_excel(writer, index=False, sheet_name='行业集成分析表')
                 
                 st.download_button(
-                    label="📥 下载行业集成对标表 (长表格式)",
+                    label="📥 下载行业集成目标表 (长表格式)",
                     data=output.getvalue(),
-                    file_name="行业集成目标表.xlsx",
+                    file_name="行业集成目标数据表.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
             else:
                 st.error("未能从上传的文件中提取到有效数据，请检查列名是否包含 2024/2025等年份。")
-
-
 
 # ─────────── KPMG 官方色卡 ───────────
 KPMG_CATEGORIES = {
