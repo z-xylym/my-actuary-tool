@@ -1453,7 +1453,9 @@ with tab5:
                     df_year["(百万)原币"] = np.where(is_exempt, cleaned_series, cleaned_series * unit_mult)
                     df_year["(百万)人民币"] = np.where(is_exempt, cleaned_series, df_year["(百万)原币"] * rate)
                     
-                    # 如果是被豁免的行，强行把汇率和单位说明改掉
+                    # 🔧 降级类型限制：把“汇率”列转为 object，使其可以同时容纳数字和文本
+                    df_year["汇率"] = df_year["汇率"].astype(object)
+                    # 如果是被豁免的行，强行把汇率说明改掉，方便底稿溯源
                     df_year.loc[is_exempt, "汇率"] = "豁免换算(绝对值项)"
                     
                     final_cols = ["公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
