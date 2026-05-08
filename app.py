@@ -1,3 +1,10 @@
+#左下角搜索并打开 Anaconda Prompt（那个黑框框）。
+#输入 D: 并按回车。
+#输入 cd D:\桌面备份\毕马威实习\网页实现 并按回车。
+#输入 streamlit run app.py 并按回车。
+
+
+
 import pdfplumber
 import fitz  # PyMuPDF
 import json
@@ -1335,8 +1342,8 @@ with tab4:
 with tab5:
     col_title, col_btn = st.columns([4, 1])
     with col_title:
-        st.subheader("⛓️‍💥 多公司数据集成与汇率转换")
-    st.info("功能说明：支持上传单文件多Sheet或多文件。系统将自动提取所有公司，请在下方为不同公司配置对应的汇率。")
+        st.subheader("⛓️‍💥 多公司数据集成与汇率/单位转换")
+    st.info("功能说明：支持上传单文件多Sheet或多文件。系统将自动提取所有公司，请在下方为不同公司配置对应的汇率和原始表格的单位。")
 
     # 1. 多文件上传
     uploaded_files = st.file_uploader("请上传已完成勾稽检查的底稿 (支持多文件或单文件多Sheet)", type="xlsx", accept_multiple_files=True)
@@ -1369,16 +1376,32 @@ with tab5:
                     "source": f"{file.name} - {sheet_name}"
                 })
 
-        # 2. 动态汇率配置区
-        st.markdown("#### 💵 汇率配置盘")
-        st.caption("请为每家公司设置相对于人民币的汇率（如港币填 0.91，人民币填 1.0）")
+        # 2. 动态汇率与单位配置区
+        st.markdown("#### 💵 汇率与数值单位配置盘")
+        st.caption("目标表统一要求以【百万元人民币】展示。请根据原始底稿设置：1.兑人民币汇率 2.原始底稿的金额单位。")
         
         rate_config = {}
-        # 创建一个多列布局来放汇率输入框
+        unit_config = {}
+        
+        # 🌟 定义原始单位转换为“百万元”的乘法系数
+        unit_multipliers = {
+            "原表为: 百万元 (无需转换)": 1.0,
+            "原表为: 元 (÷ 1,000,000)": 0.000001,
+            "原表为: 千元 (÷ 1,000)": 0.001,
+            "原表为: 亿元 (× 100)": 100.0,
+            "原表为: 十亿元 (× 1,000)": 1000.0
+        }
+        
+        # 创建一个多列布局来放输入框
         rate_cols = st.columns(3) 
         for i, comp in enumerate(sorted(list(found_companies))):
             with rate_cols[i % 3]:
-                rate_config[comp] = st.number_input(f"汇率: {comp}", value=1.0, step=0.0001, format="%.4f", key=f"rate_{comp}")
+                # 使用 container 包装一下让视觉更紧凑
+                with st.container(border=True):
+                    st.markdown(f"**🏢 {comp}**")
+                    rate_config[comp] = st.number_input(f"汇率 (相对于RMB)", value=1.0, step=0.0001, format="%.4f", key=f"rate_{comp}")
+                    unit_choice = st.selectbox(f"原表数值单位", list(unit_multipliers.keys()), key=f"unit_{comp}")
+                    unit_config[comp] = unit_multipliers[unit_choice]
 
         # 3. 执行合并逻辑
         if st.button("🚀 开始集成并换算数据", type="primary", use_container_width=True):
@@ -1388,6 +1411,7 @@ with tab5:
                 df_single = item["df"]
                 comp_name = item["comp"]
                 rate = rate_config[comp_name]
+                unit_mult = unit_config[comp_name] # 🌟 获取该公司的单位转换系数
                 
                 # 识别年份列 (兼容 y24, y25 或包含 2024, 2025 的列)
                 c_24 = next((c for c in df_single.columns if '24' in str(c)), None)
@@ -1418,8 +1442,8 @@ with tab5:
                     df_year["报告年份"] = year_label
                     df_year["汇率"] = rate
                     
-                    # 金额计算
-                    df_year["(百万)原币"] = df_year[col_name].apply(clean_to_float)
+                    # 🌟 金额计算：先乘以单位系数化为百万元，再乘以汇率化为人民币
+                    df_year["(百万)原币"] = df_year[col_name].apply(clean_to_float) * unit_mult
                     df_year["(百万)人民币"] = df_year["(百万)原币"] * rate
                     
                     # 仅保留核心展示列
@@ -1430,10 +1454,10 @@ with tab5:
             if combined_list:
                 final_all_df = pd.concat(combined_list, ignore_index=True)
                 
-                # 🟢 就在这里！把合并好的数据存入 session_state 供 Step 6 自动读取
+                # 🟢 存入 session_state 供 Step 6 自动读取
                 st.session_state['integrated_data'] = final_all_df
                 
-                st.success(f"✅ 集成完毕！共处理 {len(found_companies)} 家公司，生成 {len(final_all_df)} 条对标数据。")
+                st.success(f"✅ 集成与换算完毕！共处理 {len(found_companies)} 家公司，生成 {len(final_all_df)} 条对标数据。")
                 
                 # 展示预览
                 st.dataframe(final_all_df, use_container_width=True)
@@ -1446,14 +1470,12 @@ with tab5:
                 st.download_button(
                     label="📥 下载行业集成对标表 (长表格式)",
                     data=output.getvalue(),
-                    file_name="行业集成对标分析表.xlsx",
+                    file_name="行业集成目标表.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
             else:
                 st.error("未能从上传的文件中提取到有效数据，请检查列名是否包含 2024/2025等年份。")
-
-
 
 
 
