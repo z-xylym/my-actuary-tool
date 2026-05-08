@@ -1,4 +1,3 @@
-#左下角搜索并打开 Anaconda Prompt（那个黑框框）。
 import pdfplumber
 import fitz  # PyMuPDF
 import json
@@ -15,6 +14,49 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
+
+
+# 1. 先定义这个大名单（全局变量）
+DEFAULT_COMPANIES = [
+    {"类别": "上市", "公司": "中国人寿", "类型": "寿险", "链接地址": "https://www.chinalife.com.cn/chinalife/xxpl/gkxxpl/ndxx/"},
+    {"类别": "上市", "公司": "平安寿险", "类型": "寿险", "链接地址": "https://life.pingan.com/p/#/list-page?disclosureChannel=iLifeInfoDisclosure&disclosureName=%E5%B9%B4%E5%BA%A6%E4%BF%A1%E6%81%AF&disclosureId=200c389bb2d2463c8e90dbcfb7965bb2"},
+    {"类别": "上市", "公司": "太保寿险", "类型": "寿险", "链接地址": "https://www.cpic.com.cn/xrsbx/gkxxpl/ndxx/?subMenu=2&inSub=1"},
+    {"类别": "上市", "公司": "泰康人寿", "类型": "寿险", "链接地址": "https://www.taikanglife.com/publicinfonew/annualinfonew/list_402_1.html"},
+    {"类别": "上市", "公司": "新华人寿", "类型": "寿险", "链接地址": "https://www.newchinalife.com/node/398"},
+    {"类别": "上市", "公司": "太平人寿", "类型": "寿险", "链接地址": "https://life.cntaiping.com/info-ndxxpl/"},
+    {"类别": "上市", "公司": "人保寿险", "类型": "寿险", "链接地址": "https://www.picclife.com/picclifewebsite/webfile/ComprehensiveInformation/index.html"},
+    {"类别": "银保", "公司": "中邮人寿", "类型": "寿险", "链接地址": "https://www.chinapost-life.com/publish/publish2/"},
+    {"类别": "上市", "公司": "友邦人寿", "类型": "寿险", "链接地址": "https://www.aia.com.cn/zh-cn/gongkaixinxipilou/nianduxinxi"},
+    {"类别": "银保", "公司": "工银安盛", "类型": "寿险", "链接地址": "https://www.icbc-axa.com/public/public_year/public_year1/publicfirstindex.jsp"},
+    {"类别": "上市", "公司": "阳光人寿", "类型": "寿险", "链接地址": "https://www.sinosig.com/v/pilu?type=sx&tabIndex=10001_31"},
+    {"类别": "银保", "公司": "建信人寿", "类型": "寿险", "链接地址": "https://www.ccb-life.com.cn/html/6182/3230/index.html"},
+    {"类别": "银保", "公司": "中信保诚", "类型": "寿险", "链接地址": "https://www.citic-prudential.com.cn/annualinformation/list.html"},
+    {"类别": "银保", "公司": "农银人寿", "类型": "寿险", "链接地址": "https://www.abchinalife.com/xxpl/ndxx/index.shtml"},
+    {"类别": "银保", "公司": "招商信诺", "类型": "寿险", "链接地址": "https://www.cignacmb.com/xinxi/niandubaogao/ndxibg.html"},
+    {"类别": "", "公司": "中意人寿", "类型": "寿险", "链接地址": "https://www.generalichina.com/ndxx/"},
+    {"类别": "银保", "公司": "交银人寿", "类型": "寿险", "链接地址": "https://www.bocommlife.com/101843/index.html"},
+    {"类别": "养老健康", "公司": "人保健康", "类型": "健康", "链接地址": "https://www.picc.com.cn/xwzx/gkxx/ndxx/"},
+    {"类别": "银保", "公司": "中银三星", "类型": "寿险", "链接地址": "https://www.boc-samsunglife.cn/information?code=GW647"},
+    {"类别": "养老健康", "公司": "泰康养老", "类型": "养老", "链接地址": "https://www.tkpension.com/ndxx/"},
+    {"类别": "", "公司": "中英人寿", "类型": "寿险", "链接地址": "https://www.aviva-cofco.com.cn/website/xxzx/gkxxpl/ndxxpl/list-1.shtml"},
+    {"类别": "养老健康", "公司": "平安养老", "类型": "养老", "链接地址": "https://yl.pingan.com/branding/disclosure/annual-info"},
+    {"类别": "", "公司": "中荷人寿", "类型": "寿险", "链接地址": "https://www.bob-cardif.com/xinxipilu/nianduxinxi/index.html"},
+    {"类别": "养老健康", "公司": "恒安标准养老", "类型": "养老", "链接地址": "https://www.haslpension.com/henganyanglao/gkxxpl/ndxx/index.html"},
+    {"类别": "", "公司": "财信吉祥人寿", "类型": "寿险", "链接地址": "https://life.hnchasing.com/annual_info/annual_info_disclosure/"},
+    {"类别": "", "公司": "东吴人寿", "类型": "寿险", "链接地址": "https://www.soochowlife.net/cs/gkxxpl/ndxx/index.html"},
+    {"类别": "养老健康", "公司": "太平养老", "类型": "养老", "链接地址": "https://www.cntaiping.com/about-ndxx/"},
+    {"类别": "", "公司": "同方全球", "类型": "寿险", "链接地址": "https://www.aegonthtf.com/gkxxpl/ndxx/ndxx/"},
+    {"类别": "", "公司": "陆家嘴国泰", "类型": "寿险", "链接地址": "https://www.cathaylife.cn/ndxxplbg/index.html"},
+    {"类别": "养老健康", "公司": "平安健康", "类型": "健康", "链接地址": "https://health.pingan.com/P/pubInfoDisclosure?menuName=public_information_disclosure&tagId=9223372036854806087&menuId=4035225266123994694"},
+    {"类别": "", "公司": "复星保德信", "类型": "寿险", "链接地址": "https://www.pflife.com.cn/fbofficialweb/Annual?submenu=Annual"},
+    {"类别": "", "公司": "国富人寿", "类型": "寿险", "链接地址": "https://www.e-guofu.com/yearsInfo/index.html"},
+    {"类别": "", "公司": "瑞泰人寿", "类型": "寿险", "链接地址": "https://www.oldmutual-chnenergy.com/InfoPublish/anualReport/"},
+    {"类别": "", "公司": "东方嘉富人寿", "类型": "寿险", "链接地址": "https://www.sinokorealife.com.cn/ndxx.jhtml"},
+    {"类别": "养老健康", "公司": "太保健康", "类型": "健康", "链接地址": "https://www.cpic.com.cn/jkx/gkxxpl/ndxx/?subMenu=2&inSub=1"},
+    {"类别": "", "公司": "恒安标准", "类型": "寿险", "链接地址": "https://www.hengansl.com/hengan/gkxxpl/ndxx/index.html"}
+]
+
 
 # --- 全局配置：勾稽校验规则 ---
 # 说明：'check_type' 为 'cross' 表示跨年，'single' 表示年度内自校
@@ -40,7 +82,13 @@ DEFAULT_RULES = [
     {"规则名称": "16. 投资利润勾稽", "公式": "abs(curr['投资利润'] - (curr['净投资回报'] + curr['承保财务损益'] + curr['分出再保险财务损益'])) < 5", "类型": "single"},
     {"规则名称": "17. 净利润相等", "公式": "curr['净利润'] == curr['净利润']", "类型": "single"},
     {"规则名称": "18. 综合收益总额相等", "公式": "curr['综合收益总额'] == curr['综合收益总额']", "类型": "single"},
-    {"规则名称": "19. 费用分类一致性", "公式": "abs((curr['获取费用'] + curr['维持费用'] + curr['非履约费用']) - (curr['职工薪酬'] + curr['物业及设备支出'] + curr['业务投入及监管费用支出'] + curr['行政办公支出'] + curr['其他支出'])) < 10", "类型": "single"}
+    {"规则名称": "19. 费用分类一致性", "公式": "abs((curr['获取费用'] + curr['维持费用'] + curr['非履约费用']) - (curr['职工薪酬'] + curr['物业及设备支出'] + curr['业务投入及监管费用支出'] + curr['行政办公支出'] + curr['其他支出'])) < 10", "类型": "single"},
+    {"规则名称": "20. 期初保险合同负债总额", "公式": "abs(curr['期初保险合同负债总额'] - (curr['CSM期初余额'] + curr['BEL期初余额'] + curr['RA期初余额'])) < 1", "类型": "single"},
+    {"规则名称": "21. 期末保险合同负债总额", "公式": "abs(curr['期末保险合同负债总额'] - (curr['CSM期末余额'] + curr['BEL期末余额'] + curr['RA期末余额'])) < 1", "类型": "single"},
+    {"规则名称": "22. 非PAA期初余额合计", "公式": "abs(curr['非PAA期初余额合计'] - (curr['LRC非亏损部分期初余额（非PAA）'] + curr['LRC亏损部分期初余额（非PAA）'] + curr['LIC期初余额（非PAA）'])) < 1", "类型": "single"},
+    {"规则名称": "23. 非PAA期末余额合计", "公式": "abs(curr['非PAA期末余额合计'] - (curr['LRC非亏损部分期末余额（非PAA）'] + curr['LRC亏损部分期末余额（非PAA）'] + curr['LIC期末余额（非PAA）'])) < 1", "类型": "single"},
+    {"规则名称": "24. PAA期初余额合计", "公式": "abs(curr['PAA期初余额合计'] - (curr['LRC非亏损部分期初余额（PAA）'] + curr['LRC亏损部分期初余额（PAA）'] + curr['LIC期初BEL余额（PAA）'] + curr['LIC期初RA余额（PAA）'])) < 1", "类型": "single"},
+    {"规则名称": "25. PAA期末余额合计", "公式": "abs(curr['PAA期末余额合计'] - (curr['LRC非亏损部分期末余额（PAA）'] + curr['LRC亏损部分期末余额（PAA）'] + curr['LIC期末BEL余额（PAA）'] + curr['LIC期末RA余额（PAA）'])) < 1", "类型": "single"}
 ]
 # ==================== 1. 页面基础配置 (必须在最顶端且仅此一份) ====================
 st.set_page_config(
@@ -72,6 +120,78 @@ def get_report_unit(text):
     return None
 
 # ==================== 后台引擎：调用 DeepSeek 提取单页表格 ====================
+import base64
+
+# ==================== 新增后台引擎：调用 Vision VLM 提取图片表格 ====================
+def extract_single_page_vision(pdf_bytes, page_num, expected_name, api_key, base_url, model_name):
+    """将 PDF 转为高清图片，使用视觉大模型提取表格"""
+    try:
+        # 1. 内存中将 PDF 页面转为 Base64 高清图
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if page_num < 1 or page_num > len(doc):
+            return None, ""
+        page = doc.load_page(page_num - 1)
+        
+        # 放大 3倍截图，保证文字清晰
+        zoom_matrix = fitz.Matrix(3.0, 3.0) 
+        pix = page.get_pixmap(matrix=zoom_matrix, alpha=False)
+        img_data = pix.tobytes("png")
+        base64_image = base64.b64encode(img_data).decode('utf-8')
+        doc.close()
+
+        # 2. 设置读图的 Prompt
+        prompt = f"""你是一个四大会计师事务所的资深数字化审计专家。
+我为你提供了一张【保险公司年报的单页高清截图】，目标是精准提取：【{expected_name}】。
+表格中的【数字是由图片构成的】，请发挥强大的视觉识别能力，提取所有文字和表格。
+【强制要求】：
+1. 所有的科目名、数字金额之间，必须被 "|" 隔开。严禁使用连续空格。
+2. 精准对齐多级表头！如果有留白单元格，必须用 "|" 占位补齐！
+3. 绝不能漏掉任何一行数据，保留金额里的逗号和括号。
+4. 纯文本输出，不要使用 Markdown 代码块。不需要输出 SHEET_NAME 标签，直接排版。"""
+
+        # 3. 呼叫视觉大模型
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            temperature=0.0
+        )
+        
+        # 4. 解析结果
+        result_text = response.choices[0].message.content.strip()
+        result_text = re.sub(r'^```(csv|text)?\n?', '', result_text, flags=re.MULTILINE).replace("```", "").strip()
+        
+        lines = result_text.split('\n')
+        parsed_data = []
+        max_cols = 0
+        for row in lines:
+            clean_row = row.strip()
+            if not clean_row: continue
+            if re.match(r'^[\s\|-]+$', clean_row) and '-' in clean_row: continue
+            
+            if clean_row.startswith('|'): clean_row = clean_row[1:]
+            if clean_row.endswith('|'): clean_row = clean_row[:-1]
+            
+            cols = [col.strip() for col in clean_row.split('|')] if '|' in clean_row else [clean_row]
+            parsed_data.append(cols)
+            max_cols = max(max_cols, len(cols))
+            
+        for row in parsed_data:
+            if len(row) < max_cols:
+                row.extend([''] * (max_cols - len(row)))
+                
+        return pd.DataFrame(parsed_data), "【提示：该页已使用 OCR 视觉引擎处理，原文本为图片结构】"
+        
+    except Exception as e:
+        return None, f"图像处理失败: {str(e)}"
 def extract_single_page(pdf_bytes, page_num, expected_name, api_key):
     """使用 pdfplumber 提取文本，并用 LLM 转换为结构化数据"""
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -343,6 +463,36 @@ st.markdown("""
 
 # ==================== 侧边栏 ====================
 with st.sidebar:
+    # 使用分列布局，把“❓”变成一个小图标放在右上角
+    c_title, c_icon = st.columns([5, 1])
+    with c_icon:
+        with st.popover("❓"):
+            # 使用 HTML 美化框内排版，调小字体，加入主题色
+            st.markdown("""
+            <div style="font-size: 13px; color: #444; line-height: 1.6;">
+                <div style="color: #00338D; font-weight: bold; margin-bottom: 4px;">🔑 API Key 去哪找？</div>
+                • <b>DeepSeek:</b> 官方开放平台获取，用于大部分PDF的文本提取。<br>
+                • <b>Vision API:</b> 视觉模型（如智谱/通义等），用于处理图片和扫描件的PDF。<br>
+                <br>
+                <div style="color: #00338D; font-weight: bold; margin-bottom: 4px;">🔗 接口与模型参数</div>
+                • <b>Base URL:</b> 模型接口地址。官方保持默认，中转站填代理地址。<br>
+                • <b>模型名称:</b> 供应商代号（如 <code style="font-size:12px; color:#c7254e;">deepseek-chat</code>）。
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # 美化的免责声明提示框 (浅黄底色+左侧警示边框)
+            st.markdown("""
+            <div style="background-color: #FFF9E6; padding: 10px; border-radius: 5px; font-size: 12px; color: #856404; border-left: 4px solid #FFD966; margin-top: 15px;">
+                <b>⚠️ 温馨提示：</b><br>
+                由于大模型偶尔抽风，使用过程中出现bug可以多试几次，个别公司的目标表填充结果可能并不充分，最终数据核对方面<b>还是需要人工复核</b>。<br>
+                尤其注意<b>符号方向（正负号）</b>等问题。<br>
+                后续会不断改进，请期待~ ✨
+            </div>
+            """, unsafe_allow_html=True)
+    
+
+    # st.title("配置参数")
+    # api_key = st.text_input("DeepSeek API", ...)
     st.markdown("""
     <div class="sidebar-brand">
         <div class="logo-text">寿研数智</div>
@@ -357,6 +507,11 @@ with st.sidebar:
     else:
         st.success("欢迎回来~")
     st.divider()
+    st.markdown("#### 📸 (仅用于处理图片PDF)")
+    st.caption("提示：推荐使用阿里的 qwen-vl-max 或 gpt-4o")
+    vision_api_key = st.text_input("Vision API Key", type="password", placeholder="sk-...", key="vision_key")
+    vision_base_url = st.text_input("Vision Base URL", value="https://dashscope.aliyuncs.com/compatible-mode/v1", key="vision_url")
+    vision_model = st.text_input("模型名称 (Model)", value="qwen-vl-max", key="vision_model")
     st.markdown("""
     <div style="font-size:12px; color:#64748B; line-height:2.2; letter-spacing:1px;">
     系统版本：v2.0 (Alpha)<br>
@@ -365,7 +520,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ==================== 主界面 ====================
-st.title("📊 寿研数智・年报处理平台")
+st.title("寿研数智・年报处理平台")
 
 # 创建包含 Step 0 的全新导航栏
 tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -378,84 +533,128 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     " 📊 Step 6 ／ 可视化分析 "
 ])
 
-# ─────────── Step 0：官网监控雷达 ───────────
+# ─────────── Step 0：年报更新监控 ───────────
 with tab0:
-    st.markdown("### 🌐 全网年报监控雷达")
-    st.markdown("""
+    st.markdown("### 🌐 寿险公司官网年报监控")
+    
+    # 1. 年份选择器
+    col_t0_1, _ = st.columns([1, 2])
+    with col_t0_1:
+        target_year = st.number_input("📅 请选择监控年份", min_value=2010, max_value=2050, value=2025, step=1)
+    
+    st.markdown(f"""
     <div class="info-card green">
         <h4>功能说明</h4>
-        <p>上传包含保险公司官网链接的 Excel，系统将自动扫描各个网站，帮你检测最新年份的年报是否已经发布。<b>（避免每天人工刷网页）</b></p>
+        <p>系统将自动扫描下列 36 家险企官网，检测网页中是否出现 <b>{target_year}</b> 字样。您可以<b>双击下方表格修改网址</b>。检测到后请点击链接手动下载 PDF 并前往 Step 1。</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    col_t0_1, col_t0_2 = st.columns([1, 2])
-    with col_t0_1:
-        target_year = st.number_input("请输入监控年份", min_value=2010, max_value=2050, value=2023, step=1)
-    
-    with col_t0_2:
-        company_file = st.file_uploader("上传公司链接清单 (Excel)", type=["xlsx"])
 
-    if company_file and st.button("🔍 开始全网扫描 (约需几十秒)", use_container_width=True):
-        df_links = pd.read_excel(company_file)
-        if '公司' not in df_links.columns or '链接地址' not in df_links.columns:
-            st.error("Excel中必须包含名为 '公司' 和 '链接地址' 的两列！")
+    # 2. 将预设数据加载到 Session State
+    if 'company_df' not in st.session_state:
+        # 使用之前提供的 36 家公司 DEFAULT_COMPANIES 列表
+        st.session_state.company_df = pd.DataFrame(DEFAULT_COMPANIES)
+    
+    # 3. 交互式数据表 (可直接修改网址)
+    st.markdown("#### 🏢 监控目标名单 (双击下方链接可修改)")
+    edited_df = st.data_editor(
+        st.session_state.company_df,
+        column_config={
+            "链接地址": st.column_config.TextColumn("🌐 网页链接地址 (支持双击编辑)", max_chars=1000, width="large"),
+            "类别": st.column_config.TextColumn(disabled=True),
+            "公司": st.column_config.TextColumn(disabled=True),
+            "类型": st.column_config.TextColumn(disabled=True),
+        },
+        use_container_width=True,
+        hide_index=True,
+        key="company_data_editor_step0"
+    )
+    st.session_state.company_df = edited_df
+
+    st.markdown("---")
+    
+    # 4. 扫描按钮逻辑
+    col_btn1, col_btn2 = st.columns([1, 1])
+    
+    with col_btn1:
+        target_company = st.selectbox("🎯 单家快速检索：", options=edited_df['公司'].tolist())
+        single_scan = st.button(f"🔍 检索【{target_company}】", use_container_width=True)
+    
+    with col_btn2:
+        st.write("") # 对齐
+        batch_scan = st.button("🚀 启动全网 36 家批量扫描", type="primary", use_container_width=True)
+
+    # 5. 执行扫描逻辑 (通用函数)
+    if single_scan or batch_scan:
+        # 确定要扫描的任务列表
+        if single_scan:
+            tasks = edited_df[edited_df['公司'] == target_company].to_dict('records')
         else:
-            results = []
-            progress_text = "正在扫描全网年报..."
-            my_bar = st.progress(0, text=progress_text)
-            total_companies = len(df_links)
+            tasks = edited_df.to_dict('records')
             
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 100.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
+        results = []
+        my_bar = st.progress(0, text="准备启动扫描...")
+        total_tasks = len(tasks)
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
 
-            for index, row in df_links.iterrows():
-                company_name = row['公司']
-                url = str(row['链接地址'])
-                my_bar.progress((index + 1) / total_companies, text=f"正在扫描: {company_name}")
-                
-                status = "🔴 似乎未更新 / 无法访问"
-                if url.endswith('.pdf'):
-                    status = "⚠️ 直接PDF链接 (需手动核实)"
-                elif "http" in url:
-                    try:
-                        response = requests.get(url, headers=headers, timeout=5)
-                        response.encoding = response.apparent_encoding 
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        page_text = soup.get_text()
-                        
-                        if str(target_year) in page_text:
-                            status = "🟢 极可能已更新!"
-                    except Exception as e:
-                        status = "🟡 网站拦截了扫描，需手动查看"
-                else:
-                    status = "无效链接"
-                
-                results.append({
-                    "公司名称": company_name,
-                    "监控状态": status,
-                    "直达链接": url
-                })
-                time.sleep(0.5) 
-                
-            my_bar.empty()
-            df_result = pd.DataFrame(results)
-            st.data_editor(
-                df_result,
-                column_config={"直达链接": st.column_config.LinkColumn("点击前往下载")},
-                hide_index=True,
-                use_container_width=True
-            )
-            st.success("扫描完成！请留意标记为 🟢 的公司，并点击直达链接下载PDF，然后前往 Step 1。")
+        for index, row in enumerate(tasks):
+            company_name = row['公司']
+            url = str(row['链接地址'])
+            my_bar.progress((index + 1) / total_tasks, text=f"正在扫描 ({index+1}/{total_tasks}): {company_name}")
+            
+            status = "🔴 未更新 / 无法访问"
+            if url.lower().endswith('.pdf'):
+                status = "⚠️ 直接PDF链接 (需手动核实)"
+            elif "http" in url:
+                try:
+                    # 原有的爬虫逻辑开始
+                    response = requests.get(url, headers=headers, timeout=8)
+                    response.encoding = response.apparent_encoding 
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    page_text = soup.get_text()
+                    
+                    # 检查网页文本中是否包含用户输入的年份
+                    if str(target_year) in page_text:
+                        status = "🟢 极可能已更新!"
+                    # 原有的爬虫逻辑结束
+                except Exception as e:
+                    status = "🟡 网站拦截/超时，需手动查看"
+            else:
+                status = "无效链接"
+            
+            results.append({
+                "公司名称": company_name,
+                "监控状态": status,
+                "检测结果描述": f"网页中已检索到 {target_year} 字样" if "🟢" in status else "未发现关键字",
+                "直达链接": url
+            })
+            time.sleep(0.3) # 稍微提速
 
-
+        my_bar.empty()
+        st.success(f"🎉 {target_year}年度检测扫描完成！")
+        
+        # 6. 展示扫描结果
+        df_result = pd.DataFrame(results)
+        st.data_editor(
+            df_result,
+            column_config={
+                "直达链接": st.column_config.LinkColumn("点击前往网页"),
+                "监控状态": st.column_config.TextColumn("状态", width="medium")
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="scan_result_display"
+        )
+        st.info("💡 提示：请点击标记为 🟢 的公司链接下载 PDF，下载后请前往 [Step 1] 进行页码定位。")
 # ─────────── Step 1：智能页码检索 ───────────
 with tab1:
     st.markdown("### 📑 智能页码检索")
     uploaded_file = st.file_uploader(
         "拖拽或选择一份已经下载好的年报 PDF 文件",
         type="pdf",
-        help="推荐上传 2024/2025 年寿险公司完整年报"
+        help="推荐上传一份寿险公司的完整年报"
     )
 
     if uploaded_file:
@@ -576,76 +775,114 @@ with tab2:
     """, unsafe_allow_html=True)
     
     st.markdown("")
+
+    # === 🌟 新增：引擎选择开关 ===
+    st.markdown("#### PDF类型选择")
+    use_vision = st.toggle("📸 开启图片扫描模式 (适用于扫描版、纯图片PDF)", value=False)
+    st.markdown("---")
     
     if 'edited_pages' not in st.session_state or 'pdf_bytes' not in st.session_state:
         st.warning("⚠️ 请先在 Step 1 中上传文件并完成【页码确认】。")
         st.button("开始提取结构化数据", disabled=True, use_container_width=True)
-    elif not api_key:
-        st.error("⚠️ 请先在左侧输入 API Key。")
-        st.button("开始提取结构化数据", disabled=True, use_container_width=True)
     else:
-        valid_tasks = {k: v for k, v in st.session_state['edited_pages'].items() if v != [0]}
-        
-        if not valid_tasks:
-            st.warning("⚠️ 没有找到任何有效的页码，无需提取。")
+        # === 校验对应的 API Key 是否已填写 ===
+        can_run = True
+        if not use_vision and not api_key:
+            st.error("⚠️ 当前为文本模式：请先在左侧输入 DeepSeek API Key。")
+            can_run = False
+        if use_vision and not st.session_state.get('vision_key'):
+            st.error("⚠️ 当前为图片扫描模式：请先在左侧输入 Vision API Key。（如：千问、gpt)")
+            can_run = False
+
+        if not can_run:
+            st.button("开始提取结构化数据", disabled=True, use_container_width=True)
         else:
-            if st.button("🚀 开始极速提取", use_container_width=True):
-                extracted_sheets = {}
-                global_unit = "未能自动提取，需人工核对"
-                all_tasks = []
-                for table_name, pages in valid_tasks.items():
-                    for page_num in pages:
-                        all_tasks.append({"table": table_name, "page": page_num})
-                
-                total_pages_to_process = len(all_tasks)
-                pages_done = 0
-                
-                progress_bar = st.progress(0)
-                status_box = st.status(f"启用并发引擎，共分配了 {total_pages_to_process} 个子任务...", expanded=True)
-                temp_results = {table_name: {} for table_name in valid_tasks.keys()}
-                
-                with status_box:
-                    with ThreadPoolExecutor(max_workers=5) as executor:
-                        future_to_task = {
-                            executor.submit(extract_single_page, st.session_state['pdf_bytes'], task["page"], task["table"], api_key): task for task in all_tasks
-                        }
-                        
-                        for future in as_completed(future_to_task):
-                            task = future_to_task[future]
-                            t_name = task["table"]
-                            p_num = task["page"]
-                            try:
-                                df, raw_text = future.result()
-                                if df is not None and not df.empty:
-                                    temp_results[t_name][p_num] = df
-                                    st.write(f"✅ [{t_name}] - 第 {p_num} 页提取完成！")
-                                    if global_unit == "未能自动提取，需人工核对":
-                                        unit = get_report_unit(raw_text)
-                                        if unit:
-                                            global_unit = unit
-                                            st.write(f"&nbsp;&nbsp;&nbsp;&nbsp;🔎 识别到该公司报表单位：【{global_unit}】")
-                                else:
-                                    st.write(f"⚠️ [{t_name}] - 第 {p_num} 页未提取到有效数据。")
-                            except Exception as e:
-                                st.error(f"❌ [{t_name}] - 第 {p_num} 页提取失败: {str(e)}")
-                                
-                            pages_done += 1
-                            progress_bar.progress(pages_done / total_pages_to_process)
-                
-                for table_name, pages in valid_tasks.items():
-                    table_dfs = []
-                    for p_num in pages: 
-                        if p_num in temp_results[table_name]:
-                            table_dfs.append(temp_results[table_name][p_num])
+            valid_tasks = {k: v for k, v in st.session_state['edited_pages'].items() if v != [0]}
+            
+            if not valid_tasks:
+                st.warning("⚠️ 没有找到任何有效的页码，无需提取。")
+            else:
+                if st.button("🚀 开始极速提取", use_container_width=True):
+                    extracted_sheets = {}
+                    global_unit = "未能自动提取，需人工核对"
+                    all_tasks = []
+                    for table_name, pages in valid_tasks.items():
+                        for page_num in pages:
+                            all_tasks.append({"table": table_name, "page": page_num})
                     
-                    if table_dfs:
-                        merged_df = pd.concat(table_dfs, ignore_index=True)
-                        safe_sheet_name = re.sub(r'[\\/*?:\[\]]', '', table_name)[:30]
-                        extracted_sheets[safe_sheet_name] = merged_df
+                    total_pages_to_process = len(all_tasks)
+                    pages_done = 0
+                    
+                    progress_bar = st.progress(0)
+                    status_box = st.status(f"启用并发引擎，共分配了 {total_pages_to_process} 个子任务...", expanded=True)
+                    temp_results = {table_name: {} for table_name in valid_tasks.keys()}
+                    
+                    with status_box:
+                        # 💡 核心优化：视觉模型并发太高容易被限流，设定为2；普通文本设为5
+                        workers = 2 if use_vision else 5 
+                        
+                        with ThreadPoolExecutor(max_workers=workers) as executor:
+                            future_to_task = {}
                             
-                status_box.update(label="🎉 所有任务提取完成！", state="complete", expanded=False)
-                st.session_state['extracted_data'] = extracted_sheets
-                st.session_state['global_unit'] = global_unit
+                            for task in all_tasks:
+                                # 👇 核心分流逻辑：根据开关决定派发哪个函数 👇
+                                if use_vision:
+                                    future = executor.submit(
+                                        extract_single_page_vision, 
+                                        st.session_state['pdf_bytes'], 
+                                        task["page"], 
+                                        task["table"], 
+                                        st.session_state.vision_key,
+                                        st.session_state.vision_url,
+                                        st.session_state.vision_model
+                                    )
+                                else:
+                                    future = executor.submit(
+                                        extract_single_page, 
+                                        st.session_state['pdf_bytes'], 
+                                        task["page"], 
+                                        task["table"], 
+                                        api_key
+                                    )
+                                future_to_task[future] = task
+                            
+                            for future in as_completed(future_to_task):
+                                task = future_to_task[future]
+                                t_name = task["table"]
+                                p_num = task["page"]
+                                try:
+                                    df, raw_text = future.result()
+                                    if df is not None and not df.empty:
+                                        temp_results[t_name][p_num] = df
+                                        st.write(f"✅ [{t_name}] - 第 {p_num} 页提取完成！")
+                                        if global_unit == "未能自动提取，需人工核对":
+                                            unit = get_report_unit(raw_text)
+                                            if unit:
+                                                global_unit = unit
+                                                st.write(f"&nbsp;&nbsp;&nbsp;&nbsp;🔎 识别到该公司报表单位：【{global_unit}】")
+                                    else:
+                                        st.write(f"⚠️ [{t_name}] - 第 {p_num} 页未提取到有效数据。")
+                                except Exception as e:
+                                    st.error(f"❌ [{t_name}] - 第 {p_num} 页提取失败: {str(e)}")
+                                    
+                                pages_done += 1
+                                progress_bar.progress(pages_done / total_pages_to_process)
+                    
+                    # 拼接和导出的代码保持不变
+                    for table_name, pages in valid_tasks.items():
+                        table_dfs = []
+                        for p_num in pages: 
+                            if p_num in temp_results[table_name]:
+                                table_dfs.append(temp_results[table_name][p_num])
+                        
+                        if table_dfs:
+                            merged_df = pd.concat(table_dfs, ignore_index=True)
+                            safe_sheet_name = re.sub(r'[\\/*?:\[\]]', '', table_name)[:30]
+                            extracted_sheets[safe_sheet_name] = merged_df
+                                
+                    status_box.update(label="🎉 所有任务提取完成！", state="complete", expanded=False)
+                    st.session_state['extracted_data'] = extracted_sheets
+                    st.session_state['global_unit'] = global_unit
 
     if 'extracted_data' in st.session_state:
         st.markdown("---")
@@ -680,8 +917,6 @@ with tab2:
             for i, tab in enumerate(tabs):
                 with tab:
                     st.dataframe(extracted_data[sheet_names[i]], use_container_width=True)
-
-
 # ─────────── Step 3：目标表标准填报 ───────────
 with tab3:
     st.markdown("### 📝 目标表标准填报")
@@ -724,7 +959,7 @@ with tab3:
                         SYSTEM_PROMPT = """你是一个资深的寿险精算审计专家。任务：将 PDF 提取的财务明细精准填入目标底稿，并严格区分 2024 和 2025 年度。
 
 【通用执行准则：绝对原样提取】
-1. ⚠️ 绝对指令：除了下述特殊的“业务及管理费”加总需求外，所有指标必须【原封不动地照抄】原文里的文本！
+1. ⚠️ 绝对指令：除了下述特殊的加总需求外，所有指标必须【原封不动地照抄】原文里的文本！
    - 必须保留括号（表示负数）、逗号、正负号。例如原文是 "(295,992.00)"，必须输出为 "(295,992.00)"。
    - 严禁擅自删除符号、严禁自行进行四舍五入。
 2. 别名匹配：若标准名找不到，请查看“别名参考”列，或利用你的精算知识寻找同义词。
@@ -742,7 +977,25 @@ with tab3:
    - 【业务投入及监管】：加总 宣传费, 招待费, 保障基金, 监管费, 服务费, 咨询审计费。
    - 【行政办公】：加总 差旅费, 办公费, 邮电印刷, 会议费等。
 
-【输出格式】
+【特殊指令：保险合同负债新准则科目映射（最高寻址优先级）】
+为了防止名称混淆，当提取以下指标时，【必须严格锁定对应的表名】，并应用精算缩写翻译规则：
+1. 锁定表名：[表名: 保险合同-未采用保费分配法按计量组成部分分析 (原保险)]
+   - 映射字典：BEL = 未来现金流量现值；RA = 非金融风险调整；总额 = 合计。
+   - 目标字段限定：当遇到【BEL期初余额、BEL期末余额、RA期初余额、RA期末余额、期初保险合同负债总额、期末保险合同负债总额】时，仅在此表中寻址取数。
+
+2. 锁定表名：[表名: 保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)]
+   - 映射字典：LRC = 未到期责任负债；LIC = 已发生赔款负债。
+   - 目标字段限定：当遇到任何带有【（非PAA）】后缀的字段（如LRC非亏损部分期初余额（非PAA）、LIC期末余额（非PAA）、非PAA期末余额合计等）时，仅在此表中寻址。
+
+3. 锁定表名：[表名: 保险合同-PAA按未到期责任负债和已发生赔款负债分析 (原保险)]
+   - 映射字典：LRC = 未到期责任负债；LIC = 已发生赔款负债。
+   - 目标字段限定：当遇到任何带有【（PAA）】后缀的字段（如LRC非亏损部分期初余额（PAA）、LIC期初BEL余额（PAA）、PAA期初余额合计等）时，仅在此表中寻址。
+4.【时间维度与排版防反转绝对指令（适用任意年份）】
+中国企业财报的标准排版规则是：【左边的数据列为当期（最新年份），右边的数据列为上期（历史年份）】。
+- 当填报要求中包含“较晚/最新年份”（如当期/本年/年末）的键时：必须从原表表头的“本期”、“本年”、“年末”或【最左侧的数据列】取数。
+- 当填报要求中包含“较早/历史年份”（如上期/上年/年初）的键时：必须从原表表头的“上期”、“上年”、“年初”或【紧挨着它的右侧数据列】取数。
+⚠️ 警告：大语言模型极易犯“线性思维”错误（误以为小年份排在左边，大年份排在右边）。要求你必须打破定势，仔细核对表头！永远记住：左边的列才是最新当期！
+例如：若输出键包含 y24 和 y25，则 y25 (最新年) 取报表左侧当期列，y24 (历史年) 取报表右侧上期列。
 仅输出合法的 JSON 格式，严禁带有任何 Markdown 标记或文字说明。
 格式示例：{"字段名": {"y24": "(1,234.0) + 500.0", "y25": "9,876.54"}}"""
                         st.write("🚀 正在呼叫 DeepSeek 进行语义映射与精准取数...")
@@ -1079,204 +1332,343 @@ with tab4:
         st.info("💡 提取结果将在此处显示。请先在上方点击“开始提取”按钮。")
         
 # ─────────── Step 5 多公司合并目标表 ───────────
-
 with tab5:
     st.header("📊 多公司数据集成与汇率转换")
-    st.info("功能说明：上传多家公司已核查完的“勾稽复核底稿”，系统将自动进行年度拆分、汇率换算并合并为可画图的行业对标长表。")
+    st.info("功能说明：支持上传单文件多Sheet或多文件。系统将自动提取所有公司，请在下方为不同公司配置对应的汇率。")
 
-    # 1. 汇率设置区
-    col_rate1, col_rate2 = st.columns(2)
-    with col_rate1:
-        rate_24 = st.number_input("💵 2024年汇率 (1外币=?人民币)", value=1.0, step=0.0001, format="%.4f")
-    with col_rate2:
-        rate_25 = st.number_input("💵 2025年汇率 (1外币=?人民币)", value=1.0, step=0.0001, format="%.4f")
-
-    # 2. 多文件上传
-    uploaded_files = st.file_uploader("请上传多家公司的勾稽底稿 (可多选)", type="xlsx", accept_multiple_files=True)
+    # 1. 多文件上传
+    uploaded_files = st.file_uploader("请上传已完成勾稽检查的底稿 (支持多文件或单文件多Sheet)", type="xlsx", accept_multiple_files=True)
 
     if uploaded_files:
-        combined_list = []
-        
+        # 第一步：初步扫描所有文件中的所有 Sheet，确定有哪些公司
+        all_temp_data = [] # 存储 (文件名, Sheet名, df)
+        found_companies = set()
+
         for file in uploaded_files:
-            # 读取第一个 Sheet (数据明细)
-            df_single = pd.read_excel(file, sheet_name=0)
-            
-            # 识别列名 (兼容你之前的定义)
-            c_24 = next((c for c in df_single.columns if '2024' in str(c)), None)
-            c_25 = next((c for c in df_single.columns if '2025' in str(c)), None)
-            
-            if not c_24 or not c_25:
-                st.error(f"文件 {file.name} 格式不正确，找不到年份列。")
-                continue
+            # 获取该 Excel 的所有 Sheet 名称
+            xl = pd.ExcelFile(file)
+            for sheet_name in xl.sheet_names:
+                df_raw = pd.read_excel(file, sheet_name=sheet_name)
+                # 尝试从“公司”列获取公司名，如果没这一列，就用 Sheet 名作为公司名
+                current_company = ""
+                if "公司" in df_raw.columns and not df_raw["公司"].empty:
+                    current_company = str(df_raw["公司"].iloc[0])
+                else:
+                    current_company = sheet_name
+                
+                # 过滤掉一些明显的系统 Sheet (如 基本信息_单位)
+                if "基本信息" in current_company or "Sheet" in current_company:
+                    continue
+                
+                found_companies.add(current_company)
+                all_temp_data.append({
+                    "comp": current_company,
+                    "df": df_raw,
+                    "source": f"{file.name} - {sheet_name}"
+                })
 
-            # 基础列
-            base_cols = ["公司", "类别", "字段名", "字段类型"]
-            existing_base = [c for c in base_cols if c in df_single.columns]
+        # 2. 动态汇率配置区
+        st.markdown("#### 💵 汇率配置盘")
+        st.caption("请为每家公司设置相对于人民币的汇率（如港币填 0.91，人民币填 1.0）")
+        
+        rate_config = {}
+        # 创建一个多列布局来放汇率输入框
+        rate_cols = st.columns(3) 
+        for i, comp in enumerate(sorted(list(found_companies))):
+            with rate_cols[i % 3]:
+                rate_config[comp] = st.number_input(f"汇率: {comp}", value=1.0, step=0.0001, format="%.4f", key=f"rate_{comp}")
 
-            # 提取 2024 数据
-            df_24 = df_single[existing_base + [c_24]].copy()
-            df_24["报告年份"] = "2024"
-            df_24["汇率"] = rate_24
-            df_24 = df_24.rename(columns={c_24: "原币金额"})
+        # 3. 执行合并逻辑
+        if st.button("🚀 开始集成并换算数据", type="primary", use_container_width=True):
+            combined_list = []
             
-            # 提取 2025 数据
-            df_25 = df_single[existing_base + [c_25]].copy()
-            df_25["报告年份"] = "2025"
-            df_25["汇率"] = rate_25
-            df_25 = df_25.rename(columns={c_25: "原币金额"})
+            for item in all_temp_data:
+                df_single = item["df"]
+                comp_name = item["comp"]
+                rate = rate_config[comp_name]
+                
+                # 识别年份列 (兼容 y24, y25 或包含 2024, 2025 的列)
+                c_24 = next((c for c in df_single.columns if '24' in str(c)), None)
+                c_25 = next((c for c in df_single.columns if '25' in str(c)), None)
+                
+                if not c_24 or not c_25:
+                    continue # 跳过不规范的 Sheet
 
-            # 合并当年两载数据
-            df_merged = pd.concat([df_24, df_25], ignore_index=True)
-            
-            # 计算本币金额 (处理可能的清洗逻辑)
-            def clean_to_float(val):
-                try:
-                    if isinstance(val, str):
-                        val = val.replace(',','').replace('(','-').replace(')','')
-                    return float(val)
-                except: return 0.0
+                # 提取基础信息
+                base_cols = ["公司", "类别", "字段名", "字段类型"]
+                existing_base = [c for c in base_cols if c in df_single.columns]
 
-            df_merged["(百万)原币"] = df_merged["原币金额"].apply(clean_to_float)
-            df_merged["(百万)人民币"] = df_merged["(百万)原币"] * df_merged["汇率"]
-            
-            combined_list.append(df_merged)
+                # 数据清洗函数
+                def clean_to_float(val):
+                    try:
+                        if isinstance(val, (int, float)): return float(val)
+                        if isinstance(val, str):
+                            val = val.replace(',','').replace('(','-').replace(')','').strip()
+                            if val == '-' or val == '': return 0.0
+                            return float(val)
+                        return 0.0
+                    except: return 0.0
 
-        if combined_list:
-            final_all_df = pd.concat(combined_list, ignore_index=True)
-            
-            # 调整列顺序对齐图二
-            final_cols = ["公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
-            # 只取存在的列
-            actual_cols = [c for c in final_cols if c in final_all_df.columns]
-            final_all_df = final_all_df[actual_cols]
+                # 拆分 2024 和 2025 为长表格式
+                for year_label, col_name in [("2024", c_24), ("2025", c_25)]:
+                    df_year = df_single[existing_base + [col_name]].copy()
+                    df_year["公司"] = comp_name # 强制统一公司名
+                    df_year["报告年份"] = year_label
+                    df_year["汇率"] = rate
+                    
+                    # 金额计算
+                    df_year["(百万)原币"] = df_year[col_name].apply(clean_to_float)
+                    df_year["(百万)人民币"] = df_year["(百万)原币"] * rate
+                    
+                    # 仅保留核心展示列
+                    final_cols = ["公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
+                    actual_cols = [c for c in final_cols if c in df_year.columns]
+                    combined_list.append(df_year[actual_cols])
 
-            st.success(f"✅ 已成功合并 {len(uploaded_files)} 家公司数据！")
-            
-            # 展示预览
-            st.dataframe(final_all_df, use_container_width=True)
+            if combined_list:
+                final_all_df = pd.concat(combined_list, ignore_index=True)
+                
+                # 🟢 就在这里！把合并好的数据存入 session_state 供 Step 6 自动读取
+                st.session_state['integrated_data'] = final_all_df
+                
+                st.success(f"✅ 集成完毕！共处理 {len(found_companies)} 家公司，生成 {len(final_all_df)} 条对标数据。")
+                
+                # 展示预览
+                st.dataframe(final_all_df, use_container_width=True)
 
-            # 下载集成后的表
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                final_all_df.to_excel(writer, index=False, sheet_name='行业集成分析表')
-                # 可以在这里给数值列加格式...
-            
-            st.download_button(
-                label="📥 下载行业集成对标表 (长表格式)",
-                data=output.getvalue(),
-                file_name="行业集成对标分析表.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary"
-            )
-# ─────────── Step 6 可视化 ───────────
-# KPMG 官方色卡 (RGB 转换为 Hex 方便 Plotly 使用)
-KPMG_COLORS = {
-    "KPMG Blue": "#00338D",      # (0, 51, 141)
-    "Cobalt Blue": "#1E49E2",    # (30, 73, 226)
-    "Dark Blue": "#0C233C",      # (12, 35, 60)
-    "Light Blue": "#ACEAFF",     # (172, 234, 255)
-    "Pacific Blue": "#00B8F5",   # (0, 184, 245)
-    "Purple": "#7213EA",         # (114, 19, 234)
-    "Pink": "#FD349C",           # (253, 52, 156)
-    "Grey 1": "#333333",
-    "Grey 2": "#666666",
-    "Light Green": "#63EBB2"
+                # 下载集成后的表
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    final_all_df.to_excel(writer, index=False, sheet_name='行业集成分析表')
+                
+                st.download_button(
+                    label="📥 下载行业集成对标表 (长表格式)",
+                    data=output.getvalue(),
+                    file_name="行业集成对标分析表.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            else:
+                st.error("未能从上传的文件中提取到有效数据，请检查列名是否包含 2024/2025等年份。")
+
+
+
+
+
+# ─────────── KPMG 官方色卡 ───────────
+KPMG_CATEGORIES = {
+    "Primary Colors": {"KPMG Blue": "#00338D", "Cobalt Blue": "#1E49E2", "Dark Blue": "#0C233C", "Light Blue": "#ACEAFF", "Pacific Blue": "#00B8F5", "Purple": "#7213EA", "Pink": "#FD349C"},
+    "Accent Colors": {"Blue": "#76D2FF", "Dark Purple": "#510DBC", "Light Purple": "#B497FF", "Dark Pink": "#AB0D82", "Light Pink": "#FFA3DA", "Dark Green": "#098E7E", "Green": "#00C0AE", "Light Green": "#63EBB2"},
+    "Traffic Light": {"Red": "#ED2124", "Amber": "#F1C44D", "Positive Green": "#269924"}
 }
-# 定义用于图表的颜色序列
-COLOR_SEQUENCE = [KPMG_COLORS["KPMG Blue"], KPMG_COLORS["Pacific Blue"], KPMG_COLORS["Cobalt Blue"], 
-                  KPMG_COLORS["Pink"], KPMG_COLORS["Purple"], KPMG_COLORS["Light Green"]]
-
+DEFAULT_COLORS = list(KPMG_CATEGORIES["Primary Colors"].values()) + list(KPMG_CATEGORIES["Accent Colors"].values())
 
 with tab6:
-    st.markdown("### 📊 年报可视化分析")
+    st.markdown("### 📊 专业可视化分析面板")
     
-    viz_file = st.file_uploader("上传已填写的标准目标表 (Excel)", type=["xlsx"], key="viz_uploader")
-    
-    if viz_file:
-        df_viz = pd.read_excel(viz_file)
-        # 🟢 解决 2024.5 问题的关键：强制转为字符串且去掉小数点
-        df_viz['报告年份'] = df_viz['报告年份'].astype(str).str.replace('.0', '', regex=False)
-        
-        # 1. 基础配置
-        all_companies = df_viz['公司'].unique().tolist()
-        all_fields = df_viz['字段名'].unique().tolist()
-        val_col = '(百万)元人民币' if '(百万)元人民币' in df_viz.columns else df_viz.columns[-1]
-
-        # 2. 交互控制区
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            selected_cos = st.multiselect("🏗️ 选择对比公司", all_companies, default=all_companies[:3])
-            selected_field = st.selectbox("🎯 选择分析指标", all_fields, index=0)
-            
-            # 🟢 让领导可以修改代码的开关
-            show_editor = st.checkbox("🛠️ 开启代码编辑器 (高级模式)")
-
-        # 准备绘图数据
-        filtered_df = df_viz[(df_viz['公司'].isin(selected_cos)) & (df_viz['字段名'] == selected_field)]
-
-        # 3. 默认绘图脚本（作为初始代码）
-        default_code = f"""# 你可以修改这里的代码来调整图表呈现
-fig = px.bar(
-    filtered_df, 
-    x="公司", 
-    y="{val_col}", 
-    color="报告年份", 
-    barmode="group",
-    text_auto='.2s',
-    title=f"{{selected_field}} 年度对比",
-    color_discrete_sequence=["#00338D", "#00B8F5"] # KPMG Blue, Pacific Blue
-)
-
-fig.update_layout(
-    font_family="Microsoft YaHei",
-    plot_bgcolor="rgba(0,0,0,0)",
-    xaxis_type='category' # 🟢 强制 X 轴为分类，解决 2024.5 问题
-)
-"""
-
-        # 4. 代码编辑沙盒
-        if show_editor:
-            st.info("💡 你可以直接在下方修改代码，变量名为 `filtered_df`。修改后点击下方‘运行代码’。")
-            user_code = st.text_area("可视化代码编辑器", value=default_code, height=300)
-        else:
-            user_code = default_code
-
-        # 5. 执行代码并渲染
-        if st.button("🚀 运行/刷新图表", use_container_width=True) or not show_editor:
-            try:
-                # 环境准备：将变量传递给 exec 内部
-                local_vars = {
-                    'px': px, 'go': go, 'filtered_df': filtered_df, 
-                    'selected_field': selected_field, 'KPMG_COLORS': KPMG_COLORS
-                }
-                # 运行用户编写的代码
-                exec(user_code, {}, local_vars)
-                
-                # 获取执行后的 fig 对象
-                if 'fig' in local_vars:
-                    st.plotly_chart(local_vars['fig'], use_container_width=True)
-                else:
-                    st.error("代码中未定义 `fig` 变量！请确保代码最后生成了 fig 对象。")
-                    
-            except Exception as e:
-                st.error(f"代码运行出错: {e}")
-
-        # 6. 辅助饼图（修复之前的 NameError）
-        if not show_editor:
-            st.divider()
-            st.markdown("#### 其他预设维度")
-            # 修正后的饼图逻辑
-            pie_fig = px.pie(
-                filtered_df[filtered_df['报告年份'] == filtered_df['报告年份'].max()], 
-                values=val_col, names="公司", 
-                title=f"最新年份 {selected_field} 市场份额分布",
-                color_discrete_sequence=px.colors.qualitative.Prism
-            )
-            st.plotly_chart(pie_fig, use_container_width=True)
-
+    if 'integrated_data' not in st.session_state: st.session_state['integrated_data'] = None
+    source_choice = st.radio("数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"], horizontal=True)
+    df_raw = None
+    if source_choice == "上传集成表 Excel":
+        viz_file = st.file_uploader("上传行业集成目标表", type=["xlsx"])
+        if viz_file: df_raw = pd.read_excel(viz_file)
     else:
-        st.info("请先上传目标表 Excel 以开启可视化。")
+        df_raw = st.session_state.get('integrated_data')
 
+    if df_raw is not None:
+        # 数据清洗与透视
+        df_clean = df_raw.copy()
+        df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
+        val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
+        
+        # 建立透视表
+        df_pivot = df_clean.groupby(['公司', '报告年份', '字段名'])[val_col].sum().unstack('字段名').reset_index()
+        all_fields = sorted(list(df_clean['字段名'].unique()))
+
+        with st.expander("🎨 查看 KPMG 官方色卡"):
+            for k, v in KPMG_CATEGORIES.items():
+                st.markdown(f"**{k}**")
+                html_str = "".join([f'<div style="display:inline-block; margin-right:15px; margin-bottom:8px;"><div style="width:14px; height:14px; background-color:{c}; display:inline-block; border-radius:3px; vertical-align:middle; border:1px solid #ddd;"></div><span style="font-size:13px; vertical-align:middle;"> {n} <b>({c})</b></span></div>' for n, c in v.items()])
+                st.markdown(html_str, unsafe_allow_html=True)
+
+        st.divider()
+        
+        # --- B. 交互控制区 ---
+        with st.expander("🛠️ 核心配置面板", expanded=True):
+            r1c1, r1c2, r1c3 = st.columns([1.5, 1, 1])
+            
+            with r1c1:
+                chart_type = st.selectbox("📈 1. 图表类型", ["簇状柱状图", "堆积柱状图", "折线对比图", "饼图", "内外环结构对比图"])
+                
+                if "环" in chart_type or chart_type == "饼图":
+                    calc_mode = "结构分析"
+                    selected_multi_fields = st.multiselect("🎯 选择构成指标", all_fields, default=all_fields[:min(3, len(all_fields))])
+                    selected_cos = st.selectbox("🏗️ 选择展示公司", sorted(df_pivot['公司'].unique().tolist()))
+                    plot_df_base = df_clean[df_clean['字段名'].isin(selected_multi_fields) & (df_clean['公司'] == selected_cos)].copy()
+                    plot_df_base = plot_df_base.rename(columns={val_col: 'final_val'})
+                else:
+                    calc_mode = st.radio("数据模式", ["单指标直显", "自定义公式运算"], horizontal=True)
+                    if calc_mode == "单指标直显":
+                        target_field = st.selectbox("🎯 选择显示指标", all_fields)
+                        plot_df_base = df_pivot[['公司', '报告年份', target_field]].rename(columns={target_field: 'final_val'}).fillna(0)
+                    else:
+                        v1, v2 = st.columns(2)
+                        var_a = v1.selectbox("变量 A", all_fields, index=0)
+                        var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields)>1 else 0)
+                        formula_input = st.text_input("✏️ 自定义公式 (使用 A 和 B)", value="A - B")
+                        
+                        # 🌟 修复后的公式引擎
+                        try:
+                            A_data = df_pivot[var_a].fillna(0)
+                            B_data = df_pivot[var_b].fillna(0) if var_b != "无" else 0
+                            
+                            # 使用更安全的 pandas 内置 eval 或计算逻辑
+                            # 将公式中的 A 和 B 替换为对应的数据列
+                            res = pd.eval(formula_input, local_dict={'A': A_data, 'B': B_data})
+                            df_pivot['final_val'] = res
+                            df_pivot['final_val'] = df_pivot['final_val'].replace([np.inf, -np.inf], 0).fillna(0)
+                            plot_df_base = df_pivot[['公司', '报告年份', 'final_val']].copy()
+                        except Exception as e:
+                            st.error(f"公式无效: {e}")
+                            plot_df_base = pd.DataFrame(columns=['公司', '报告年份', 'final_val'])
+
+                    selected_cos = st.multiselect("🏗️ 选择对比公司", sorted(df_pivot['公司'].unique().tolist()), default=sorted(df_pivot['公司'].unique().tolist())[:min(2, len(df_pivot['公司'].unique()))])
+
+            with r1c2:
+                x_axis_mode = st.radio("🔍 布局视角", ["以公司为横轴", "以年份为横轴"]) if "环" not in chart_type else "结构视角"
+                decimals = st.number_input("🔢 小数位数", min_value=0, max_value=4, value=0)
+                show_value = st.toggle("✅ 显示数据标签", value=True)
+                
+            with r1c3:
+                # 🌟 十亿元回归
+                unit_options = {"原始数值": 1.0, "亿元": 0.01, "十亿元": 0.001, "百分比(%)": 100.0}
+                selected_unit = st.selectbox("📏 数值单位换算", list(unit_options.keys()))
+                multiplier = unit_options[selected_unit]
+                y_axis_title = st.text_input("📝 Y轴顶部单位说明", value=f"单位: {selected_unit.split(' ')[0]}")
+                is_transparent = st.toggle("🌈 开启透明背景模式")
+                show_avg = st.checkbox("平均值线 (仅柱状图)") if "柱" in chart_type else False
+                avg_color = st.color_picker("基准线颜色", value="#ED2124") if show_avg else "#ED2124"
+
+        # --- C. 重命名与颜色配置 (横向) ---
+        if not plot_df_base.empty:
+            if calc_mode == "结构分析":
+                plot_df = plot_df_base.copy()
+                color_val = "字段名"
+            else:
+                plot_df = plot_df_base[plot_df_base['公司'].isin(selected_cos)].copy()
+                color_val = "报告年份" if x_axis_mode == "以公司为横轴" else "公司"
+
+            plot_df['绘制金额'] = plot_df['final_val'] * multiplier
+            
+            st.markdown("#### 🎨 自定义图例标签与颜色")
+            unique_items = sorted(plot_df[color_val].unique().tolist())
+            rename_map = {}
+            color_map = {}
+            
+            # 🌟 横向排列配置
+            c_cols = st.columns(4)
+            for i, item in enumerate(unique_items):
+                with c_cols[i % 4]:
+                    st.caption(f"原始值: {item}")
+                    new_label = st.text_input(f"显示名称", value=str(item), key=f"rename_{item}")
+                    new_color = st.color_picker(f"选择颜色", value=DEFAULT_COLORS[i % len(DEFAULT_COLORS)], key=f"color_{item}")
+                    rename_map[item] = new_label
+                    color_map[new_label] = new_color
+            
+            plot_df[color_val] = plot_df[color_val].map(rename_map)
+
+            # --- D. 绘图引擎 ---
+            fig = go.Figure()
+            fmt = f'.{decimals}f'
+            suffix = "%" if selected_unit == "百分比(%)" else ""
+            label_fmt = f'%{{y:{fmt}}}{suffix}'
+
+            if "柱状图" in chart_type:
+                barmode = 'group' if "簇状" in chart_type else 'relative'
+                for item in rename_map.values():
+                    d = plot_df[plot_df[color_val] == item]
+                    fig.add_trace(go.Bar(
+                        x=d["公司" if color_val=="报告年份" else "报告年份"], 
+                        y=d["绘制金额"], 
+                        name=str(item), 
+                        marker_color=color_map[item],
+                        text=d["绘制金额"] if show_value else None,
+                        texttemplate=label_fmt if show_value else None,
+                        textposition='outside', # 强制在外面
+                        textangle=0             # 强制横向
+                    ))
+                fig.update_layout(barmode=barmode)
+
+            elif "折线对比图" in chart_type:
+                for item in rename_map.values():
+                    d = plot_df[plot_df[color_val] == item]
+                    fig.add_trace(go.Scatter(
+                        x=d["公司" if color_val=="报告年份" else "报告年份"], 
+                        y=d["绘制金额"], 
+                        name=str(item), 
+                        mode='lines+markers+text' if show_value else 'lines+markers',
+                        marker_color=color_map[item],
+                        text=d["绘制金额"],
+                        texttemplate=label_fmt,
+                        textposition="top center"
+                    ))
+
+            elif chart_type == "饼图":
+                latest = plot_df['报告年份'].max()
+                d = plot_df[plot_df['报告年份'] == latest]
+                fig = px.pie(d, values='绘制金额', names=color_val, hole=0.4, color=color_val, color_discrete_map=color_map)
+                fig.update_traces(textinfo='percent+label' if show_value else 'percent')
+
+            elif chart_type == "内外环结构对比图":
+                years = sorted(plot_df['报告年份'].unique().tolist())
+                if len(years) < 2: 
+                    st.warning("环形图对比需要至少两年的数据。")
+                else:
+                    # 外环 (最新)
+                    d_outer = plot_df[plot_df['报告年份'] == years[-1]]
+                    fig.add_trace(go.Pie(labels=d_outer[color_val], values=d_outer['绘制金额'], hole=0.7, name=years[-1], 
+                                         marker=dict(colors=[color_map[f] for f in d_outer[color_val]]),
+                                         textinfo='percent+label' if show_value else 'percent'))
+                    # 内环 (较早)
+                    d_inner = plot_df[plot_df['报告年份'] == years[0]]
+                    fig.add_trace(go.Pie(labels=d_inner[color_val], values=d_inner['绘制金额'], hole=0.4, name=years[0],
+                                         domain={'x': [0.15, 0.85], 'y': [0.15, 0.85]}, 
+                                         marker=dict(colors=[color_map[f] for f in d_inner[color_val]]),
+                                         textinfo='percent' if show_value else 'none'))
+                    fig.update_layout(annotations=[dict(text=f'内:{years[0]}<br>外:{years[-1]}', x=0.5, y=0.5, font_size=12, showarrow=False)])
+
+            # --- E. 样式统一修缮 ---
+            bg_color = "rgba(0,0,0,0)" if is_transparent else "white"
+            if show_avg and "柱" in chart_type:
+                avg_v = plot_df['绘制金额'].mean()
+                fig.add_hline(y=avg_v, line_dash="dash", line_color=avg_color, 
+                              annotation_text=f"平均: {avg_v:{fmt}}{suffix}",
+                              annotation_font=dict(color=avg_color))
+
+            fig.update_layout(
+                font_family="Microsoft YaHei",
+                plot_bgcolor=bg_color,
+                paper_bgcolor=bg_color,
+                margin=dict(t=120, l=10, r=10, b=20), # 顶部留白增加，彻底防止遮挡
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                annotations=[dict(
+                    x=0, y=1.18, # 单位说明位置优化
+                    xref='paper', yref='paper',
+                    text=f"<b>{y_axis_title}</b>",
+                    showarrow=False,
+                    font=dict(size=14, color="#333"),
+                    xanchor='left'
+                )]
+            )
+            fig.update_xaxes(showgrid=False)
+            fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            with st.expander("📄 查看底层数据明细"):
+                st.dataframe(plot_df, use_container_width=True)
+    else:
+        st.info("💡 请先完成数据集成或上传目标底稿。")
 # ==================== 页脚 ====================
 st.markdown("""
 <div style="text-align: center; color: #94A3B8; font-size: 13px; letter-spacing: 1px; margin-top: 50px; padding: 20px; border-top: 1px solid #CBD5E1;">
