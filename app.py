@@ -34,27 +34,27 @@ DEFAULT_COMPANIES = [
     {"类别": "银保", "公司": "中信保诚", "类型": "寿险", "链接地址": "https://www.citic-prudential.com.cn/annualinformation/list.html"},
     {"类别": "银保", "公司": "农银人寿", "类型": "寿险", "链接地址": "https://www.abchinalife.com/xxpl/ndxx/index.shtml"},
     {"类别": "银保", "公司": "招商信诺", "类型": "寿险", "链接地址": "https://www.cignacmb.com/xinxi/niandubaogao/ndxibg.html"},
-    {"类别": "", "公司": "中意人寿", "类型": "寿险", "链接地址": "https://www.generalichina.com/ndxx/"},
+    {"类别": "外资", "公司": "中意人寿", "类型": "寿险", "链接地址": "https://www.generalichina.com/ndxx/"},
     {"类别": "银保", "公司": "交银人寿", "类型": "寿险", "链接地址": "https://www.bocommlife.com/101843/index.html"},
     {"类别": "养老健康", "公司": "人保健康", "类型": "健康", "链接地址": "https://www.picc.com.cn/xwzx/gkxx/ndxx/"},
     {"类别": "银保", "公司": "中银三星", "类型": "寿险", "链接地址": "https://www.boc-samsunglife.cn/information?code=GW647"},
     {"类别": "养老健康", "公司": "泰康养老", "类型": "养老", "链接地址": "https://www.tkpension.com/ndxx/"},
-    {"类别": "", "公司": "中英人寿", "类型": "寿险", "链接地址": "https://www.aviva-cofco.com.cn/website/xxzx/gkxxpl/ndxxpl/list-1.shtml"},
+    {"类别": "外资", "公司": "中英人寿", "类型": "寿险", "链接地址": "https://www.aviva-cofco.com.cn/website/xxzx/gkxxpl/ndxxpl/list-1.shtml"},
     {"类别": "养老健康", "公司": "平安养老", "类型": "养老", "链接地址": "https://yl.pingan.com/branding/disclosure/annual-info"},
-    {"类别": "", "公司": "中荷人寿", "类型": "寿险", "链接地址": "https://www.bob-cardif.com/xinxipilu/nianduxinxi/index.html"},
+    {"类别": "外资", "公司": "中荷人寿", "类型": "寿险", "链接地址": "https://www.bob-cardif.com/xinxipilu/nianduxinxi/index.html"},
     {"类别": "养老健康", "公司": "恒安标准养老", "类型": "养老", "链接地址": "https://www.haslpension.com/henganyanglao/gkxxpl/ndxx/index.html"},
-    {"类别": "", "公司": "财信吉祥人寿", "类型": "寿险", "链接地址": "https://life.hnchasing.com/annual_info/annual_info_disclosure/"},
-    {"类别": "", "公司": "东吴人寿", "类型": "寿险", "链接地址": "https://www.soochowlife.net/cs/gkxxpl/ndxx/index.html"},
+    {"类别": "小型", "公司": "财信吉祥人寿", "类型": "寿险", "链接地址": "https://life.hnchasing.com/annual_info/annual_info_disclosure/"},
+    {"类别": "小型", "公司": "东吴人寿", "类型": "寿险", "链接地址": "https://www.soochowlife.net/cs/gkxxpl/ndxx/index.html"},
     {"类别": "养老健康", "公司": "太平养老", "类型": "养老", "链接地址": "https://www.cntaiping.com/about-ndxx/"},
-    {"类别": "", "公司": "同方全球", "类型": "寿险", "链接地址": "https://www.aegonthtf.com/gkxxpl/ndxx/ndxx/"},
-    {"类别": "", "公司": "陆家嘴国泰", "类型": "寿险", "链接地址": "https://www.cathaylife.cn/ndxxplbg/index.html"},
+    {"类别": "外资", "公司": "同方全球", "类型": "寿险", "链接地址": "https://www.aegonthtf.com/gkxxpl/ndxx/ndxx/"},
+    {"类别": "外资", "公司": "陆家嘴国泰", "类型": "寿险", "链接地址": "https://www.cathaylife.cn/ndxxplbg/index.html"},
     {"类别": "养老健康", "公司": "平安健康", "类型": "健康", "链接地址": "https://health.pingan.com/P/pubInfoDisclosure?menuName=public_information_disclosure&tagId=9223372036854806087&menuId=4035225266123994694"},
-    {"类别": "", "公司": "复星保德信", "类型": "寿险", "链接地址": "https://www.pflife.com.cn/fbofficialweb/Annual?submenu=Annual"},
-    {"类别": "", "公司": "国富人寿", "类型": "寿险", "链接地址": "https://www.e-guofu.com/yearsInfo/index.html"},
-    {"类别": "", "公司": "瑞泰人寿", "类型": "寿险", "链接地址": "https://www.oldmutual-chnenergy.com/InfoPublish/anualReport/"},
-    {"类别": "", "公司": "东方嘉富人寿", "类型": "寿险", "链接地址": "https://www.sinokorealife.com.cn/ndxx.jhtml"},
+    {"类别": "外资", "公司": "复星保德信", "类型": "寿险", "链接地址": "https://www.pflife.com.cn/fbofficialweb/Annual?submenu=Annual"},
+    {"类别": "小型", "公司": "国富人寿", "类型": "寿险", "链接地址": "https://www.e-guofu.com/yearsInfo/index.html"},
+    {"类别": "小型", "公司": "瑞泰人寿", "类型": "寿险", "链接地址": "https://www.oldmutual-chnenergy.com/InfoPublish/anualReport/"},
+    {"类别": "小型", "公司": "东方嘉富人寿", "类型": "寿险", "链接地址": "https://www.sinokorealife.com.cn/ndxx.jhtml"},
     {"类别": "养老健康", "公司": "太保健康", "类型": "健康", "链接地址": "https://www.cpic.com.cn/jkx/gkxxpl/ndxx/?subMenu=2&inSub=1"},
-    {"类别": "", "公司": "恒安标准", "类型": "寿险", "链接地址": "https://www.hengansl.com/hengan/gkxxpl/ndxx/index.html"}
+    {"类别": "外资", "公司": "恒安标准", "类型": "寿险", "链接地址": "https://www.hengansl.com/hengan/gkxxpl/ndxx/index.html"}
 ]
 
 
@@ -523,14 +523,15 @@ with st.sidebar:
 st.title("寿研数智・年报处理平台")
 
 # 创建包含 Step 0 的全新导航栏
-tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     " 🌐 Step 0 ／ 官网年报监控 ",
     " 📑 Step 1 ／ 智能页码检索 ",
     " ⚡ Step 2 ／ 表格智能转换 ",
     " 📝 Step 3 ／ 目标表标准填报 ",
     " 🔍 Step 4 ／ 数据勾稽检查 ",
     " ⛓️‍💥 Step 5 ／ 多公司数据合并",
-    " 📊 Step 6 ／ 可视化分析 "
+    " 📊 Step 6 ／ 可视化分析 ",
+    " 🖼️ Step 7 ／ 图片链接PPT "
 ])
 
 # ─────────── Step 0：年报更新监控 ───────────
@@ -697,7 +698,7 @@ with tab1:
                 elif not target_tables:
                     st.error("请至少选择一张报表。")
                 else:
-                    with st.spinner("AI 引擎运转中，正在识别跨页逻辑……"):
+                    with st.spinner("🌸 别着急，我正在努力识别您需要的表格，看看有没有跨页，请稍等一下呦~"):
                         try:
                             result = ai_find_pages(pdf_bytes, api_key, target_tables)
                             st.session_state['found_pages'] = result
@@ -803,86 +804,89 @@ with tab2:
                 st.warning("⚠️ 没有找到任何有效的页码，无需提取。")
             else:
                 if st.button("🚀 开始极速提取", use_container_width=True):
-                    extracted_sheets = {}
-                    global_unit = "未能自动提取，需人工核对"
-                    all_tasks = []
-                    for table_name, pages in valid_tasks.items():
-                        for page_num in pages:
-                            all_tasks.append({"table": table_name, "page": page_num})
-                    
-                    total_pages_to_process = len(all_tasks)
-                    pages_done = 0
-                    
-                    progress_bar = st.progress(0)
-                    status_box = st.status(f"启用并发引擎，共分配了 {total_pages_to_process} 个子任务...", expanded=True)
-                    temp_results = {table_name: {} for table_name in valid_tasks.keys()}
-                    
-                    with status_box:
-                        # 💡 核心优化：视觉模型并发太高容易被限流，设定为2；普通文本设为5
-                        workers = 2 if use_vision else 5 
+                    # 1. 补全了冒号 2. 下方所有代码整体向右缩进一步
+                    with st.spinner("☕ 趁现在喝口水吧，正在后台拼命打工中..."):
+                        extracted_sheets = {}
+                        global_unit = "未能自动提取，需人工核对"
+                        all_tasks = []
+                        for table_name, pages in valid_tasks.items():
+                            for page_num in pages:
+                                all_tasks.append({"table": table_name, "page": page_num})
                         
-                        with ThreadPoolExecutor(max_workers=workers) as executor:
-                            future_to_task = {}
-                            
-                            for task in all_tasks:
-                                # 👇 核心分流逻辑：根据开关决定派发哪个函数 👇
-                                if use_vision:
-                                    future = executor.submit(
-                                        extract_single_page_vision, 
-                                        st.session_state['pdf_bytes'], 
-                                        task["page"], 
-                                        task["table"], 
-                                        st.session_state.vision_key,
-                                        st.session_state.vision_url,
-                                        st.session_state.vision_model
-                                    )
-                                else:
-                                    future = executor.submit(
-                                        extract_single_page, 
-                                        st.session_state['pdf_bytes'], 
-                                        task["page"], 
-                                        task["table"], 
-                                        api_key
-                                    )
-                                future_to_task[future] = task
-                            
-                            for future in as_completed(future_to_task):
-                                task = future_to_task[future]
-                                t_name = task["table"]
-                                p_num = task["page"]
-                                try:
-                                    df, raw_text = future.result()
-                                    if df is not None and not df.empty:
-                                        temp_results[t_name][p_num] = df
-                                        st.write(f"✅ [{t_name}] - 第 {p_num} 页提取完成！")
-                                        if global_unit == "未能自动提取，需人工核对":
-                                            unit = get_report_unit(raw_text)
-                                            if unit:
-                                                global_unit = unit
-                                                st.write(f"&nbsp;&nbsp;&nbsp;&nbsp;🔎 识别到该公司报表单位：【{global_unit}】")
-                                    else:
-                                        st.write(f"⚠️ [{t_name}] - 第 {p_num} 页未提取到有效数据。")
-                                except Exception as e:
-                                    st.error(f"❌ [{t_name}] - 第 {p_num} 页提取失败: {str(e)}")
-                                    
-                                pages_done += 1
-                                progress_bar.progress(pages_done / total_pages_to_process)
-                    
-                    # 拼接和导出的代码保持不变
-                    for table_name, pages in valid_tasks.items():
-                        table_dfs = []
-                        for p_num in pages: 
-                            if p_num in temp_results[table_name]:
-                                table_dfs.append(temp_results[table_name][p_num])
+                        total_pages_to_process = len(all_tasks)
+                        pages_done = 0
                         
-                        if table_dfs:
-                            merged_df = pd.concat(table_dfs, ignore_index=True)
-                            safe_sheet_name = re.sub(r'[\\/*?:\[\]]', '', table_name)[:30]
-                            extracted_sheets[safe_sheet_name] = merged_df
+                        progress_bar = st.progress(0)
+                        status_box = st.status(f"启用并发引擎，共分配了 {total_pages_to_process} 个子任务...", expanded=True)
+                        temp_results = {table_name: {} for table_name in valid_tasks.keys()}
+                        
+                        with status_box:
+                            # 💡 核心优化：视觉模型并发太高容易被限流，设定为2；普通文本设为5
+                            workers = 2 if use_vision else 5 
+                            
+                            with ThreadPoolExecutor(max_workers=workers) as executor:
+                                future_to_task = {}
                                 
-                    status_box.update(label="🎉 所有任务提取完成！", state="complete", expanded=False)
-                    st.session_state['extracted_data'] = extracted_sheets
-                    st.session_state['global_unit'] = global_unit
+                                for task in all_tasks:
+                                    # 👇 核心分流逻辑：根据开关决定派发哪个函数 👇
+                                    if use_vision:
+                                        future = executor.submit(
+                                            extract_single_page_vision, 
+                                            st.session_state['pdf_bytes'], 
+                                            task["page"], 
+                                            task["table"], 
+                                            st.session_state.vision_key,
+                                            st.session_state.vision_url,
+                                            st.session_state.vision_model
+                                        )
+                                    else:
+                                        future = executor.submit(
+                                            extract_single_page, 
+                                            st.session_state['pdf_bytes'], 
+                                            task["page"], 
+                                            task["table"], 
+                                            api_key
+                                        )
+                                    future_to_task[future] = task
+                                
+                                for future in as_completed(future_to_task):
+                                    task = future_to_task[future]
+                                    t_name = task["table"]
+                                    p_num = task["page"]
+                                    try:
+                                        df, raw_text = future.result()
+                                        if df is not None and not df.empty:
+                                            temp_results[t_name][p_num] = df
+                                            st.write(f"✅ [{t_name}] - 第 {p_num} 页提取完成！")
+                                            if global_unit == "未能自动提取，需人工核对":
+                                                unit = get_report_unit(raw_text)
+                                                if unit:
+                                                    global_unit = unit
+                                                    st.write(f"&nbsp;&nbsp;&nbsp;&nbsp;🔎 识别到该公司报表单位：【{global_unit}】")
+                                        else:
+                                            st.write(f"⚠️ [{t_name}] - 第 {p_num} 页未提取到有效数据。")
+                                    except Exception as e:
+                                        st.error(f"❌ [{t_name}] - 第 {p_num} 页提取失败: {str(e)}")
+                                        
+                                    pages_done += 1
+                                    progress_bar.progress(pages_done / total_pages_to_process)
+                        
+                        # 拼接和导出的代码也需要在 spinner 内部执行
+                        for table_name, pages in valid_tasks.items():
+                            table_dfs = []
+                            for p_num in pages: 
+                                if p_num in temp_results[table_name]:
+                                    table_dfs.append(temp_results[table_name][p_num])
+                            
+                            if table_dfs:
+                                merged_df = pd.concat(table_dfs, ignore_index=True)
+                                safe_sheet_name = re.sub(r'[\\/*?:\[\]]', '', table_name)[:30]
+                                extracted_sheets[safe_sheet_name] = merged_df
+                                    
+                        status_box.update(label="🎉 所有任务提取完成！", state="complete", expanded=False)
+                        st.session_state['extracted_data'] = extracted_sheets
+                        st.session_state['global_unit'] = global_unit
+                    
 
     if 'extracted_data' in st.session_state:
         st.markdown("---")
@@ -919,6 +923,8 @@ with tab2:
                     st.dataframe(extracted_data[sheet_names[i]], use_container_width=True)
 # ─────────── Step 3：目标表标准填报 ───────────
 with tab3:
+    # 将大名单转化为 识别词 -> 类别 的字典，方便极速查询
+    COMPANY_TYPE_MAP = {item["公司"]: item["类别"] for item in DEFAULT_COMPANIES}
     st.markdown("### 📝 目标表标准填报")
     st.markdown("""
     <div class="info-card pink">
@@ -998,7 +1004,7 @@ with tab3:
 例如：若输出键包含 y24 和 y25，则 y25 (最新年) 取报表左侧当期列，y24 (历史年) 取报表右侧上期列。
 仅输出合法的 JSON 格式，严禁带有任何 Markdown 标记或文字说明。
 格式示例：{"字段名": {"y24": "(1,234.0) + 500.0", "y25": "9,876.54"}}"""
-                        st.write("🚀 正在呼叫 DeepSeek 进行语义映射与精准取数...")
+                        st.write("🚀 正在呼叫大模型进行语义映射与精准取数...")
                         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
                         try:
                             response = client.chat.completions.create(
@@ -1015,10 +1021,29 @@ with tab3:
                             st.write("✅ 数据映射成功！正在回填表格...")
                             
                             working_df = template_df.copy()
+                            # --- 🚀 新增：公司类型自动匹配逻辑 ---
                             raw_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
+                            # 提取公司简称，如 "新华保险"
                             company_short = re.sub(r'202\d年.*', '', raw_name).strip()
+                            
+                            # 匹配公司类型
+                            matched_type = "其他" # 默认值
+                            # 模糊匹配逻辑：遍历大名单，看识别出的名字是否包含在大名单里，或者大名单里的名字是否在识别名里
+                            for c_name, c_type in COMPANY_TYPE_MAP.items():
+                                # 比如 "新华保险" 和 "新华人寿"，只要前两个字对上通常就对了
+                                if c_name[:2] in company_short or company_short[:2] in c_name:
+                                    matched_type = c_type
+                                    break
+                            
+                            # 回填“公司”列
                             if COL_COMPANY in working_df.columns:
                                 working_df[COL_COMPANY] = company_short
+                            
+                            # 回填“公司类型”列（根据你的截图，第一列是“公司类型”）
+                            COL_CO_TYPE = "公司类型"
+                            if COL_CO_TYPE in working_df.columns:
+                                working_df[COL_CO_TYPE] = matched_type
+                            # ----------------------------------------
                                 
                             # --- 兼容“绝对原样”与“公式回放”的回填引擎 ---
                             for idx, row in working_df.iterrows():
@@ -1161,15 +1186,149 @@ with tab3:
 
 
 # ─────────── Step 4 分析与校验 ───────────
-
 with tab4:
-    col_title, col_btn = st.columns([4, 1])
+    # 🎨 注入自定义 CSS，强制缩小按钮和 Popover 的尺寸
+    st.markdown("""
+        <style>
+        /* 缩小 Popover 按钮 */
+        div[data-testid="stPopover"] > button {
+            padding: 2px 8px !important;
+            min-height: 26px !important;
+            height: 26px !important;
+            font-size: 12px !important;
+            background-color: #f8f9fa !important;
+            border: 1px solid #ddd !important;
+        }
+        /* 缩小并修正刷新按钮 */
+        div[data-testid="stColumn"] button[kind="secondary"] {
+            padding: 2px 10px !important; /* 左右间距稍微大一点点 */
+            height: 26px !important;
+            font-size: 12px !important;
+            white-space: nowrap !important; /* 强制文字不换行 */
+            min-width: 70px !important;    /* 保证按钮有最小宽度容纳 🔄刷新 */
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        /* 调整 subheader 间距 */
+        .stSubheader { margin-bottom: -10px !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # 1. 顶部工具栏布局
+    # 进一步调整比例，让后面三个组件极其靠拢
+    col_title, col_btn_refresh, col_manual_area = st.columns([5, 1.1, 1.8])
+    
     with col_title:
         st.subheader("🏁 精算数据勾稽关系检查")
-    with col_btn:
-        # 💡 增加一个手动刷新按钮，点击后会清空缓存重新运行本页逻辑
-        if st.button("🔄 重新执行检查", use_container_width=True):
+    
+    with col_btn_refresh:
+        if st.button("🔄 刷新", use_container_width=True):
             st.rerun() 
+
+    # --- 📖 核对重点与语音 (合二为一的区域) ---
+    with col_manual_area:
+        # 在这一个列里再分两个超微型列，实现“字标同行”
+        c1, c2 = st.columns([1, 0.4])
+        
+        # --- 📖 操作手册弹出框 ---
+        manual_content = """
+        精算数据人工核对指南
+        
+        1. 模板准备： 请将新华样例中的“人工校验”两列手动复制到当前需要核对的表格中。
+        2. 年度对齐： 重点检查 2024 年和 2025 年的数据是否有填反现象。
+        3. PAA 计算： 采用保费分配法保险业绩 = 保费分配法下的服务收入 - 服务费用。
+        4. 符号修正： 部分公司利润表营业支出披露为正，需人工对每一项添加负号（原本负号变正）。
+        5. 费用拆解： 业务及管理费中，职工薪酬等项有时需人工尝试加总核对，维持费用、获取费用应为正数，保证进出项总和相等。
+        6. 外部搜索： 折现率假设、非金融风险置信水平需手动在 PDF 中全文搜索并填入。
+        7. CSM 摊销： 1-20年合同服务边际摊销之和应等于 1。请查看“未来现金流现值、风险调整、CSM”页下方注释，或手动计算CSM摊销比例。
+        """
+
+        with c1:
+            with st.popover("🕶️核对指南", use_container_width=True):
+                # 💡 这里的 HTML 字符串必须紧贴左侧，或者确保没有多余的缩进空格
+                html_code = f"""
+<div style="font-family: 'Microsoft YaHei', sans-serif; padding: 5px;">
+    <h4 style="color: #1f4e79; margin: 0 0 10px 0; font-size: 1rem; border-bottom: 2px solid #e1e4e8; padding-bottom: 5px;">
+        精算数据人工核对指南
+    </h4>
+    <div style="line-height: 1.6; font-size: 0.85rem; color: #333;">
+        <p style="margin-bottom: 8px;">
+            <strong style="color: #d32f2f;">1. 模板准备：</strong> 
+            将新华样例的“人工校验”两列手动复制到核对表中。
+        </p>
+        <p style="margin-bottom: 8px;">
+            <strong style="color: #d32f2f;">2. 年度对齐：</strong> 
+            检查 <span style="background-color: #fff3cd; padding: 1px 3px;">2024</span> 和 <span style="background-color: #fff3cd; padding: 1px 3px;">2025</span> 数据是否有填反。
+        </p>
+        <p style="margin-bottom: 8px;">
+            <strong style="color: #d32f2f;">3. PAA 计算：</strong> 
+            采用保费分配法保险业绩 = 保费分配法下的服务收入 - 服务费用。
+        </p>
+        <p style="margin-bottom: 8px;">
+            <strong style="color: #d32f2f;">4. 符号修正：</strong> 
+            利润表营业支出里的项目如为正，需人工加负号（原本负号变正）。
+        </p>
+        <p style="margin-bottom: 8px;">
+            <strong style="color: #d32f2f;">5. 费用拆解：</strong> 
+            业管费分类需人工加总，维持费用和获取费用为正，确保进出项总和相等。
+        </p>
+        <p style="margin-bottom: 8px;">
+            <strong style="color: #d32f2f;">6. 外部搜索：</strong> 
+            折现率和置信水平需在 PDF 中全文搜索填入。
+        </p>
+        <p style="margin-bottom: 0;">
+            <strong style="color: #d32f2f;">7. CSM 摊销：</strong> 
+            1-20年摊销之和应等于 1。查看合同服务边际页下注释或手动计算摊销比例。
+        </p>
+    </div>
+</div>
+"""
+                # ⚠️ 关键点：unsafe_allow_html=True 必须有，且 html_code 前后不要有导致 Markdown 识别为代码块的空格
+                st.markdown(html_code, unsafe_allow_html=True)
+        with c2:
+            # 清洗语音文本
+            clean_voice_text = manual_content.replace('\n', '。').replace('**', '')
+            tts_html = f"""
+            <div style="display: flex; align-items: center; height: 26px;">
+                <button id="tts-btn" onclick="toggleSpeak()" style="
+                    border: 1px solid #ddd;
+                    background-color: #f8f9fa;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    width: 26px;
+                    height: 26px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                ">📢</button>
+            </div>
+            <script>
+            var msg = new SpeechSynthesisUtterance();
+            msg.text = "{clean_voice_text}";
+            msg.lang = 'zh-CN';
+            msg.rate = 1.2;
+            function toggleSpeak() {{
+                const btn = document.getElementById('tts-btn');
+                if (window.speechSynthesis.speaking) {{
+                    window.speechSynthesis.cancel();
+                    btn.style.backgroundColor = "#f8f9fa";
+                    btn.innerText = "📢";
+                }} else {{
+                    window.speechSynthesis.speak(msg);
+                    btn.style.backgroundColor = "#ffebeb"; 
+                    btn.innerText = "⏹";
+                    msg.onend = function() {{
+                        btn.style.backgroundColor = "#f8f9fa";
+                        btn.innerText = "📢";
+                    }};
+                }}
+            }}
+            </script>
+            """
+            st.components.v1.html(tts_html, height=30)
+
             
     if 'final_df' in st.session_state:
         df = st.session_state['final_df'].copy()
@@ -1492,7 +1651,7 @@ KPMG_CATEGORIES = {
 DEFAULT_COLORS = list(KPMG_CATEGORIES["Primary Colors"].values()) + list(KPMG_CATEGORIES["Accent Colors"].values())
 
 with tab6:
-    st.markdown("### 📊 专业可视化分析面板")
+    st.markdown("### 📊 可视化分析面板")
     
     if 'integrated_data' not in st.session_state: st.session_state['integrated_data'] = None
     source_choice = st.radio("数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"], horizontal=True)
@@ -1697,6 +1856,10 @@ with tab6:
                 st.dataframe(plot_df, use_container_width=True)
     else:
         st.info("💡 请先完成数据集成或上传目标底稿。")
+        
+# ─────────── Step 7 固定图的展示和PPTlink ───────────
+with tab7:
+    st.markdown("### 🖼️ PPTlink")
 # ==================== 页脚 ====================
 st.markdown("""
 <div style="text-align: center; color: #94A3B8; font-size: 13px; letter-spacing: 1px; margin-top: 50px; padding: 20px; border-top: 1px solid #CBD5E1;">
