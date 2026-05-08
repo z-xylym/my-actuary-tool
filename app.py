@@ -1333,7 +1333,9 @@ with tab4:
         
 # ─────────── Step 5 多公司合并目标表 ───────────
 with tab5:
-    st.header("📊 多公司数据集成与汇率转换")
+    col_title, col_btn = st.columns([4, 1])
+    with col_title:
+        st.subheader("⛓️‍💥 多公司数据集成与汇率转换")
     st.info("功能说明：支持上传单文件多Sheet或多文件。系统将自动提取所有公司，请在下方为不同公司配置对应的汇率。")
 
     # 1. 多文件上传
