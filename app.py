@@ -921,46 +921,94 @@ with tab2:
             for i, tab in enumerate(tabs):
                 with tab:
                     st.dataframe(extracted_data[sheet_names[i]], use_container_width=True)
+
 # ─────────── Step 3：目标表标准填报 ───────────
 with tab3:
-    # 将大名单转化为 识别词 -> 类别 的字典，方便极速查询
-    COMPANY_TYPE_MAP = {item["公司"]: item["类别"] for item in DEFAULT_COMPANIES}
     st.markdown("### 📝 目标表标准填报")
+    
+    # 1. 功能说明卡片
     st.markdown("""
     <div class="info-card pink">
         <h4>功能说明</h4>
-        <p>上传标准化底稿模板，AI 将自动寻找科目数据填充数值，并自动生成底稿 Excel 计算公式，减少 Copy-Paste 工作量。</p>
+        <p>AI 将自动寻找科目数据填充数值，生成 Excel 计算公式。支持内置模板或上传自定义模板。</p>
     </div>
     """, unsafe_allow_html=True)
+
+    # 2. 建立公司类型映射字典
+    COMPANY_TYPE_MAP = {item["公司"]: item["类别"] for item in DEFAULT_COMPANIES}
     
-    template_file = st.file_uploader("请上传目标表模板 (.xlsx)", type="xlsx", key="template_uploader")
+    # 3. 模板选择逻辑 (内置 vs 上传)
+    col_t1, col_t2 = st.columns([1, 1])
+    with col_t1:
+        use_default = st.toggle("使用系统默认模板", value=True, help="开启后将直接使用内置的 default_template.xlsx")
     
+    template_file = None
+    default_path = "default_template.xlsx" 
+
+    if use_default:
+        import os
+        if os.path.exists(default_path):
+            template_file = default_path
+            st.info(f"💡 当前正在使用：系统内置模板 ({default_path})")
+        else:
+            st.error("❌ 未找到默认模板文件，请切换为上传模式！")
+            use_default = False 
+
+    if not use_default:
+        # 这里只保留一个 file_uploader
+        template_file = st.file_uploader("上传自定义目标表模板 (.xlsx)", type="xlsx", key="unique_template_uploader")
+
+    # 4. 核心填报逻辑
     if template_file:
-        st.success(f"模板文件 {template_file.name} 已加载！")
-        
+        # 定义标准列名
         COL_COMPANY, COL_CATEGORY, COL_FIELD_NAME, COL_FIELD_TYPE, COL_NOTE, COL_RULE = "公司", "类别", "字段名", "字段类型", "注释", "计算规则"
-        
+        COL_CO_TYPE = "公司类型"
+
         if 'extracted_data' not in st.session_state:
             st.warning("⚠️ 尚未找到提取的数据，请先完成 Step 1 和 Step 2。")
         else:
             if st.button("✨ 启动智能填报与公式生成", use_container_width=True):
-                status_box = st.status("正在初始化填报引擎...", expanded=True)
+                # 使用你想要的友好等待语
+                status_box = st.status("🌸 抽空放松一下，我在努力，稍等一下啦~", expanded=True)
+                
                 with status_box:
                     st.write("📄 正在解析模板表结构...")
                     template_df = pd.read_excel(template_file)
+                    
+                    # 识别年份列
                     col_2024 = next((c for c in template_df.columns if '2024' in str(c)), None)
                     col_2025 = next((c for c in template_df.columns if '2025' in str(c)), None)
                     
                     if not col_2024 or not col_2025:
                         st.error("❌ 错误：模板中未找到包含 2024 或 2025 的列头！")
                     else:
+                        # --- 🚀 A. 公司名与公司类型自动匹配 ---
+                        raw_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
+                        company_short = re.sub(r'202\d年.*', '', raw_name).strip()
+                        
+                        # 模糊匹配公司类型
+                        matched_type = "其他"
+                        for c_name, c_type in COMPANY_TYPE_MAP.items():
+                            if c_name[:2] in company_short or company_short[:2] in c_name:
+                                matched_type = c_type
+                                break
+                        
+                        working_df = template_df.copy()
+                        if COL_COMPANY in working_df.columns:
+                            working_df[COL_COMPANY] = company_short
+                        if COL_CO_TYPE in working_df.columns:
+                            working_df[COL_CO_TYPE] = matched_type
+                        
+                        # --- B. 准备 AI 任务 ---
                         st.write("🎯 正在准备目标指标清单...")
-                        input_items = template_df[template_df[COL_FIELD_TYPE].astype(str).str.strip() == "输入"]
+                        input_items = working_df[working_df[COL_FIELD_TYPE].astype(str).str.strip() == "输入"]
                         ai_target_list = [{"类别": str(r.get(COL_CATEGORY, "")), "标准字段名": str(r.get(COL_FIELD_NAME, "")), "别名参考": str(r.get(COL_NOTE, "")) if pd.notna(r.get(COL_NOTE)) else ""} for _, r in input_items.drop_duplicates(subset=[COL_FIELD_NAME]).iterrows()]
                             
                         st.write("🧠 正在组装财务上下文供 AI 分析...")
                         extracted_data = st.session_state['extracted_data']
                         context_text = "".join([f"\n[表名: {name}]\n{df.to_csv(index=False, sep='|')}\n" for name, df in extracted_data.items()])
+                        
+
                             
                         SYSTEM_PROMPT = """你是一个资深的寿险精算审计专家。任务：将 PDF 提取的财务明细精准填入目标底稿，并严格区分 2024 和 2025 年度。
 
@@ -1175,7 +1223,7 @@ with tab3:
         company_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
         
         st.download_button(
-            label="⬇️ 下载已填报的审计底稿 (含公式)",
+            label="⬇️ 下载已填报的底稿 (含公式)",
             data=st.session_state['filled_excel'],
             file_name=f"{company_name}_自动填报表.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
