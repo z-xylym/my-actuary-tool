@@ -471,12 +471,12 @@ with st.sidebar:
     c_title, c_icon = st.columns([5, 1])
     with c_icon:
         with st.popover("❓"):
-            # 使用 HTML 美化框内排版，调小字体，加入主题色
+            # 使用 HTML 美化框内排版
             st.markdown("""
             <div style="font-size: 13px; color: #444; line-height: 1.6;">
                 <div style="color: #00338D; font-weight: bold; margin-bottom: 4px;">🔑 API Key 去哪找？</div>
                 • <b>DeepSeek:</b> 官方开放平台获取，用于大部分PDF的文本提取。<br>
-                • <b>Vision API:</b> 视觉模型（如智谱/通义等），用于处理图片和扫描件的PDF。<br>
+                • <b>Vision API:</b> 视觉模型（如千问/通义等），用于处理图片和扫描件的PDF。<br>
                 <br>
                 <div style="color: #00338D; font-weight: bold; margin-bottom: 4px;">🔗 接口与模型参数</div>
                 • <b>Base URL:</b> 模型接口地址。官方保持默认，中转站填代理地址。<br>
@@ -484,19 +484,27 @@ with st.sidebar:
             </div>
             """, unsafe_allow_html=True)
             
-            # 美化的免责声明提示框 (浅黄底色+左侧警示边框)
+            # 美化的免责声明提示框
             st.markdown("""
-            <div style="background-color: #FFF9E6; padding: 10px; border-radius: 5px; font-size: 12px; color: #856404; border-left: 4px solid #FFD966; margin-top: 15px;">
+            <div style="background-color: #FFF9E6; padding: 10px; border-radius: 5px; font-size: 12px; color: #856404; border-left: 4px solid #FFD966; margin-top: 15px; margin-bottom: 15px;">
                 <b>⚠️ 温馨提示：</b><br>
                 由于大模型偶尔抽风，使用过程中出现bug可以多试几次，个别公司的目标表填充结果可能并不充分，最终数据核对方面<b>还是需要人工复核</b>。<br>
-                尤其注意<b>符号方向（正负号）</b>等问题。<br>
                 后续会不断改进，请期待~ ✨
             </div>
             """, unsafe_allow_html=True)
-    
 
-    # st.title("配置参数")
-    # api_key = st.text_input("DeepSeek API", ...)
+            # ======== 👇 新增的视频播放区域 👇 ========
+            st.markdown("<div style='color: #00338D; font-weight: bold; font-size: 13px; margin-bottom: 5px;'>📺 网页使用教程</div>", unsafe_allow_html=True)
+            
+            try:
+                # ⚠️ 把下面引号里的内容，替换成你刚刚【右键复制的那个 Release 链接】！
+                video_url = "https://github.com/z-xylym/my-actuary-tool/releases/download/v2.0/-DIGILIFE.mp4"
+                
+                # st.video 可以直接读取网络上的 mp4 链接并播放
+                st.video(video_url)
+            except Exception as e:
+                st.caption("教程视频加载中...")
+
     st.markdown("""
     <div class="sidebar-brand">
         <div class="logo-text">寿研数智</div>
