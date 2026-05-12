@@ -1653,7 +1653,7 @@ with tab5:
                 if not c_24 or not c_25:
                     continue
 
-                base_cols = ["公司", "类别", "字段名", "字段类型"]
+                base_cols = ["公司类型", "公司", "类别", "字段名", "字段类型"]
                 existing_base = [c for c in base_cols if c in df_single.columns]
 
                 def clean_to_float(val):
@@ -1688,7 +1688,7 @@ with tab5:
                     # 如果是被豁免的行，强行把汇率说明改掉，方便底稿溯源
                     df_year.loc[is_exempt, "汇率"] = "豁免换算(绝对值项)"
                     
-                    final_cols = ["公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
+                    final_cols = ["公司类型","公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
                     actual_cols = [c for c in final_cols if c in df_year.columns]
                     combined_list.append(df_year[actual_cols])
 
@@ -1723,213 +1723,416 @@ DEFAULT_COLORS = list(KPMG_CATEGORIES["Primary Colors"].values()) + list(KPMG_CA
 
 with tab6:
     st.markdown("### 📊 可视化分析面板")
-    
-    if 'integrated_data' not in st.session_state: st.session_state['integrated_data'] = None
-    source_choice = st.radio("数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"], horizontal=True)
+
+    # ── 数据源 ──────────────────────────────────────────────────────────
+    if 'integrated_data' not in st.session_state:
+        st.session_state['integrated_data'] = None
+
+    source_choice = st.radio(
+        "数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"], horizontal=True
+    )
     df_raw = None
+
     if source_choice == "上传集成表 Excel":
         viz_file = st.file_uploader("上传行业集成目标表", type=["xlsx"])
-        if viz_file: 
+        if viz_file:
             df_raw = pd.read_excel(viz_file)
             st.session_state['integrated_data'] = df_raw
     else:
         df_raw = st.session_state.get('integrated_data')
 
-    if df_raw is not None:
-        df_clean = df_raw.copy()
+    if df_raw is None:
+        st.info("💡 请先完成数据集成或上传目标底稿。")
+        st.stop()
 
-        df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
-        val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
-        
-        # 建立透视表
-        df_pivot = df_clean.groupby(['公司', '报告年份', '字段名'])[val_col].sum().unstack('字段名').reset_index()
-        all_fields = sorted(list(df_clean['字段名'].unique()))
+    # ── 数据清洗 ─────────────────────────────────────────────────────────
+    df_clean = df_raw.copy()
+    df_clean.columns = (
+        df_clean.columns.astype(str)
+        .str.strip()
+        .str.replace('\n', '', regex=False)
+        .str.replace('\r', '', regex=False)
+        .str.replace('\ufeff', '', regex=False)
+    )
+    df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
+    val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
 
-        with st.expander("🎨 查看 KPMG 官方色卡"):
-            for k, v in KPMG_CATEGORIES.items():
-                st.markdown(f"**{k}**")
-                html_str = "".join([f'<div style="display:inline-block; margin-right:15px; margin-bottom:8px;"><div style="width:14px; height:14px; background-color:{c}; display:inline-block; border-radius:3px; vertical-align:middle; border:1px solid #ddd;"></div><span style="font-size:13px; vertical-align:middle;"> {n} <b>({c})</b></span></div>' for n, c in v.items()])
-                st.markdown(html_str, unsafe_allow_html=True)
+    # ── 去重 ─────────────────────────────────────────────────────────────
+    dedup_cols = ['公司', '报告年份', '字段名']
+    if '类别' in df_clean.columns:
+        dedup_cols.append('类别')
+    df_clean = df_clean.drop_duplicates(subset=dedup_cols, keep='first')
 
-        st.divider()
-        
-        # --- B. 交互控制区 ---
-        with st.expander("🛠️ 核心配置面板", expanded=True):
-            r1c1, r1c2, r1c3 = st.columns([1.5, 1, 1])
-            
-            with r1c1:
-                chart_type = st.selectbox("📈 1. 图表类型", ["簇状柱状图", "堆积柱状图", "折线对比图", "饼图", "内外环结构对比图"])
-                
-                if "环" in chart_type or chart_type == "饼图":
-                    calc_mode = "结构分析"
-                    selected_multi_fields = st.multiselect("🎯 选择构成指标", all_fields, default=all_fields[:min(3, len(all_fields))])
-                    selected_cos = st.selectbox("🏗️ 选择展示公司", sorted(df_pivot['公司'].unique().tolist()))
-                    plot_df_base = df_clean[df_clean['字段名'].isin(selected_multi_fields) & (df_clean['公司'] == selected_cos)].copy()
-                    plot_df_base = plot_df_base.rename(columns={val_col: 'final_val'})
+    # ── 透视表 ───────────────────────────────────────────────────────────
+    df_pivot = (
+        df_clean.groupby(['公司', '报告年份', '字段名'])[val_col]
+        .sum().unstack('字段名').reset_index()
+    )
+
+    # ── 字段 / 类别 / 公司类型 ───────────────────────────────────────────
+    all_fields   = sorted(df_clean['字段名'].unique().tolist())
+    all_types    = sorted(df_clean['类别'].dropna().astype(str).unique().tolist())    if '类别'    in df_clean.columns else []
+    all_co_types = sorted(df_clean['公司类型'].dropna().astype(str).unique().tolist()) if '公司类型' in df_clean.columns else []
+
+    # ── 动态年份颜色 ─────────────────────────────────────────────────────
+    KPMG_COLOR_MAP = {
+        "Lightest": "#BFE8FF",     # Pacific Blue (light)
+        "Light": "#76D2FF",      # Blue (original Light Blue)
+        "Primary": "#1E49E2",     # Cobalt Blue
+        "Dark": "#00338D",       # KPMG Blue (original Primary Blue)
+    }
+    
+    # 提取已排序的年份
+    all_years_sorted = sorted(
+        [y for y in df_clean['报告年份'].unique() if str(y).isdigit()],
+        key=lambda x: int(x)
+    )
+    n_years = len(all_years_sorted)
+    dynamic_year_colors = {}
+    
+    # ── 根据年份数量选择颜色策略 ─────────────────────────
+    target_colors = [] # 最终用于映射的颜色列表
+    
+    if n_years == 3:
+        # 3年：按要求，从 Light Blue (#76D2FF) 开始，依次是 Cobalt Blue (#1E49E2)，KPMG Blue (#00338D)
+        target_colors = [
+            KPMG_COLOR_MAP["Light"],
+            KPMG_COLOR_MAP["Primary"],
+            KPMG_COLOR_MAP["Dark"]
+        ]
+    elif n_years == 2:
+        # 2年：按要求，前一个年份 (2024) 用 Cobalt Blue (#1E49E2)，后一个年份 (2025) 用 KPMG Blue (#00338D)
+        target_colors = [
+            KPMG_COLOR_MAP["Primary"],
+            KPMG_COLOR_MAP["Dark"]
+        ]
+    else:
+        # 1年 或 4年以上：使用默认的浅到深渐变 (Lightest -> Dark)
+        target_colors = [
+            KPMG_COLOR_MAP["Lightest"],
+            KPMG_COLOR_MAP["Light"],
+            KPMG_COLOR_MAP["Primary"],
+            KPMG_COLOR_MAP["Dark"]
+        ]
+    
+    # ── 映射年份到颜色 ─────────────────────────
+    num_colors_to_use = len(target_colors)
+    
+    if n_years > 0:
+        for idx, year in enumerate(all_years_sorted):
+            color_index = 0 # 默认值，处理 n_years=1 的情况
+    
+            if n_years > 1:
+                # 计算当前年份在所有年份中的比例 (0 到 1)
+                proportion = idx / (n_years - 1)
+                # 将比例映射到目标颜色数组的索引范围 (0 到 num_colors_to_use - 1)
+                # 例如：3年数据，3个颜色 -> idx=0/2=0 -> prop=0 -> color_idx=0; idx=1/2=0.5 -> prop=0.5 -> color_idx=1; idx=2/2=1 -> prop=1 -> color_idx=2
+                # 例如：5年数据，4个颜色 -> idx=0/4=0 -> prop=0 -> color_idx=0; idx=1/4=0.25 -> prop=0.25 -> color_idx=int(0.25*3)=0; idx=2/4=0.5 -> prop=0.5 -> color_idx=int(0.5*3)=1 ...
+                color_index = int(proportion * (num_colors_to_use - 1))
+    
+            # 确保 color_index 不会超出 target_colors 的有效索引范围
+            color_index = min(color_index, num_colors_to_use - 1)
+            dynamic_year_colors[str(year)] = target_colors[color_index]
+
+    # ── KPMG 色卡 ────────────────────────────────────────────────────────
+    # ✅ 关键修复：HTML 必须写成单行紧凑字符串，不能有多余换行/缩进
+    with st.expander("🎨 查看 KPMG 官方色卡"):
+        for cat_name, cat_colors in KPMG_CATEGORIES.items():
+            st.markdown(f"**{cat_name}**")
+            html_str = "".join([
+                f'<div style="display:inline-block;margin-right:15px;margin-bottom:8px;">'
+                f'<div style="width:14px;height:14px;background-color:{c};display:inline-block;'
+                f'border-radius:3px;vertical-align:middle;border:1px solid #ddd;"></div>'
+                f'<span style="font-size:13px;vertical-align:middle;"> {n} <b>({c})</b></span></div>'
+                for n, c in cat_colors.items()
+            ])
+            st.markdown(html_str, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── 核心配置面板 ─────────────────────────────────────────────────────
+    with st.expander("🛠️ 核心配置面板", expanded=True):
+        r1c1, r1c2, r1c3 = st.columns([1.5, 1, 1])
+        is_pct_stack_mode = False
+
+        with r1c1:
+            chart_type = st.selectbox(
+                "📈 1. 图表类型",
+                ["簇状柱状图", "堆积柱状图", "折线对比图", "饼图", "内外环结构对比图"]
+            )
+
+            # ── 饼图 / 环图 ──────────────────────────────────────────────
+            if "环" in chart_type or chart_type == "饼图":
+                calc_mode = "结构分析"
+                selected_multi_fields = st.multiselect(
+                    "🎯 选择构成指标", all_fields,
+                    default=all_fields[:min(3, len(all_fields))]
+                )
+                selected_cos = st.selectbox("🏗️ 选择展示公司", sorted(df_pivot['公司'].unique().tolist()))
+                plot_df_base = (
+                    df_clean[
+                        df_clean['字段名'].isin(selected_multi_fields) &
+                        (df_clean['公司'] == selected_cos)
+                    ].copy().rename(columns={val_col: 'final_val'})
+                )
+
+            else:
+                # ── 堆积图子模式 ─────────────────────────────────────────
+                if chart_type == "堆积柱状图":
+                    stack_sub = st.radio(
+                        "堆积模式", ["单指标 / 公式", "多指标占比"],
+                        horizontal=True, key="stack_sub_mode"
+                    )
+                    is_pct_stack_mode = (stack_sub == "多指标占比")
+
+                # ── 多指标占比 ───────────────────────────────────────────
+                if is_pct_stack_mode:
+                    calc_mode = "多指标占比"
+                    if all_types:
+                        pct_type_f = st.selectbox(
+                            "🗂️ 按类别筛选指标", ["全部类别"] + all_types, key="pct_type_filter"
+                        )
+                        pct_field_pool = (
+                            sorted(df_clean[df_clean['类别'] == pct_type_f]['字段名'].unique().tolist())
+                            if pct_type_f != "全部类别" else all_fields
+                        )
+                    else:
+                        pct_field_pool = all_fields
+
+                    selected_pct_fields = st.multiselect(
+                        "🎯 选择堆积指标", pct_field_pool,
+                        default=pct_field_pool[:min(3, len(pct_field_pool))],
+                        key="pct_stack_fields"
+                    )
+                    if selected_pct_fields:
+                        plot_df_base = (
+                            df_clean[df_clean['字段名'].isin(selected_pct_fields)]
+                            [['公司', '报告年份', '字段名', val_col]]
+                            .copy().rename(columns={val_col: 'final_val'})
+                        )
+                    else:
+                        plot_df_base = pd.DataFrame(columns=['公司', '报告年份', '字段名', 'final_val'])
+
+                # ── 普通单指标 / 公式 ────────────────────────────────────
                 else:
                     calc_mode = st.radio("数据模式", ["单指标直显", "自定义公式运算"], horizontal=True)
+
                     if calc_mode == "单指标直显":
-                        target_field = st.selectbox("🎯 选择显示指标", all_fields)
-                        plot_df_base = df_pivot[['公司', '报告年份', target_field]].rename(columns={target_field: 'final_val'}).fillna(0)
-                    else:
+                        if all_types:
+                            type_f = st.selectbox(
+                                "🗂️ 按类别筛选指标", ["全部类别"] + all_types, key="type_filter_single"
+                            )
+                            filtered_fields = (
+                                sorted(df_clean[df_clean['类别'] == type_f]['字段名'].unique().tolist())
+                                if type_f != "全部类别" else all_fields
+                            )
+                        else:
+                            filtered_fields = all_fields
+
+                        target_field = st.selectbox("🎯 选择显示指标", filtered_fields)
+                        plot_df_base = (
+                            df_pivot[['公司', '报告年份', target_field]]
+                            .rename(columns={target_field: 'final_val'}).fillna(0)
+                        )
+
+                    else:  # 公式模式
                         v1, v2 = st.columns(2)
                         var_a = v1.selectbox("变量 A", all_fields, index=0)
-                        var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields)>1 else 0)
+                        var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0)
                         formula_input = st.text_input("✏️ 自定义公式 (使用 A 和 B)", value="A - B")
-                        
-                        # 🌟 修复后的公式引擎
                         try:
                             A_data = df_pivot[var_a].fillna(0)
                             B_data = df_pivot[var_b].fillna(0) if var_b != "无" else 0
-                            
-                            # 使用更安全的 pandas 内置 eval 或计算逻辑
-                            # 将公式中的 A 和 B 替换为对应的数据列
                             res = pd.eval(formula_input, local_dict={'A': A_data, 'B': B_data})
-                            df_pivot['final_val'] = res
-                            df_pivot['final_val'] = df_pivot['final_val'].replace([np.inf, -np.inf], 0).fillna(0)
+                            df_pivot['final_val'] = (
+                                pd.Series(res).replace([np.inf, -np.inf], 0).fillna(0).values
+                            )
                             plot_df_base = df_pivot[['公司', '报告年份', 'final_val']].copy()
                         except Exception as e:
                             st.error(f"公式无效: {e}")
                             plot_df_base = pd.DataFrame(columns=['公司', '报告年份', 'final_val'])
 
-                    selected_cos = st.multiselect("🏗️ 选择对比公司", sorted(df_pivot['公司'].unique().tolist()), default=sorted(df_pivot['公司'].unique().tolist())[:min(2, len(df_pivot['公司'].unique()))])
+                # ── 公司类型筛选 ─────────────────────────────────────────
+                all_cos_list = sorted(df_pivot['公司'].unique().tolist())
+                if all_co_types:
+                    co_type_sel = st.selectbox(
+                        "🏢 按公司类型快速选择", ["不按公司类型筛选"] + all_co_types, key="co_type_sel"
+                    )
+                    if (co_type_sel != "不按公司类型筛选" and
+                            st.session_state.get('_prev_co_type_sel') != co_type_sel):
+                        st.session_state['selected_cos_ms'] = sorted(
+                            df_clean[df_clean['公司类型'] == co_type_sel]['公司'].unique().tolist()
+                        )
+                        st.session_state['_prev_co_type_sel'] = co_type_sel
 
-            with r1c2:
-                x_axis_mode = st.radio("🔍 布局视角", ["以公司为横轴", "以年份为横轴"]) if "环" not in chart_type else "结构视角"
-                decimals = st.number_input("🔢 小数位数", min_value=0, max_value=4, value=0)
-                show_value = st.toggle("✅ 显示数据标签", value=True)
-                
-            with r1c3:
-                # 🌟 十亿元回归
-                unit_options = {"原始数值": 1.0, "亿元": 0.01, "十亿元": 0.001, "百分比(%)": 100.0}
-                selected_unit = st.selectbox("📏 数值单位换算", list(unit_options.keys()))
-                multiplier = unit_options[selected_unit]
-                y_axis_title = st.text_input("📝 Y轴顶部单位说明", value=f"单位: {selected_unit.split(' ')[0]}")
-                is_transparent = st.toggle("🌈 开启透明背景模式")
-                show_avg = st.checkbox("平均值线 (仅柱状图)") if "柱" in chart_type else False
-                avg_color = st.color_picker("基准线颜色", value="#ED2124") if show_avg else "#ED2124"
+                selected_cos = st.multiselect(
+                    "🏗️ 选择对比公司", all_cos_list,
+                    default=all_cos_list[:min(2, len(all_cos_list))],
+                    key="selected_cos_ms"
+                )
 
-        # --- C. 重命名与颜色配置 (横向) ---
-        if not plot_df_base.empty:
-            if calc_mode == "结构分析":
-                plot_df = plot_df_base.copy()
-                color_val = "字段名"
-            else:
-                plot_df = plot_df_base[plot_df_base['公司'].isin(selected_cos)].copy()
-                color_val = "报告年份" if x_axis_mode == "以公司为横轴" else "公司"
-
-            plot_df['绘制金额'] = plot_df['final_val'] * multiplier
-            
-            st.markdown("#### 🎨 自定义图例标签与颜色")
-            unique_items = sorted(plot_df[color_val].unique().tolist())
-            rename_map = {}
-            color_map = {}
-            
-            # 🌟 横向排列配置
-            c_cols = st.columns(4)
-            for i, item in enumerate(unique_items):
-                with c_cols[i % 4]:
-                    st.caption(f"原始值: {item}")
-                    new_label = st.text_input(f"显示名称", value=str(item), key=f"rename_{item}")
-                    new_color = st.color_picker(f"选择颜色", value=DEFAULT_COLORS[i % len(DEFAULT_COLORS)], key=f"color_{item}")
-                    rename_map[item] = new_label
-                    color_map[new_label] = new_color
-            
-            plot_df[color_val] = plot_df[color_val].map(rename_map)
-
-            # --- D. 绘图引擎 ---
-            fig = go.Figure()
-            fmt = f'.{decimals}f'
-            suffix = "%" if selected_unit == "百分比(%)" else ""
-            label_fmt = f'%{{y:{fmt}}}{suffix}'
-
-            if "柱状图" in chart_type:
-                barmode = 'group' if "簇状" in chart_type else 'relative'
-                for item in rename_map.values():
-                    d = plot_df[plot_df[color_val] == item]
-                    fig.add_trace(go.Bar(
-                        x=d["公司" if color_val=="报告年份" else "报告年份"], 
-                        y=d["绘制金额"], 
-                        name=str(item), 
-                        marker_color=color_map[item],
-                        text=d["绘制金额"] if show_value else None,
-                        texttemplate=label_fmt if show_value else None,
-                        textposition='outside', # 强制在外面
-                        textangle=0             # 强制横向
-                    ))
-                fig.update_layout(barmode=barmode)
-
-            elif "折线对比图" in chart_type:
-                for item in rename_map.values():
-                    d = plot_df[plot_df[color_val] == item]
-                    fig.add_trace(go.Scatter(
-                        x=d["公司" if color_val=="报告年份" else "报告年份"], 
-                        y=d["绘制金额"], 
-                        name=str(item), 
-                        mode='lines+markers+text' if show_value else 'lines+markers',
-                        marker_color=color_map[item],
-                        text=d["绘制金额"],
-                        texttemplate=label_fmt,
-                        textposition="top center"
-                    ))
-
-            elif chart_type == "饼图":
-                latest = plot_df['报告年份'].max()
-                d = plot_df[plot_df['报告年份'] == latest]
-                fig = px.pie(d, values='绘制金额', names=color_val, hole=0.4, color=color_val, color_discrete_map=color_map)
-                fig.update_traces(textinfo='percent+label' if show_value else 'percent')
-
-            elif chart_type == "内外环结构对比图":
-                years = sorted(plot_df['报告年份'].unique().tolist())
-                if len(years) < 2: 
-                    st.warning("环形图对比需要至少两年的数据。")
-                else:
-                    # 外环 (最新)
-                    d_outer = plot_df[plot_df['报告年份'] == years[-1]]
-                    fig.add_trace(go.Pie(labels=d_outer[color_val], values=d_outer['绘制金额'], hole=0.7, name=years[-1], 
-                                         marker=dict(colors=[color_map[f] for f in d_outer[color_val]]),
-                                         textinfo='percent+label' if show_value else 'percent'))
-                    # 内环 (较早)
-                    d_inner = plot_df[plot_df['报告年份'] == years[0]]
-                    fig.add_trace(go.Pie(labels=d_inner[color_val], values=d_inner['绘制金额'], hole=0.4, name=years[0],
-                                         domain={'x': [0.15, 0.85], 'y': [0.15, 0.85]}, 
-                                         marker=dict(colors=[color_map[f] for f in d_inner[color_val]]),
-                                         textinfo='percent' if show_value else 'none'))
-                    fig.update_layout(annotations=[dict(text=f'内:{years[0]}<br>外:{years[-1]}', x=0.5, y=0.5, font_size=12, showarrow=False)])
-
-            # --- E. 样式统一修缮 ---
-            bg_color = "rgba(0,0,0,0)" if is_transparent else "white"
-            if show_avg and "柱" in chart_type:
-                avg_v = plot_df['绘制金额'].mean()
-                fig.add_hline(y=avg_v, line_dash="dash", line_color=avg_color, 
-                              annotation_text=f"平均: {avg_v:{fmt}}{suffix}",
-                              annotation_font=dict(color=avg_color))
-
-            fig.update_layout(
-                font_family="Microsoft YaHei",
-                plot_bgcolor=bg_color,
-                paper_bgcolor=bg_color,
-                margin=dict(t=120, l=10, r=10, b=20), # 顶部留白增加，彻底防止遮挡
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                annotations=[dict(
-                    x=0, y=1.18, # 单位说明位置优化
-                    xref='paper', yref='paper',
-                    text=f"<b>{y_axis_title}</b>",
-                    showarrow=False,
-                    font=dict(size=14, color="#333"),
-                    xanchor='left'
-                )]
+        with r1c2:
+            x_axis_mode = (
+                st.radio("🔍 布局视角", ["以公司为横轴", "以年份为横轴"])
+                if "环" not in chart_type else "结构视角"
             )
-            fig.update_xaxes(showgrid=False)
-            fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            with st.expander("📄 查看底层数据明细"):
-                st.dataframe(plot_df, use_container_width=True)
-    else:
-        st.info("💡 请先完成数据集成或上传目标底稿。")
+            decimals   = st.number_input("🔢 小数位数", min_value=0, max_value=4, value=0)
+            show_value = st.toggle("✅ 显示数据标签", value=True)
 
+        with r1c3:
+            unit_options  = {"原始数值": 1.0, "亿元": 0.01, "十亿元": 0.001, "百分比(%)": 100.0}
+            selected_unit = st.selectbox("📏 数值单位换算", list(unit_options.keys()))
+            multiplier    = unit_options[selected_unit]
+            y_axis_title  = st.text_input("📝 Y轴单位显示修改", value=f"单位: {selected_unit.split(' ')[0]}")
+            is_transparent = st.toggle("🌈 开启透明背景模式")
+            show_avg  = st.checkbox("平均值线") if "柱" in chart_type else False
+            avg_color = st.color_picker("基准线颜色", value="#ED2124") if show_avg else "#ED2124"
+
+    # ── 绘图数据准备 ─────────────────────────────────────────────────────
+    if plot_df_base.empty:
+        st.warning("暂无数据，请检查筛选条件。")
+        st.stop()
+
+    if calc_mode in ("结构分析", "多指标占比"):
+        cos_filter = [selected_cos] if isinstance(selected_cos, str) else selected_cos
+        plot_df  = plot_df_base[plot_df_base['公司'].isin(cos_filter)].copy()
+        color_val = "字段名"
+    else:
+        plot_df  = plot_df_base[plot_df_base['公司'].isin(selected_cos)].copy()
+        color_val = "报告年份" if x_axis_mode == "以公司为横轴" else "公司"
+
+    plot_df['绘制金额'] = plot_df['final_val'] * multiplier
+
+    # ── 图例颜色配置 ─────────────────────────────────────────────────────
+    st.markdown("#### 🎨 自定义图例标签与颜色")
+    unique_items = sorted(plot_df[color_val].unique().tolist())
+    rename_map, color_map = {}, {}
+    c_cols = st.columns(4)
+    for i, item in enumerate(unique_items):
+        with c_cols[i % 4]:
+            st.caption(f"原始值: {item}")
+            new_label = st.text_input("显示名称", value=str(item), key=f"rename_{item}")
+            default_c = dynamic_year_colors.get(str(item), DEFAULT_COLORS[i % len(DEFAULT_COLORS)])
+            new_color = st.color_picker("选择颜色", value=default_c, key=f"color_{item}")
+            rename_map[item]     = new_label
+            color_map[new_label] = new_color
+
+    plot_df[color_val] = plot_df[color_val].map(rename_map)
+
+    # ── 绘图引擎 ─────────────────────────────────────────────────────────
+    fig       = go.Figure()
+    fmt       = f'.{decimals}f'
+    suffix    = "%" if selected_unit == "百分比(%)" else ""
+    label_fmt = f'%{{y:{fmt}}}{suffix}'
+
+    if "柱状图" in chart_type:
+        barmode = 'group' if "簇状" in chart_type else 'relative'
+
+        if is_pct_stack_mode:
+            plot_df['x_label'] = plot_df['公司'] + ' ' + plot_df['报告年份']
+            plot_df['_total']  = plot_df.groupby('x_label')['绘制金额'].transform('sum')
+            plot_df['绘制占比'] = (plot_df['绘制金额'] / plot_df['_total'] * 100).fillna(0)
+            for item in rename_map.values():
+                d = plot_df[plot_df[color_val] == item]
+                fig.add_trace(go.Bar(
+                    x=d['x_label'], y=d['绘制占比'], name=str(item),
+                    marker_color=color_map[item],
+                    text=(
+                        d.apply(lambda r: f"{r['绘制占比']:.{decimals}f}%<br>{r['绘制金额']:.{decimals}f}", axis=1)
+                        if show_value else None
+                    ),
+                    textposition='inside'
+                ))
+            fig.update_yaxes(range=[0, 105])
+            barmode = 'relative'
+
+        else:
+            for item in rename_map.values():
+                d = plot_df[plot_df[color_val] == item]
+                fig.add_trace(go.Bar(
+                    x=d["公司" if color_val == "报告年份" else "报告年份"],
+                    y=d["绘制金额"], name=str(item),
+                    marker_color=color_map[item],
+                    text=d["绘制金额"] if show_value else None,
+                    texttemplate=label_fmt if show_value else None,
+                    textposition='outside', textangle=0
+                ))
+
+        fig.update_layout(barmode=barmode)
+
+    elif "折线对比图" in chart_type:
+        for item in rename_map.values():
+            d = plot_df[plot_df[color_val] == item]
+            fig.add_trace(go.Scatter(
+                x=d["公司" if color_val == "报告年份" else "报告年份"],
+                y=d["绘制金额"], name=str(item),
+                mode='lines+markers+text' if show_value else 'lines+markers',
+                marker_color=color_map[item],
+                text=d["绘制金额"], texttemplate=label_fmt, textposition="top center"
+            ))
+
+    elif chart_type == "饼图":
+        latest = plot_df['报告年份'].max()
+        d = plot_df[plot_df['报告年份'] == latest]
+        fig = px.pie(d, values='绘制金额', names=color_val, hole=0.4,
+                     color=color_val, color_discrete_map=color_map)
+        fig.update_traces(textinfo='percent+label' if show_value else 'percent')
+
+    elif chart_type == "内外环结构对比图":
+        years_ring = sorted(plot_df['报告年份'].unique().tolist())
+        if len(years_ring) < 2:
+            st.warning("环形图对比需要至少两年的数据。")
+        else:
+            d_outer = plot_df[plot_df['报告年份'] == years_ring[-1]]
+            d_inner = plot_df[plot_df['报告年份'] == years_ring[0]]
+            fig.add_trace(go.Pie(
+                labels=d_outer[color_val], values=d_outer['绘制金额'],
+                hole=0.7, name=years_ring[-1],
+                marker=dict(colors=[color_map[f] for f in d_outer[color_val]]),
+                textinfo='percent+label' if show_value else 'percent'
+            ))
+            fig.add_trace(go.Pie(
+                labels=d_inner[color_val], values=d_inner['绘制金额'],
+                hole=0.4, name=years_ring[0],
+                domain={'x': [0.15, 0.85], 'y': [0.15, 0.85]},
+                marker=dict(colors=[color_map[f] for f in d_inner[color_val]]),
+                textinfo='percent' if show_value else 'none'
+            ))
+            fig.update_layout(annotations=[dict(
+                text=f'内:{years_ring[0]}<br>外:{years_ring[-1]}',
+                x=0.5, y=0.5, font_size=12, showarrow=False
+            )])
+
+    # ── 全局样式 ─────────────────────────────────────────────────────────
+    bg_color = "rgba(0,0,0,0)" if is_transparent else "white"
+
+    if show_avg and "柱" in chart_type and not is_pct_stack_mode:
+        avg_v = plot_df['绘制金额'].mean()
+        fig.add_hline(y=avg_v, line_dash="dash", line_color=avg_color,
+                      annotation_text=f"平均: {avg_v:{fmt}}{suffix}",
+                      annotation_font=dict(color=avg_color))
+
+    fig.update_layout(
+        font_family="Microsoft YaHei",
+        plot_bgcolor=bg_color, paper_bgcolor=bg_color,
+        margin=dict(t=120, l=10, r=10, b=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        annotations=[dict(
+            x=0, y=1.18, xref='paper', yref='paper',
+            text=f"<b>{y_axis_title}</b>", showarrow=False,
+            font=dict(size=14, color="#333"), xanchor='left'
+        )]
+    )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("📄 查看底层数据明细"):
+        st.dataframe(plot_df, use_container_width=True)
+        
+        
+        
 
 # ─────────── Step 7 固定图的展示和 PPT ───────────
 with tab7:
