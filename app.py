@@ -1568,6 +1568,7 @@ with tab4:
     else:
         st.info("💡 提取结果将在此处显示。请先在上方点击“开始提取”按钮。")
         
+        
 # ─────────── Step 5 多公司合并目标表 ───────────
 with tab5:
     col_title, col_btn = st.columns([4, 1])
@@ -1578,155 +1579,143 @@ with tab5:
     # 1. 多文件上传
     uploaded_files = st.file_uploader("请上传已完成勾稽检查的底稿 (支持多文件或单文件多Sheet)", type="xlsx", accept_multiple_files=True)
 
+    # ==========================================
+    # 🌟 核心提速秘籍：使用 st.cache_data 锁定数据处理层
+    # ==========================================
+    @st.cache_data(show_spinner=False)
+    def run_data_integration(temp_data_list, rate_cfg, unit_cfg):
+        """
+        这个函数被加上了缓存装饰器。
+        只要上传的 Excel 内容和汇率没变，Streamlit 就不会再重新执行下面这几百行耗时计算！
+        """
+        exact_exempt_fields = [
+            "折现率假设", "非金融风险的置信水平", "1年及1年以内合同服务边际",
+            "1-5年合同服务边际", "5-10年合同服务边际", "10-20年合同服务边际",
+            "20年合同服务边际", "投资收益率", "综合偿付能力充足率"
+        ]
+        
+        combined_list = []
+        
+        def clean_to_float(val):
+            try:
+                if isinstance(val, (int, float)): return float(val)
+                if isinstance(val, str):
+                    val = val.replace(',','').replace('(','-').replace(')','').strip()
+                    if val == '-' or val == '': return 0.0
+                    return float(val)
+                return 0.0
+            except: return 0.0
+
+        for item in temp_data_list:
+            df_single = item["df"]
+            comp_name = item["comp"]
+            rate = rate_cfg[comp_name]
+            unit_mult = unit_cfg[comp_name]
+            
+            c_24 = next((c for c in df_single.columns if '24' in str(c)), None)
+            c_25 = next((c for c in df_single.columns if '25' in str(c)), None)
+            
+            if not c_24 or not c_25:
+                continue
+
+            base_cols = ["公司类型", "公司", "类别", "字段名", "字段类型"]
+            existing_base = [c for c in base_cols if c in df_single.columns]
+
+            for year_label, col_name in [("2024", c_24), ("2025", c_25)]:
+                df_year = df_single[existing_base + [col_name]].copy()
+                df_year["公司"] = comp_name
+                df_year["报告年份"] = year_label
+                df_year["汇率"] = rate
+                
+                df_year["(百万)原币"] = None
+                df_year["(百万)人民币"] = None
+                df_year["汇率"] = df_year["汇率"].astype(object)
+                
+                for idx in df_year.index:
+                    raw_val = df_year.loc[idx, col_name]
+                    f_name = str(df_year.loc[idx, "字段名"]).strip()
+                    
+                    if f_name in exact_exempt_fields:
+                        if "折现率" in f_name:
+                            df_year.at[idx, "(百万)原币"] = str(raw_val) if pd.notna(raw_val) else ""
+                            df_year.at[idx, "(百万)人民币"] = str(raw_val) if pd.notna(raw_val) else ""
+                        else:
+                            if isinstance(raw_val, str) and '%' in raw_val:
+                                try:
+                                    dec_val = float(raw_val.replace('%', '').strip()) / 100.0
+                                except:
+                                    dec_val = 0.0
+                            else:
+                                dec_val = clean_to_float(raw_val) 
+                                
+                            df_year.at[idx, "(百万)原币"] = dec_val
+                            df_year.at[idx, "(百万)人民币"] = dec_val
+                            
+                        df_year.at[idx, "汇率"] = "豁免换算"
+                    else:
+                        c_val = clean_to_float(raw_val)
+                        df_year.at[idx, "(百万)原币"] = c_val * unit_mult
+                        df_year.at[idx, "(百万)人民币"] = c_val * unit_mult * rate
+
+                final_cols = ["公司类型","公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
+                actual_cols = [c for c in final_cols if c in df_year.columns]
+                combined_list.append(df_year[actual_cols])
+                
+        return pd.concat(combined_list, ignore_index=True) if combined_list else pd.DataFrame()
+
+
+    # ==========================================
+    # 界面交互与调用
+    # ==========================================
     if uploaded_files:
-        # 第一步：初步扫描所有文件中的所有 Sheet，确定有哪些公司
-        all_temp_data = [] # 存储 (文件名, Sheet名, df)
+        all_temp_data = [] 
         found_companies = set()
 
         for file in uploaded_files:
-            # 获取该 Excel 的所有 Sheet 名称
             xl = pd.ExcelFile(file)
             for sheet_name in xl.sheet_names:
                 df_raw = pd.read_excel(file, sheet_name=sheet_name)
-                # 尝试从“公司”列获取公司名，如果没这一列，就用 Sheet 名作为公司名
-                current_company = ""
-                if "公司" in df_raw.columns and not df_raw["公司"].empty:
-                    current_company = str(df_raw["公司"].iloc[0])
-                else:
-                    current_company = sheet_name
+                current_company = str(df_raw["公司"].iloc[0]) if "公司" in df_raw.columns and not df_raw["公司"].empty else sheet_name
                 
-                # 过滤掉一些明显的系统 Sheet (如 基本信息_单位)
                 if "基本信息" in current_company or "Sheet" in current_company:
                     continue
                 
                 found_companies.add(current_company)
-                all_temp_data.append({
-                    "comp": current_company,
-                    "df": df_raw,
-                    "source": f"{file.name} - {sheet_name}"
-                })
+                all_temp_data.append({"comp": current_company, "df": df_raw, "source": f"{file.name} - {sheet_name}"})
 
-        # 2. 动态汇率与单位配置区
         st.markdown("#### 💵 汇率与数值单位配置盘")
         st.caption("目标表统一要求以【百万元人民币】展示。请根据原始底稿设置：1.兑人民币汇率 2.该公司报告中的披露金额单位。")
         
         rate_config = {}
         unit_config = {}
         
-        # 🌟 定义原始单位转换为“百万元”的乘法系数
         unit_multipliers = {
-            "原表为: 百万元 (无需转换)": 1.0,
-            "原表为: 元 (÷ 1,000,000)": 0.000001,
-            "原表为: 千元 (÷ 1,000)": 0.001,
-            "原表为: 亿元 (× 100)": 100.0,
+            "原表为: 百万元 (无需转换)": 1.0, "原表为: 元 (÷ 1,000,000)": 0.000001,
+            "原表为: 千元 (÷ 1,000)": 0.001, "原表为: 亿元 (× 100)": 100.0,
             "原表为: 十亿元 (× 1,000)": 1000.0
         }
         
-        # 创建一个多列布局来放输入框
         rate_cols = st.columns(3) 
         for i, comp in enumerate(sorted(list(found_companies))):
             with rate_cols[i % 3]:
-                # 使用 container 包装一下让视觉更紧凑
                 with st.container(border=True):
                     st.markdown(f"**🏢 {comp}**")
                     rate_config[comp] = st.number_input(f"汇率 (相对于RMB)", value=1.0, step=0.0001, format="%.4f", key=f"rate_{comp}")
                     unit_choice = st.selectbox(f"原表数值单位", list(unit_multipliers.keys()), key=f"unit_{comp}")
                     unit_config[comp] = unit_multipliers[unit_choice]
 
-        # 3. 执行合并逻辑
+        # 3. 按钮触发：调用带有缓存的高速运算函数
         if st.button("🚀 开始集成并换算数据", type="primary", use_container_width=True):
-            # 🌟 精确匹配白名单：只有【完全等于】以下名称的字段，才会被豁免换算
-            exact_exempt_fields = [
-                "折现率假设",
-                "非金融风险的置信水平",
-                "1年及1年以内合同服务边际",
-                "1-5年合同服务边际",
-                "5-10年合同服务边际",
-                "10-20年合同服务边际",
-                "20年合同服务边际",
-                "投资收益率",
-                "综合偿付能力充足率"
-            ]
-            
-            combined_list = []
-            
-            for item in all_temp_data:
-                df_single = item["df"]
-                comp_name = item["comp"]
-                rate = rate_config[comp_name]
-                unit_mult = unit_config[comp_name]
-                
-                c_24 = next((c for c in df_single.columns if '24' in str(c)), None)
-                c_25 = next((c for c in df_single.columns if '25' in str(c)), None)
-                
-                if not c_24 or not c_25:
-                    continue
+            with st.spinner("正在后台执行极速数据合并与换算..."):
+                final_all_df = run_data_integration(all_temp_data, rate_config, unit_config)
 
-                base_cols = ["公司类型", "公司", "类别", "字段名", "字段类型"]
-                existing_base = [c for c in base_cols if c in df_single.columns]
-
-                def clean_to_float(val):
-                    try:
-                        if isinstance(val, (int, float)): return float(val)
-                        if isinstance(val, str):
-                            val = val.replace(',','').replace('(','-').replace(')','').strip()
-                            if val == '-' or val == '': return 0.0
-                            return float(val)
-                        return 0.0
-                    except: return 0.0
-
-                for year_label, col_name in [("2024", c_24), ("2025", c_25)]:
-                    df_year = df_single[existing_base + [col_name]].copy()
-                    df_year["公司"] = comp_name
-                    df_year["报告年份"] = year_label
-                    df_year["汇率"] = rate
-                    # 准备目标列，先转成 object 防止类型冲突（兼顾浮点数和字符串）
-                    df_year["(百万)原币"] = None
-                    df_year["(百万)人民币"] = None
-                    df_year["汇率"] = df_year["汇率"].astype(object)
-                    
-                    for idx in df_year.index:
-                        raw_val = df_year.loc[idx, col_name]
-                        f_name = str(df_year.loc[idx, "字段名"]).strip()
-                        
-                        if f_name in exact_exempt_fields:
-                            # 💡 豁免项处理逻辑
-                            if "折现率" in f_name:
-                                # 针对折现率：完全保留底稿的原文（如 1.23%~4.6%），当作汉字 copy
-                                df_year.at[idx, "(百万)原币"] = str(raw_val) if pd.notna(raw_val) else ""
-                                df_year.at[idx, "(百万)人民币"] = str(raw_val) if pd.notna(raw_val) else ""
-                            else:
-                                # 针对其他豁免项（均为百分比）：强制转为可计算的小数 (如 "63%" -> 0.63, 或底稿本就是 0.63)
-                                if isinstance(raw_val, str) and '%' in raw_val:
-                                    try:
-                                        dec_val = float(raw_val.replace('%', '').strip()) / 100.0
-                                    except:
-                                        dec_val = 0.0
-                                else:
-                                    dec_val = clean_to_float(raw_val) # 调用前面的清洗函数处理纯数字
-                                    
-                                df_year.at[idx, "(百万)原币"] = dec_val
-                                df_year.at[idx, "(百万)人民币"] = dec_val
-                                
-                            df_year.at[idx, "汇率"] = "豁免换算"
-                        else:
-                            # 💡 普通数据处理：清洗为浮点数，并执行单位和汇率计算
-                            c_val = clean_to_float(raw_val)
-                            df_year.at[idx, "(百万)原币"] = c_val * unit_mult
-                            df_year.at[idx, "(百万)人民币"] = c_val * unit_mult * rate
-                    # --- 核心改动部分结束 ---
-
-                    final_cols = ["公司类型","公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
-                    actual_cols = [c for c in final_cols if c in df_year.columns]
-                    combined_list.append(df_year[actual_cols])
-
-            if combined_list:
-                final_all_df = pd.concat(combined_list, ignore_index=True)
+            if not final_all_df.empty:
                 st.session_state['integrated_data'] = final_all_df
                 
                 st.success(f"✅ 集成与换算完毕！共处理 {len(found_companies)} 家公司，生成 {len(final_all_df)} 条对标数据。")
                 st.dataframe(final_all_df, use_container_width=True)
 
+                import io
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     final_all_df.to_excel(writer, index=False, sheet_name='行业集成分析表')
@@ -1749,10 +1738,11 @@ KPMG_CATEGORIES = {
 }
 DEFAULT_COLORS = list(KPMG_CATEGORIES["Primary Colors"].values()) + list(KPMG_CATEGORIES["Accent Colors"].values())
 
+# ─────────── Step 6 可视化分析面板 ───────────
 with tab6:
     st.markdown("### 📊 可视化分析面板")
 
-    # ── 数据源 ──────────────────────────────────────────────────────────
+    # ── 数据源选择 ───────────────────────────────────────────────────────
     if 'integrated_data' not in st.session_state:
         st.session_state['integrated_data'] = None
 
@@ -1773,36 +1763,50 @@ with tab6:
         st.info("💡 请先完成数据集成或上传目标底稿。")
         st.stop()
 
-    # ── 数据清洗 ─────────────────────────────────────────────────────────
-    df_clean = df_raw.copy()
-    df_clean.columns = (
-        df_clean.columns.astype(str)
-        .str.strip()
-        .str.replace('\n', '', regex=False)
-        .str.replace('\r', '', regex=False)
-        .str.replace('\ufeff', '', regex=False)
-    )
-    df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
-    val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
+    # ==========================================
+    # 🌟 提速秘籍 1：锁定数据预处理 (只算一次)
+    # ==========================================
+    @st.cache_data(show_spinner=False)
+    def prepare_viz_data(df_in):
+        df_clean = df_in.copy()
+        df_clean.columns = (
+            df_clean.columns.astype(str)
+            .str.strip()
+            .str.replace('\n', '', regex=False)
+            .str.replace('\r', '', regex=False)
+            .str.replace('\ufeff', '', regex=False)
+        )
+        df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
+        val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
 
-    # ── 去重 ─────────────────────────────────────────────────────────────
-    dedup_cols = ['公司', '报告年份', '字段名']
-    if '类别' in df_clean.columns:
-        dedup_cols.append('类别')
-    df_clean = df_clean.drop_duplicates(subset=dedup_cols, keep='first')
+        # 去重
+        dedup_cols = ['公司', '报告年份', '字段名']
+        if '类别' in df_clean.columns:
+            dedup_cols.append('类别')
+        df_clean = df_clean.drop_duplicates(subset=dedup_cols, keep='first')
 
-    # ── 透视表 ───────────────────────────────────────────────────────────
-    df_pivot = (
-        df_clean.groupby(['公司', '报告年份', '字段名'])[val_col]
-        .sum().unstack('字段名').reset_index()
-    )
+        # 透视表
+        df_pivot = (
+            df_clean.groupby(['公司', '报告年份', '字段名'])[val_col]
+            .sum().unstack('字段名').reset_index()
+        )
 
-    # ── 字段 / 类别 / 公司类型 ───────────────────────────────────────────
-    all_fields   = sorted(df_clean['字段名'].unique().tolist())
-    all_types    = sorted(df_clean['类别'].dropna().astype(str).unique().tolist())    if '类别'    in df_clean.columns else []
-    all_co_types = sorted(df_clean['公司类型'].dropna().astype(str).unique().tolist()) if '公司类型' in df_clean.columns else []
+        # 提取选项列表
+        all_fields   = sorted(df_clean['字段名'].unique().tolist())
+        all_types    = sorted(df_clean['类别'].dropna().astype(str).unique().tolist()) if '类别'    in df_clean.columns else []
+        all_co_types = sorted(df_clean['公司类型'].dropna().astype(str).unique().tolist()) if '公司类型' in df_clean.columns else []
 
-    # ── 动态年份颜色 ─────────────────────────────────────────────────────
+        all_years_sorted = sorted(
+            [y for y in df_clean['报告年份'].unique() if str(y).isdigit()],
+            key=lambda x: int(x)
+        )
+        
+        return df_clean, df_pivot, val_col, all_fields, all_types, all_co_types, all_years_sorted
+
+    # 调用缓存的数据处理函数
+    df_clean, df_pivot, val_col, all_fields, all_types, all_co_types, all_years_sorted = prepare_viz_data(df_raw)
+
+    # ── 动态年份颜色计算 (极速，无需缓存) ──────────────────────────────────
     KPMG_COLOR_MAP = {
         "Lightest": "#BFE8FF",     # Pacific Blue (light)
         "Light": "#76D2FF",      # Blue (original Light Blue)
@@ -1810,354 +1814,341 @@ with tab6:
         "Dark": "#00338D",       # KPMG Blue (original Primary Blue)
     }
     
-    # 提取已排序的年份
-    all_years_sorted = sorted(
-        [y for y in df_clean['报告年份'].unique() if str(y).isdigit()],
-        key=lambda x: int(x)
-    )
     n_years = len(all_years_sorted)
     dynamic_year_colors = {}
-    
-    # ── 根据年份数量选择颜色策略 ─────────────────────────
-    target_colors = [] # 最终用于映射的颜色列表
+    target_colors = []
     
     if n_years == 3:
-        # 3年：按要求，从 Light Blue (#76D2FF) 开始，依次是 Cobalt Blue (#1E49E2)，KPMG Blue (#00338D)
-        target_colors = [
-            KPMG_COLOR_MAP["Light"],
-            KPMG_COLOR_MAP["Primary"],
-            KPMG_COLOR_MAP["Dark"]
-        ]
+        target_colors = [KPMG_COLOR_MAP["Light"], KPMG_COLOR_MAP["Primary"], KPMG_COLOR_MAP["Dark"]]
     elif n_years == 2:
-        # 2年：按要求，前一个年份 (2024) 用 Cobalt Blue (#1E49E2)，后一个年份 (2025) 用 KPMG Blue (#00338D)
-        target_colors = [
-            KPMG_COLOR_MAP["Primary"],
-            KPMG_COLOR_MAP["Dark"]
-        ]
+        target_colors = [KPMG_COLOR_MAP["Primary"], KPMG_COLOR_MAP["Dark"]]
     else:
-        # 1年 或 4年以上：使用默认的浅到深渐变 (Lightest -> Dark)
-        target_colors = [
-            KPMG_COLOR_MAP["Lightest"],
-            KPMG_COLOR_MAP["Light"],
-            KPMG_COLOR_MAP["Primary"],
-            KPMG_COLOR_MAP["Dark"]
-        ]
+        target_colors = [KPMG_COLOR_MAP["Lightest"], KPMG_COLOR_MAP["Light"], KPMG_COLOR_MAP["Primary"], KPMG_COLOR_MAP["Dark"]]
     
-    # ── 映射年份到颜色 ─────────────────────────
     num_colors_to_use = len(target_colors)
-    
     if n_years > 0:
         for idx, year in enumerate(all_years_sorted):
-            color_index = 0 # 默认值，处理 n_years=1 的情况
-    
+            color_index = 0
             if n_years > 1:
-                # 计算当前年份在所有年份中的比例 (0 到 1)
                 proportion = idx / (n_years - 1)
-                # 将比例映射到目标颜色数组的索引范围 (0 到 num_colors_to_use - 1)
-                # 例如：3年数据，3个颜色 -> idx=0/2=0 -> prop=0 -> color_idx=0; idx=1/2=0.5 -> prop=0.5 -> color_idx=1; idx=2/2=1 -> prop=1 -> color_idx=2
-                # 例如：5年数据，4个颜色 -> idx=0/4=0 -> prop=0 -> color_idx=0; idx=1/4=0.25 -> prop=0.25 -> color_idx=int(0.25*3)=0; idx=2/4=0.5 -> prop=0.5 -> color_idx=int(0.5*3)=1 ...
                 color_index = int(proportion * (num_colors_to_use - 1))
-    
-            # 确保 color_index 不会超出 target_colors 的有效索引范围
             color_index = min(color_index, num_colors_to_use - 1)
             dynamic_year_colors[str(year)] = target_colors[color_index]
 
     # ── KPMG 色卡 ────────────────────────────────────────────────────────
-    # ✅ 关键修复：HTML 必须写成单行紧凑字符串，不能有多余换行/缩进
     with st.expander("🎨 查看 KPMG 官方色卡"):
-        for cat_name, cat_colors in KPMG_CATEGORIES.items():
-            st.markdown(f"**{cat_name}**")
-            html_str = "".join([
-                f'<div style="display:inline-block;margin-right:15px;margin-bottom:8px;">'
-                f'<div style="width:14px;height:14px;background-color:{c};display:inline-block;'
-                f'border-radius:3px;vertical-align:middle;border:1px solid #ddd;"></div>'
-                f'<span style="font-size:13px;vertical-align:middle;"> {n} <b>({c})</b></span></div>'
-                for n, c in cat_colors.items()
-            ])
-            st.markdown(html_str, unsafe_allow_html=True)
+        # 确保全局存在 KPMG_CATEGORIES 变量
+        if 'KPMG_CATEGORIES' in globals():
+            for cat_name, cat_colors in KPMG_CATEGORIES.items():
+                st.markdown(f"**{cat_name}**")
+                html_str = "".join([
+                    f'<div style="display:inline-block;margin-right:15px;margin-bottom:8px;">'
+                    f'<div style="width:14px;height:14px;background-color:{c};display:inline-block;'
+                    f'border-radius:3px;vertical-align:middle;border:1px solid #ddd;"></div>'
+                    f'<span style="font-size:13px;vertical-align:middle;"> {n} <b>({c})</b></span></div>'
+                    for n, c in cat_colors.items()
+                ])
+                st.markdown(html_str, unsafe_allow_html=True)
+        else:
+            st.caption("未检测到 KPMG_CATEGORIES 色卡定义。")
 
     st.divider()
 
-    # ── 核心配置面板 ─────────────────────────────────────────────────────
-    with st.expander("🛠️ 核心配置面板", expanded=True):
-        r1c1, r1c2, r1c3 = st.columns([1.5, 1, 1])
-        is_pct_stack_mode = False
+    # ==========================================
+    # 🌟 提速秘籍 2：锁定 UI 与绘图更新范围 (片段刷新)
+    # ==========================================
+    @st.fragment
+    def render_viz_dashboard(df_clean, df_pivot, val_col, all_fields, all_types, all_co_types, dynamic_year_colors):
+        # ── 核心配置面板 ─────────────────────────────────────────────────────
+        with st.expander("🛠️ 核心配置面板", expanded=True):
+            r1c1, r1c2, r1c3 = st.columns([1.5, 1, 1])
+            is_pct_stack_mode = False
 
-        with r1c1:
-            chart_type = st.selectbox(
-                "📈 1. 图表类型",
-                ["簇状柱状图", "堆积柱状图", "折线对比图", "饼图", "内外环结构对比图"]
-            )
-
-            # ── 饼图 / 环图 ──────────────────────────────────────────────
-            if "环" in chart_type or chart_type == "饼图":
-                calc_mode = "结构分析"
-                selected_multi_fields = st.multiselect(
-                    "🎯 选择构成指标", all_fields,
-                    default=all_fields[:min(3, len(all_fields))]
-                )
-                selected_cos = st.selectbox("🏗️ 选择展示公司", sorted(df_pivot['公司'].unique().tolist()))
-                plot_df_base = (
-                    df_clean[
-                        df_clean['字段名'].isin(selected_multi_fields) &
-                        (df_clean['公司'] == selected_cos)
-                    ].copy().rename(columns={val_col: 'final_val'})
+            with r1c1:
+                chart_type = st.selectbox(
+                    "📈 1. 图表类型",
+                    ["簇状柱状图", "堆积柱状图", "折线对比图", "饼图", "内外环结构对比图"]
                 )
 
-            else:
-                # ── 堆积图子模式 ─────────────────────────────────────────
-                if chart_type == "堆积柱状图":
-                    stack_sub = st.radio(
-                        "堆积模式", ["单指标 / 公式", "多指标占比"],
-                        horizontal=True, key="stack_sub_mode"
+                # ── 饼图 / 环图 ──────────────────────────────────────────────
+                if "环" in chart_type or chart_type == "饼图":
+                    calc_mode = "结构分析"
+                    selected_multi_fields = st.multiselect(
+                        "🎯 选择构成指标", all_fields,
+                        default=all_fields[:min(3, len(all_fields))]
                     )
-                    is_pct_stack_mode = (stack_sub == "多指标占比")
-
-                # ── 多指标占比 ───────────────────────────────────────────
-                if is_pct_stack_mode:
-                    calc_mode = "多指标占比"
-                    if all_types:
-                        pct_type_f = st.selectbox(
-                            "🗂️ 按类别筛选指标", ["全部类别"] + all_types, key="pct_type_filter"
-                        )
-                        pct_field_pool = (
-                            sorted(df_clean[df_clean['类别'] == pct_type_f]['字段名'].unique().tolist())
-                            if pct_type_f != "全部类别" else all_fields
-                        )
-                    else:
-                        pct_field_pool = all_fields
-
-                    selected_pct_fields = st.multiselect(
-                        "🎯 选择堆积指标", pct_field_pool,
-                        default=pct_field_pool[:min(3, len(pct_field_pool))],
-                        key="pct_stack_fields"
+                    selected_cos = st.selectbox("🏗️ 选择展示公司", sorted(df_pivot['公司'].unique().tolist()))
+                    plot_df_base = (
+                        df_clean[
+                            df_clean['字段名'].isin(selected_multi_fields) &
+                            (df_clean['公司'] == selected_cos)
+                        ].copy().rename(columns={val_col: 'final_val'})
                     )
-                    if selected_pct_fields:
-                        plot_df_base = (
-                            df_clean[df_clean['字段名'].isin(selected_pct_fields)]
-                            [['公司', '报告年份', '字段名', val_col]]
-                            .copy().rename(columns={val_col: 'final_val'})
-                        )
-                    else:
-                        plot_df_base = pd.DataFrame(columns=['公司', '报告年份', '字段名', 'final_val'])
 
-                # ── 普通单指标 / 公式 ────────────────────────────────────
                 else:
-                    calc_mode = st.radio("数据模式", ["单指标直显", "自定义公式运算"], horizontal=True)
+                    # ── 堆积图子模式 ─────────────────────────────────────────
+                    if chart_type == "堆积柱状图":
+                        stack_sub = st.radio(
+                            "堆积模式", ["单指标 / 公式", "多指标占比"],
+                            horizontal=True, key="stack_sub_mode"
+                        )
+                        is_pct_stack_mode = (stack_sub == "多指标占比")
 
-                    if calc_mode == "单指标直显":
+                    # ── 多指标占比 ───────────────────────────────────────────
+                    if is_pct_stack_mode:
+                        calc_mode = "多指标占比"
                         if all_types:
-                            type_f = st.selectbox(
-                                "🗂️ 按类别筛选指标", ["全部类别"] + all_types, key="type_filter_single"
+                            pct_type_f = st.selectbox(
+                                "🗂️ 按类别筛选指标", ["全部类别"] + all_types, key="pct_type_filter"
                             )
-                            filtered_fields = (
-                                sorted(df_clean[df_clean['类别'] == type_f]['字段名'].unique().tolist())
-                                if type_f != "全部类别" else all_fields
+                            pct_field_pool = (
+                                sorted(df_clean[df_clean['类别'] == pct_type_f]['字段名'].unique().tolist())
+                                if pct_type_f != "全部类别" else all_fields
                             )
                         else:
-                            filtered_fields = all_fields
+                            pct_field_pool = all_fields
 
-                        target_field = st.selectbox("🎯 选择显示指标", filtered_fields)
-                        plot_df_base = (
-                            df_pivot[['公司', '报告年份', target_field]]
-                            .rename(columns={target_field: 'final_val'}).fillna(0)
+                        selected_pct_fields = st.multiselect(
+                            "🎯 选择堆积指标", pct_field_pool,
+                            default=pct_field_pool[:min(3, len(pct_field_pool))],
+                            key="pct_stack_fields"
                         )
-
-                    else:  # 公式模式
-                        v1, v2 = st.columns(2)
-                        var_a = v1.selectbox("变量 A", all_fields, index=0)
-                        var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0)
-                        formula_input = st.text_input("✏️ 自定义公式 (使用 A 和 B)", value="A - B")
-                        try:
-                            A_data = df_pivot[var_a].fillna(0)
-                            B_data = df_pivot[var_b].fillna(0) if var_b != "无" else 0
-                            res = pd.eval(formula_input, local_dict={'A': A_data, 'B': B_data})
-                            df_pivot['final_val'] = (
-                                pd.Series(res).replace([np.inf, -np.inf], 0).fillna(0).values
+                        if selected_pct_fields:
+                            plot_df_base = (
+                                df_clean[df_clean['字段名'].isin(selected_pct_fields)]
+                                [['公司', '报告年份', '字段名', val_col]]
+                                .copy().rename(columns={val_col: 'final_val'})
                             )
-                            plot_df_base = df_pivot[['公司', '报告年份', 'final_val']].copy()
-                        except Exception as e:
-                            st.error(f"公式无效: {e}")
-                            plot_df_base = pd.DataFrame(columns=['公司', '报告年份', 'final_val'])
+                        else:
+                            plot_df_base = pd.DataFrame(columns=['公司', '报告年份', '字段名', 'final_val'])
 
-                # ── 公司类型筛选 ─────────────────────────────────────────
-                all_cos_list = sorted(df_pivot['公司'].unique().tolist())
-                if all_co_types:
-                    co_type_sel = st.selectbox(
-                        "🏢 按公司类型快速选择", ["不按公司类型筛选"] + all_co_types, key="co_type_sel"
-                    )
-                    if (co_type_sel != "不按公司类型筛选" and
-                            st.session_state.get('_prev_co_type_sel') != co_type_sel):
-                        st.session_state['selected_cos_ms'] = sorted(
-                            df_clean[df_clean['公司类型'] == co_type_sel]['公司'].unique().tolist()
+                    # ── 普通单指标 / 公式 ────────────────────────────────────
+                    else:
+                        calc_mode = st.radio("数据模式", ["单指标直显", "自定义公式运算"], horizontal=True)
+
+                        if calc_mode == "单指标直显":
+                            if all_types:
+                                type_f = st.selectbox(
+                                    "🗂️ 按类别筛选指标", ["全部类别"] + all_types, key="type_filter_single"
+                                )
+                                filtered_fields = (
+                                    sorted(df_clean[df_clean['类别'] == type_f]['字段名'].unique().tolist())
+                                    if type_f != "全部类别" else all_fields
+                                )
+                            else:
+                                filtered_fields = all_fields
+
+                            target_field = st.selectbox("🎯 选择显示指标", filtered_fields)
+                            plot_df_base = (
+                                df_pivot[['公司', '报告年份', target_field]]
+                                .rename(columns={target_field: 'final_val'}).fillna(0)
+                            )
+
+                        else:  # 公式模式
+                            v1, v2 = st.columns(2)
+                            var_a = v1.selectbox("变量 A", all_fields, index=0)
+                            var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0)
+                            formula_input = st.text_input("✏️ 自定义公式 (使用 A 和 B)", value="A - B")
+                            try:
+                                A_data = df_pivot[var_a].fillna(0)
+                                B_data = df_pivot[var_b].fillna(0) if var_b != "无" else 0
+                                res = pd.eval(formula_input, local_dict={'A': A_data, 'B': B_data})
+                                df_pivot['final_val'] = (
+                                    pd.Series(res).replace([np.inf, -np.inf], 0).fillna(0).values
+                                )
+                                plot_df_base = df_pivot[['公司', '报告年份', 'final_val']].copy()
+                            except Exception as e:
+                                st.error(f"公式无效: {e}")
+                                plot_df_base = pd.DataFrame(columns=['公司', '报告年份', 'final_val'])
+
+                    # ── 公司类型筛选 ─────────────────────────────────────────
+                    all_cos_list = sorted(df_pivot['公司'].unique().tolist())
+                    if all_co_types:
+                        co_type_sel = st.selectbox(
+                            "🏢 按公司类型快速选择", ["不按公司类型筛选"] + all_co_types, key="co_type_sel"
                         )
-                        st.session_state['_prev_co_type_sel'] = co_type_sel
+                        if (co_type_sel != "不按公司类型筛选" and
+                                st.session_state.get('_prev_co_type_sel') != co_type_sel):
+                            st.session_state['selected_cos_ms'] = sorted(
+                                df_clean[df_clean['公司类型'] == co_type_sel]['公司'].unique().tolist()
+                            )
+                            st.session_state['_prev_co_type_sel'] = co_type_sel
 
-                selected_cos = st.multiselect(
-                    "🏗️ 选择对比公司", all_cos_list,
-                    default=all_cos_list[:min(2, len(all_cos_list))],
-                    key="selected_cos_ms"
+                    selected_cos = st.multiselect(
+                        "🏗️ 选择对比公司", all_cos_list,
+                        default=all_cos_list[:min(2, len(all_cos_list))],
+                        key="selected_cos_ms"
+                    )
+
+            with r1c2:
+                x_axis_mode = (
+                    st.radio("🔍 布局视角", ["以公司为横轴", "以年份为横轴"])
+                    if "环" not in chart_type else "结构视角"
                 )
+                decimals   = st.number_input("🔢 小数位数", min_value=0, max_value=4, value=0)
+                show_value = st.toggle("✅ 显示数据标签", value=True)
 
-        with r1c2:
-            x_axis_mode = (
-                st.radio("🔍 布局视角", ["以公司为横轴", "以年份为横轴"])
-                if "环" not in chart_type else "结构视角"
-            )
-            decimals   = st.number_input("🔢 小数位数", min_value=0, max_value=4, value=0)
-            show_value = st.toggle("✅ 显示数据标签", value=True)
+            with r1c3:
+                unit_options  = {"原始数值": 1.0, "亿元": 0.01, "十亿元": 0.001, "百分比(%)": 100.0}
+                selected_unit = st.selectbox("📏 数值单位换算", list(unit_options.keys()))
+                multiplier    = unit_options[selected_unit]
+                y_axis_title  = st.text_input("📝 Y轴单位显示修改", value=f"单位: {selected_unit.split(' ')[0]}")
+                is_transparent = st.toggle("🌈 开启透明背景模式")
+                show_avg  = st.checkbox("平均值线") if "柱" in chart_type else False
+                avg_color = st.color_picker("基准线颜色", value="#ED2124") if show_avg else "#ED2124"
 
-        with r1c3:
-            unit_options  = {"原始数值": 1.0, "亿元": 0.01, "十亿元": 0.001, "百分比(%)": 100.0}
-            selected_unit = st.selectbox("📏 数值单位换算", list(unit_options.keys()))
-            multiplier    = unit_options[selected_unit]
-            y_axis_title  = st.text_input("📝 Y轴单位显示修改", value=f"单位: {selected_unit.split(' ')[0]}")
-            is_transparent = st.toggle("🌈 开启透明背景模式")
-            show_avg  = st.checkbox("平均值线") if "柱" in chart_type else False
-            avg_color = st.color_picker("基准线颜色", value="#ED2124") if show_avg else "#ED2124"
+        # ── 绘图数据准备 ─────────────────────────────────────────────────────
+        if plot_df_base.empty:
+            st.warning("暂无数据，请检查筛选条件。")
+            st.stop()
 
-    # ── 绘图数据准备 ─────────────────────────────────────────────────────
-    if plot_df_base.empty:
-        st.warning("暂无数据，请检查筛选条件。")
-        st.stop()
-
-    if calc_mode in ("结构分析", "多指标占比"):
-        cos_filter = [selected_cos] if isinstance(selected_cos, str) else selected_cos
-        plot_df  = plot_df_base[plot_df_base['公司'].isin(cos_filter)].copy()
-        color_val = "字段名"
-    else:
-        plot_df  = plot_df_base[plot_df_base['公司'].isin(selected_cos)].copy()
-        color_val = "报告年份" if x_axis_mode == "以公司为横轴" else "公司"
-
-    plot_df['绘制金额'] = plot_df['final_val'] * multiplier
-
-    # ── 图例颜色配置 ─────────────────────────────────────────────────────
-    st.markdown("#### 🎨 自定义图例标签与颜色")
-    unique_items = sorted(plot_df[color_val].unique().tolist())
-    rename_map, color_map = {}, {}
-    c_cols = st.columns(4)
-    for i, item in enumerate(unique_items):
-        with c_cols[i % 4]:
-            st.caption(f"原始值: {item}")
-            new_label = st.text_input("显示名称", value=str(item), key=f"rename_{item}")
-            default_c = dynamic_year_colors.get(str(item), DEFAULT_COLORS[i % len(DEFAULT_COLORS)])
-            new_color = st.color_picker("选择颜色", value=default_c, key=f"color_{item}")
-            rename_map[item]     = new_label
-            color_map[new_label] = new_color
-
-    plot_df[color_val] = plot_df[color_val].map(rename_map)
-
-    # ── 绘图引擎 ─────────────────────────────────────────────────────────
-    fig       = go.Figure()
-    fmt       = f'.{decimals}f'
-    suffix    = "%" if selected_unit == "百分比(%)" else ""
-    label_fmt = f'%{{y:{fmt}}}{suffix}'
-
-    if "柱状图" in chart_type:
-        barmode = 'group' if "簇状" in chart_type else 'relative'
-
-        if is_pct_stack_mode:
-            plot_df['x_label'] = plot_df['公司'] + ' ' + plot_df['报告年份']
-            plot_df['_total']  = plot_df.groupby('x_label')['绘制金额'].transform('sum')
-            plot_df['绘制占比'] = (plot_df['绘制金额'] / plot_df['_total'] * 100).fillna(0)
-            for item in rename_map.values():
-                d = plot_df[plot_df[color_val] == item]
-                fig.add_trace(go.Bar(
-                    x=d['x_label'], y=d['绘制占比'], name=str(item),
-                    marker_color=color_map[item],
-                    text=(
-                        d.apply(lambda r: f"{r['绘制占比']:.{decimals}f}%<br>{r['绘制金额']:.{decimals}f}", axis=1)
-                        if show_value else None
-                    ),
-                    textposition='inside'
-                ))
-            fig.update_yaxes(range=[0, 105])
-            barmode = 'relative'
-
+        if calc_mode in ("结构分析", "多指标占比"):
+            cos_filter = [selected_cos] if isinstance(selected_cos, str) else selected_cos
+            plot_df  = plot_df_base[plot_df_base['公司'].isin(cos_filter)].copy()
+            color_val = "字段名"
         else:
+            plot_df  = plot_df_base[plot_df_base['公司'].isin(selected_cos)].copy()
+            color_val = "报告年份" if x_axis_mode == "以公司为横轴" else "公司"
+
+        plot_df['绘制金额'] = plot_df['final_val'] * multiplier
+
+        # ── 图例颜色配置 ─────────────────────────────────────────────────────
+        st.markdown("#### 🎨 自定义图例标签与颜色")
+        unique_items = sorted(plot_df[color_val].unique().tolist())
+        rename_map, color_map = {}, {}
+        c_cols = st.columns(4)
+        for i, item in enumerate(unique_items):
+            with c_cols[i % 4]:
+                st.caption(f"原始值: {item}")
+                new_label = st.text_input("显示名称", value=str(item), key=f"rename_{item}")
+                # 兼容外部如果定义了 DEFAULT_COLORS
+                default_color_fallback = DEFAULT_COLORS[i % len(DEFAULT_COLORS)] if 'DEFAULT_COLORS' in globals() else "#1E49E2"
+                default_c = dynamic_year_colors.get(str(item), default_color_fallback)
+                new_color = st.color_picker("选择颜色", value=default_c, key=f"color_{item}")
+                rename_map[item]     = new_label
+                color_map[new_label] = new_color
+
+        plot_df[color_val] = plot_df[color_val].map(rename_map)
+
+        # ── 绘图引擎 ─────────────────────────────────────────────────────────
+        import plotly.graph_objects as go
+        import plotly.express as px
+        
+        fig       = go.Figure()
+        fmt       = f'.{decimals}f'
+        suffix    = "%" if selected_unit == "百分比(%)" else ""
+        label_fmt = f'%{{y:{fmt}}}{suffix}'
+
+        if "柱状图" in chart_type:
+            barmode = 'group' if "簇状" in chart_type else 'relative'
+
+            if is_pct_stack_mode:
+                plot_df['x_label'] = plot_df['公司'] + ' ' + plot_df['报告年份']
+                plot_df['_total']  = plot_df.groupby('x_label')['绘制金额'].transform('sum')
+                plot_df['绘制占比'] = (plot_df['绘制金额'] / plot_df['_total'] * 100).fillna(0)
+                for item in rename_map.values():
+                    d = plot_df[plot_df[color_val] == item]
+                    fig.add_trace(go.Bar(
+                        x=d['x_label'], y=d['绘制占比'], name=str(item),
+                        marker_color=color_map[item],
+                        text=(
+                            d.apply(lambda r: f"{r['绘制占比']:.{decimals}f}%<br>{r['绘制金额']:.{decimals}f}", axis=1)
+                            if show_value else None
+                        ),
+                        textposition='inside'
+                    ))
+                fig.update_yaxes(range=[0, 105])
+                barmode = 'relative'
+
+            else:
+                for item in rename_map.values():
+                    d = plot_df[plot_df[color_val] == item]
+                    fig.add_trace(go.Bar(
+                        x=d["公司" if color_val == "报告年份" else "报告年份"],
+                        y=d["绘制金额"], name=str(item),
+                        marker_color=color_map[item],
+                        text=d["绘制金额"] if show_value else None,
+                        texttemplate=label_fmt if show_value else None,
+                        textposition='outside', textangle=0
+                    ))
+
+            fig.update_layout(barmode=barmode)
+
+        elif "折线对比图" in chart_type:
             for item in rename_map.values():
                 d = plot_df[plot_df[color_val] == item]
-                fig.add_trace(go.Bar(
+                fig.add_trace(go.Scatter(
                     x=d["公司" if color_val == "报告年份" else "报告年份"],
                     y=d["绘制金额"], name=str(item),
+                    mode='lines+markers+text' if show_value else 'lines+markers',
                     marker_color=color_map[item],
-                    text=d["绘制金额"] if show_value else None,
-                    texttemplate=label_fmt if show_value else None,
-                    textposition='outside', textangle=0
+                    text=d["绘制金额"], texttemplate=label_fmt, textposition="top center"
                 ))
 
-        fig.update_layout(barmode=barmode)
+        elif chart_type == "饼图":
+            latest = plot_df['报告年份'].max()
+            d = plot_df[plot_df['报告年份'] == latest]
+            fig = px.pie(d, values='绘制金额', names=color_val, hole=0.4,
+                         color=color_val, color_discrete_map=color_map)
+            fig.update_traces(textinfo='percent+label' if show_value else 'percent')
 
-    elif "折线对比图" in chart_type:
-        for item in rename_map.values():
-            d = plot_df[plot_df[color_val] == item]
-            fig.add_trace(go.Scatter(
-                x=d["公司" if color_val == "报告年份" else "报告年份"],
-                y=d["绘制金额"], name=str(item),
-                mode='lines+markers+text' if show_value else 'lines+markers',
-                marker_color=color_map[item],
-                text=d["绘制金额"], texttemplate=label_fmt, textposition="top center"
-            ))
+        elif chart_type == "内外环结构对比图":
+            years_ring = sorted(plot_df['报告年份'].unique().tolist())
+            if len(years_ring) < 2:
+                st.warning("环形图对比需要至少两年的数据。")
+            else:
+                d_outer = plot_df[plot_df['报告年份'] == years_ring[-1]]
+                d_inner = plot_df[plot_df['报告年份'] == years_ring[0]]
+                fig.add_trace(go.Pie(
+                    labels=d_outer[color_val], values=d_outer['绘制金额'],
+                    hole=0.7, name=years_ring[-1],
+                    marker=dict(colors=[color_map[f] for f in d_outer[color_val]]),
+                    textinfo='percent+label' if show_value else 'percent'
+                ))
+                fig.add_trace(go.Pie(
+                    labels=d_inner[color_val], values=d_inner['绘制金额'],
+                    hole=0.4, name=years_ring[0],
+                    domain={'x': [0.15, 0.85], 'y': [0.15, 0.85]},
+                    marker=dict(colors=[color_map[f] for f in d_inner[color_val]]),
+                    textinfo='percent' if show_value else 'none'
+                ))
+                fig.update_layout(annotations=[dict(
+                    text=f'内:{years_ring[0]}<br>外:{years_ring[-1]}',
+                    x=0.5, y=0.5, font_size=12, showarrow=False
+                )])
 
-    elif chart_type == "饼图":
-        latest = plot_df['报告年份'].max()
-        d = plot_df[plot_df['报告年份'] == latest]
-        fig = px.pie(d, values='绘制金额', names=color_val, hole=0.4,
-                     color=color_val, color_discrete_map=color_map)
-        fig.update_traces(textinfo='percent+label' if show_value else 'percent')
+        # ── 全局样式 ─────────────────────────────────────────────────────────
+        bg_color = "rgba(0,0,0,0)" if is_transparent else "white"
 
-    elif chart_type == "内外环结构对比图":
-        years_ring = sorted(plot_df['报告年份'].unique().tolist())
-        if len(years_ring) < 2:
-            st.warning("环形图对比需要至少两年的数据。")
-        else:
-            d_outer = plot_df[plot_df['报告年份'] == years_ring[-1]]
-            d_inner = plot_df[plot_df['报告年份'] == years_ring[0]]
-            fig.add_trace(go.Pie(
-                labels=d_outer[color_val], values=d_outer['绘制金额'],
-                hole=0.7, name=years_ring[-1],
-                marker=dict(colors=[color_map[f] for f in d_outer[color_val]]),
-                textinfo='percent+label' if show_value else 'percent'
-            ))
-            fig.add_trace(go.Pie(
-                labels=d_inner[color_val], values=d_inner['绘制金额'],
-                hole=0.4, name=years_ring[0],
-                domain={'x': [0.15, 0.85], 'y': [0.15, 0.85]},
-                marker=dict(colors=[color_map[f] for f in d_inner[color_val]]),
-                textinfo='percent' if show_value else 'none'
-            ))
-            fig.update_layout(annotations=[dict(
-                text=f'内:{years_ring[0]}<br>外:{years_ring[-1]}',
-                x=0.5, y=0.5, font_size=12, showarrow=False
-            )])
+        if show_avg and "柱" in chart_type and not is_pct_stack_mode:
+            avg_v = plot_df['绘制金额'].mean()
+            fig.add_hline(y=avg_v, line_dash="dash", line_color=avg_color,
+                          annotation_text=f"平均: {avg_v:{fmt}}{suffix}",
+                          annotation_font=dict(color=avg_color))
 
-    # ── 全局样式 ─────────────────────────────────────────────────────────
-    bg_color = "rgba(0,0,0,0)" if is_transparent else "white"
+        fig.update_layout(
+            font_family="Microsoft YaHei",
+            plot_bgcolor=bg_color, paper_bgcolor=bg_color,
+            margin=dict(t=120, l=10, r=10, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            annotations=[dict(
+                x=0, y=1.18, xref='paper', yref='paper',
+                text=f"<b>{y_axis_title}</b>", showarrow=False,
+                font=dict(size=14, color="#333333"), xanchor='left'
+            )]
+        )
+        fig.update_xaxes(showgrid=False)
+        fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
 
-    if show_avg and "柱" in chart_type and not is_pct_stack_mode:
-        avg_v = plot_df['绘制金额'].mean()
-        fig.add_hline(y=avg_v, line_dash="dash", line_color=avg_color,
-                      annotation_text=f"平均: {avg_v:{fmt}}{suffix}",
-                      annotation_font=dict(color=avg_color))
+        st.plotly_chart(fig, use_container_width=True)
 
-    fig.update_layout(
-        font_family="Microsoft YaHei",
-        plot_bgcolor=bg_color, paper_bgcolor=bg_color,
-        margin=dict(t=120, l=10, r=10, b=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        annotations=[dict(
-            x=0, y=1.18, xref='paper', yref='paper',
-            text=f"<b>{y_axis_title}</b>", showarrow=False,
-            font=dict(size=14, color="#333333"), xanchor='left'
-        )]
-    )
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
+        with st.expander("📄 查看底层数据明细"):
+            st.dataframe(plot_df, use_container_width=True)
 
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("📄 查看底层数据明细"):
-        st.dataframe(plot_df, use_container_width=True)
+    # ==========================================
+    # 在页面上调用封装好的交互展示区
+    # ==========================================
+    render_viz_dashboard(df_clean, df_pivot, val_col, all_fields, all_types, all_co_types, dynamic_year_colors)
         
         
         
@@ -2294,6 +2285,7 @@ with tab7:
         # ==========================================
         # --- 1.新业务相关比例 ---
         def create_financial_summary_table(df, cos):
+            
             # 动态获取最新年份
             years = sorted(df['报告年份'].unique())
             if not years: return go.Figure()
@@ -2385,7 +2377,7 @@ with tab7:
                 height=180 + len(col_names) * 40 # 动态高度，有多少家公司就多高
             )
             return fig
-        # --- 1.柱状图和比例环 ---
+        # --- 2.柱状图和比例环 ---
         def create_profit_mixed_chart(df, cos, show_lbl, gap, div, unit_str):
             c, cy, py, n = {'PI': '#FFD6EB', 'PS': '#00B8F5', 'CI': '#FD349C', 'CS': '#00338D'}, int(df['报告年份'].max()), int(df['报告年份'].max())-1, len(cos)
             fig = make_subplots(rows=2, cols=n, row_heights=[0.15, 0.85], subplot_titles=cos, shared_yaxes=True, vertical_spacing=0.12, horizontal_spacing=0.03, specs=[[{"type": "domain"}]*n, [{"type": "xy"}]*n])
@@ -2409,7 +2401,7 @@ with tab7:
             fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor='lightgray', showticklabels=False)            
             return fig
        
-        # --- 2.保险服务收入等柱状图 ---
+        # --- 3.保险服务收入等柱状图 ---
         def create_kpmg_chart(df, field_name, title_prefix, show_labels, pct_font_size, global_gap):
             d = df[df['公司'].isin(selected_cos)].copy()
             d['报告年份'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False)
@@ -2460,7 +2452,7 @@ with tab7:
             fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1,showline=False)
             return fig
 
-        # --- 3.保险业务构成 ---
+        # --- 4.保险业务构成 ---
         def create_kpmg_composition_chart(df, fields, title_prefix, show_labels, label_size, bar_width, co_font_size):
             d = df[df['公司'].isin(selected_cos)].copy()
             d_struct = d[d['字段名'].isin(fields)].copy()
@@ -2504,67 +2496,46 @@ with tab7:
                 ann.y = ann.y + 0.03  # 数字调大就会往上走，比如 0.05, 0.08 等
             return fig
         
-        # --- 4.保险业务构成2 ---
+        # --- 5.保险业务构成2 ---
         def create_kpmg_multi_composition_chart(df, field_map, color_map, title_prefix, show_labels, label_size, bar_width, co_font_size):
             fields = list(field_map.keys())
-            d = df[df['公司'].isin(selected_cos)].copy()
-            d_struct = d[d['字段名'].isin(fields)].copy()
-            d_struct['报告年份'] = d_struct['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
-            available_cos = [co for co in selected_cos if co in d_struct['公司'].unique()]
+            d = df[df['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名'], keep='first').copy()
+            d['报告年份'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False)
             
-            # 注意：这里现在返回两个值，如果没数据就返回空的 图 和 表
-            if not available_cos: return go.Figure(), pd.DataFrame()
-
-            # 🌟 新增逻辑：计算各公司的平均占比表格 🌟
-            # 1. 整理数据为透视表
-            d_pivot = d_struct.pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').fillna(0)
-            for f in fields:
-                if f not in d_pivot.columns: d_pivot[f] = 0
-            d_pivot['Total'] = d_pivot[fields].sum(axis=1).replace(0, 1)
+            # 1. 计算占比 (分母采用绝对值加总，防止含负数时单项比例超出 100%)
+            d_p = d[d['字段名'].isin(fields)].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币', aggfunc='first').fillna(0)
+            d_p['Total'] = d_p[fields].abs().sum(axis=1).replace(0, 1)
+            for f in fields: d_p[field_map[f]] = d_p[f] / d_p['Total'] * 100
             
-            # 2. 计算各指标的百分比
-            pct_cols = []
-            for f in fields:
-                col_name = field_map[f] # 使用展示名称作为列名
-                d_pivot[col_name] = d_pivot[f] / d_pivot['Total'] * 100
-                pct_cols.append(col_name)
-                
-            # 3. 按年份求均值，并转置(T)让指标做行，年份做列
-            df_avg = d_pivot[pct_cols].groupby('报告年份').mean().T
-            # 🌟 结束表格计算 🌟
-
-            fig = make_subplots(rows=1, cols=len(available_cos), shared_yaxes=True,
-                                column_titles=[f"<span style='font-size:{co_font_size}px;'>{co}</span>" for co in available_cos],
-                                horizontal_spacing=0.015)
-
-            for i, co in enumerate(available_cos):
-                d_co = d_struct[d_struct['公司'] == co].pivot(index='报告年份', columns='字段名', values='(百万)人民币')
-                for f in fields:
-                    if f not in d_co.columns: d_co[f] = 0
-                d_co = d_co.reindex(sorted(d_co.index.tolist()))
-                d_co['Total'] = d_co.sum(axis=1).replace(0, 1)
-                for field_name, display_name in field_map.items():
-                    val_pct = d_co[field_name] / d_co['Total'] * 100
-                    txt_c = "white" if "30, 73, 226" in color_map[field_name] or "114, 19, 234" in color_map[field_name] else "black"
-                    fig.add_trace(go.Bar(
-                        x=d_co.index, y=val_pct, name=display_name if i == 0 else None, marker_color=color_map[field_name],
-                        text=[f"{v:.0f}%" if v >= 1 else "" for v in val_pct] if show_labels else None,textangle=0, 
+            # 生成平均值表：年份为行(index)，项目为列(columns)
+            all_yrs = sorted(d['报告年份'].unique())
+            df_avg = d_p[[field_map[f] for f in fields]].groupby('报告年份').mean().reindex(all_yrs[-2:] if len(all_yrs)>=2 else all_yrs)
+            df_avg.index = [f"{y}YE" for y in df_avg.index] 
+        
+            # 2. 绘图逻辑
+            av_cos = [co for co in selected_cos if co in d['公司'].unique()]
+            if not av_cos: return go.Figure(), pd.DataFrame()
+            fig = make_subplots(rows=1, cols=len(av_cos), shared_yaxes=True, horizontal_spacing=0.015, column_titles=[f"<span style='font-size:{co_font_size}px;'>{co}</span>" for co in av_cos])
+            
+            for i, co in enumerate(av_cos):
+                d_co = d[d['公司']==co].pivot(index='报告年份', columns='字段名', values='(百万)人民币').reindex(all_yrs).fillna(0)
+                d_co['Total'] = d_co[fields].abs().sum(axis=1).replace(0, 1) # 图形数据同样绝对值加总
+                for f, d_n in field_map.items():
+                    val = d_co[f] / d_co['Total'] * 100
+                    txt_c = "white" if any(x in color_map[f] for x in ["30, 73, 226", "114, 19, 234", "0, 163, 161"]) else "black"
+                    fig.add_trace(go.Bar(x=[f"{y}YE" for y in d_co.index], y=val, name=d_n if i==0 else None, marker_color=color_map[f],
+                        text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in val] if show_labels else None, textangle=0,
                         textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=txt_c),
-                        constraintext='none', width=bar_width, showlegend=(i == 0), legendgroup=field_name, hoverinfo="none"
-                    ), row=1, col=i+1)
-
+                        constraintext='none', cliponaxis=False, width=bar_width, showlegend=(i==0), legendgroup=f), row=1, col=i+1)
+                        
             fig.update_layout(title=dict(text=f"<b>{title_prefix}</b>", y=0.98, font=COMMON_TITLE_FONT),
-                              barmode='stack', height=600, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                              margin=dict(t=100, b=100, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center",x=0.5, font=dict(size=12)))
-            
-            for i in range(1, len(available_cos) + 1):
-                fig.update_xaxes(showgrid=False, zeroline=False, showline=True, linecolor='#E0E0E0', tickfont=dict(size=10), row=1, col=i)
-                fig.update_yaxes(showgrid=False, zeroline=False, range=[0, 100], showline=False, showticklabels=(i==1), row=1, col=i)
-            
-            # 注意：最后返回了 fig 和计算好的 df_avg 表格
-            for ann in fig.layout.annotations:
-                ann.y = ann.y + 0.03  # 数字调大就会往上走，比如 0.05, 0.08 等
-            return fig, df_avg   
+                              barmode='relative', height=600, margin=dict(t=100, b=100, l=20, r=20), # relative 允许负数合理向下延伸
+                              legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5, font=dict(size=10)),
+                              plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+            for i in range(1, len(av_cos) + 1):
+                fig.update_xaxes(showgrid=False, zeroline=False, showline=False, tickfont=dict(size=10), row=1, col=i)
+                fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor='rgba(0,0,0,0.1)', showline=False, showticklabels=(i==1), row=1, col=i)
+            return fig, df_avg
         
         # --- 5.利润贡献拆解 ---
         def create_profit_composition_chart(df, selected_cos, target_year, show_labels, label_size, bar_width, co_font_size):
@@ -2846,24 +2817,45 @@ with tab7:
             d = df[df['公司'].isin(selected_cos)].copy()
             d_struct = d[d['字段名'].isin(fields)].copy()
             d_struct['报告年份'] = d_struct['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
+            all_years = sorted(d_struct['报告年份'].unique().tolist())
             available_cos = [co for co in selected_cos if co in d_struct['公司'].unique()]
             if not available_cos: return go.Figure()
-            fig = make_subplots(rows=1, cols=len(available_cos), shared_yaxes=True,
-                                column_titles=[f"<span style='font-size:{co_font_size}px; color:#00338D;'>{co}</span>" for co in available_cos], horizontal_spacing=0.015)
+            fig = make_subplots(rows=1, cols=len(available_cos), shared_yaxes=True, column_titles=[f"<span style='font-size:{co_font_size}px; color:#00338D;'>{co}</span>" for co in available_cos], horizontal_spacing=0.015)
             for i, co in enumerate(available_cos):
                 d_co = d_struct[d_struct['公司'] == co].pivot(index='报告年份', columns='字段名', values='(百万)人民币')
+                d_co = d_co.reindex(all_years).fillna(0) 
                 for f in fields:
                     if f not in d_co.columns: d_co[f] = 0
-                d_co = d_co.reindex(sorted(d_co.index.tolist()))
-                d_co['Total'] = d_co.sum(axis=1).replace(0, 1)
+                raw_total = d_co.sum(axis=1)
+                d_co['Total'] = raw_total.replace(0, 1) # 替换 0 为 1 防止除以 0 报错
                 for field_name in fields:
                     val_pct = d_co[field_name] / d_co['Total'] * 100
                     txt_color = "white" if field_name in ["FVOCI", "指定FVOCI", "AC"] else "black"
+                    labels = [f"{v:.0f}%" if (show_labels and raw_total.iloc[idx] > 0) else "" for idx, v in enumerate(val_pct)]   
                     fig.add_trace(go.Bar(
                         x=d_co.index, y=val_pct, name=field_map[field_name] if i == 0 else None, marker_color=color_map[field_name],
-                        text=[f"{v:.0f}%" for v in val_pct] if show_labels else None, textposition='inside', insidetextanchor='middle',
-                        textfont=dict(size=label_size, color=txt_color), constraintext='none', width=bar_width, showlegend=(i == 0), legendgroup=field_name, hoverinfo="skip"
-                    ), row=1, col=i+1)
+                        text=labels, textposition='inside', insidetextanchor='middle',
+                        textfont=dict(size=label_size, color=txt_color), 
+                        constraintext='none', textangle=0, cliponaxis=False, # 强制文字横排不压缩
+                        width=bar_width, showlegend=(i == 0), legendgroup=field_name, hoverinfo="skip"), row=1, col=i+1)
+                missing_y = [100 if t == 0 else 0 for t in raw_total]
+                missing_text = ["未披露" if t == 0 else "" for t in raw_total] 
+                fig.add_trace(go.Bar(
+                    x=d_co.index, 
+                    y=missing_y, 
+                    name="未披露", 
+                    marker_color="#E0E0E8", # 浅灰色
+                    text=missing_text, 
+                    textposition='inside', 
+                    insidetextanchor='middle',
+                    textfont=dict(size=label_size, color="#666666"), # 未披露建议用灰色字，白色看不清
+                    constraintext='none', 
+                    textangle=0,            # 核心：强制横向显示
+                    cliponaxis=False,       # 核心：防止被切断
+                    width=bar_width, 
+                    showlegend=False, 
+                    hoverinfo="skip"
+                ), row=1, col=i+1)
             fig.update_layout(title=dict(text=f"<b>{title_prefix}</b>", font=COMMON_TITLE_FONT), barmode='stack', height=600,
                               paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', uniformtext=dict(minsize=label_size, mode='show'),
                               margin=dict(t=120, b=120, l=40, r=40), legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5, font=dict(size=11), itemsizing="constant"))
@@ -3282,8 +3274,6 @@ with tab7:
 
         # --- 19.新业务指标 ---   
         def create_new_business_metrics_charts(df_raw, selected_cos, show_lab, lab_sz, bar_width, co_sz):
-        
-
             df_clean = df_raw.copy()
             df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
             val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
@@ -3298,9 +3288,9 @@ with tab7:
             years = sorted(df_pivot['报告年份'].unique().tolist())
             if len(years) < 2: return None, None, None
             latest_year, prev_year = years[-1], years[-2]
-            configs = [("新业务CSM利润率", "新业务价值分析 (2/4) - 新业务CSM利润率", "rgb(30, 73, 225)", "rgb(149, 229, 255)"), 
-                       ("新业务LC亏损率", "新业务价值分析 (3/4) - 新业务LC亏损率", "rgb(253, 52, 156)", "rgb(255, 214, 235)"), 
-                       ("新业务RA率", "新业务价值分析 (4/4) - 新业务RA率", "rgb(114, 19, 234)", "rgb(227, 207, 251)")]
+            configs = [("新业务CSM利润率", "新业务价值分析 (2/5) - 新业务CSM利润率", "rgb(30, 73, 225)", "rgb(149, 229, 255)"), 
+                       ("新业务LC亏损率", "新业务价值分析 (3/5) - 新业务LC亏损率", "rgb(253, 52, 156)", "rgb(255, 214, 235)"), 
+                       ("新业务RA率", "新业务价值分析 (4/5) - 新业务RA率", "rgb(114, 19, 234)", "rgb(227, 207, 251)")]
             figs = []
             plot_bargap = max(0, 1.0 - bar_width) 
             for metric, title, c_latest, c_prev in configs:
@@ -3515,7 +3505,7 @@ with tab7:
         display_bottom_note(nt_tbl)
         
         # 利润贡献与保险和投资利润占比 - UI与执行模块        
-        st.subheader("利润贡献、保险利润与投资利润占比")
+        st.subheader("关键年报数据-利润贡献、保险利润与投资利润占比")
         ctrl1, ctrl2, ctrl3 = st.columns([1, 1.5, 3])
         with ctrl1: ui_prof_lab = st.toggle("显示数据标签", value=True, key="p_lab")
         with ctrl2: ui_prof_gap = st.slider("柱子间距(越小越粗)", 0.2, 0.7, 0.4, key="p_gap")         
@@ -3528,6 +3518,7 @@ with tab7:
         display_bottom_note(nt)
 
         # 保险服务收入合计等
+        st.subheader("关键年报数据-保险业务收入、费用及业绩")
         tasks_1 = [("inc_total", "保险服务收入合计", "保险服务收入变动趋势"), 
                    ("exp_total", "保险服务费用合计", "保险服务费用变动趋势"), 
                    ("perf_total", "保险服务业绩", "保险服务业绩变动趋势")]
@@ -3546,6 +3537,7 @@ with tab7:
             
         # 保险业务收入构成等
         st.markdown("---")
+        st.subheader("关键年报数据-保险业务收入")
         an, nt = display_notes("comp_1")
         comp_title, comp_fields = "保险业务收入构成 (1/2) - PAA与非PAA对比", ["采用保费分配法计量的保险合同保险服务收入", "未采用保费分配法计量的保险合同保险服务收入"]
         c_ctrl1, c_ctrl2, c_ctrl3, c_ctrl4 = st.columns([1, 1.5, 1.5, 1.5])
@@ -3558,38 +3550,40 @@ with tab7:
         figs_to_ppt.append((comp_title, fig_comp, an, nt))
         display_bottom_note(nt)
 
+
         an, nt = display_notes("comp_2")
-        title_2 = "保险业务收入构成 (2/2) - 详细收入构成"
-        field_map_2 = {"合同服务边际的摊销": "合同服务边际的释放", "非金融风险调整的变动": "非金融风险调整的变动", "预计当期发生的保险服务费用": "预期当期发生的保险服务费用", "保险获取现金流的摊销（保险服务收入）": "保险获取现金流的摊销", "与当期服务或过去服务相关得保费经验调整": "与当期服务或过去服务相关的保费经验调整", "其他收入调整": "其他"}
-        color_map_2 = {"合同服务边际的摊销": "rgb(30, 73, 226)", "非金融风险调整的变动": "rgb(254, 174, 215)", "预计当期发生的保险服务费用": "rgb(0, 163, 161)", "保险获取现金流的摊销（保险服务收入）": "rgb(1, 184, 245)", "与当期服务或过去服务相关得保费经验调整": "rgb(0, 219, 214)", "其他收入调整": "rgb(114, 19, 234)"}
-        
-        # 接收图表(fig_multi)和均值表格(df_multi_avg)
-        fig_multi, df_multi_avg = create_kpmg_multi_composition_chart(df_filtered, field_map_2, color_map_2, title_2, label_on_comp, l_size, b_width, c_f_size)
-        
+        title_2 = "保险业务收入构成 (2/2) - 详细收入构成拆解"
+        f_m2 = {"合同服务边际的摊销":"合同服务边际的释放", "非金融风险调整的变动":"非金融风险调整的变动", "预计当期发生的保险服务费用":"预期当期发生的保险服务费用", "保险获取现金流的摊销（保险服务收入）":"保险获取现金流的摊销", "与当期服务或过去服务相关得保费经验调整":"与当期服务或过去服务相关的保费经验调整", "其他收入调整":"其他"}
+        c_m2 = {"合同服务边际的摊销":"rgb(30, 73, 226)", "非金融风险调整的变动":"rgb(254, 174, 215)", "预计当期发生的保险服务费用":"rgb(0, 163, 161)", "保险获取现金流的摊销（保险服务收入）":"rgb(1, 184, 245)", "与当期服务或过去服务相关得保费经验调整":"rgb(0, 219, 214)", "其他收入调整":"rgb(114, 19, 234)"}
+        fig_multi, df_multi_avg = create_kpmg_multi_composition_chart(df_filtered, f_m2, c_m2, title_2, label_on_comp, l_size, b_width, c_f_size)
         if fig_multi: 
-            # 1. 如果有数据，先在页面展示算出来的均值表格
             if not df_multi_avg.empty:
-                st.write("#####  各公司平均占比情况")
-                # 使用 .style.format 给表格加上百分号
-                st.dataframe(df_multi_avg.style.format("{:.1f}%"), use_container_width=True)
+                st.write("##### 各公司平均占比情况")
+                styles = [
+                    {'selector': 'th', 'props': [('text-align', 'center'), ('font-weight', 'bold'), ('border', '1px solid white')]},
+                    {'selector': 'td', 'props': [('text-align', 'center')]}
+                ]
+                for i, (orig_k, display_name) in enumerate(f_m2.items()):
+                    bg_c = c_m2[orig_k]
+                    tx_c = "white" if any(x in bg_c for x in ["30, 73, 226", "114, 19, 234", "0, 163, 161"]) else "black"
+                    # CSS 选择器：.col_heading.col0 代表第一列表头, .col1 代表第二列...
+                    styles.append({
+                        'selector': f'th.col_heading.col{i}', 
+                        'props': [('background-color', bg_c), ('color', tx_c)]
+                    })
+                # 3. 渲染为 HTML 表格 (解决白背景问题)
+                html_table = df_multi_avg.style.set_table_styles(styles).format("{:.1f}%").to_html()
+                st.write(html_table, unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True) # 加个间距
                 
-            # 2. 展示图表
             st.plotly_chart(fig_multi, use_container_width=True)
-            
-            # 3. 将图表加入 PPT
             figs_to_ppt.append((title_2, fig_multi, an, nt))
-            # 4. 可选：把算出来的这个表格也一并加进 PPT 导出队列
-            if not df_multi_avg.empty:
+            if not df_multi_avg.empty: 
                 figs_to_ppt.append((title_2 + " 平均占比", df_multi_avg, "", ""))
-                
-        display_bottom_note(nt)
 
-        # 📍 [预留位置：如果后续要在这里插入图表，请加代码]
 
-        # ---------------- Section 2 ----------------
+        # 利润贡献-保险利润
         st.markdown("---")
-        st.write("## 2. 利润与综合收益分析")
-        
         c1, c2, c3, c4 = st.columns(4)
         with c1: ui_prof_lab = st.toggle("显示利润标签", value=False, key="prof_lab")
         with c2: ui_prof_sz = st.slider("利润标签字号", 8, 16, 11, key="prof_sz")
@@ -3600,31 +3594,37 @@ with tab7:
             an, nt = display_notes(mod_id)
             fig_p, contrib_p = create_profit_composition_chart(df_filtered, selected_cos, year_val, ui_prof_lab, ui_prof_sz, ui_prof_bw, ui_prof_co)
             if fig_p:
-                st.write(f"### 📅 利润表现分析 - {year_val}年保险利润构成")
+                st.write(f"### 关键年报数据 - {year_val}年利润贡献-保险利润")
                 st.dataframe(contrib_p.style.format("{:.0f}%"), use_container_width=True)
                 st.plotly_chart(fig_p, use_container_width=True)
                 figs_to_ppt.append((f'{year_val}年保险利润构成', fig_p, an, nt))
             display_bottom_note(nt)
 
+        # 投资利润等
         st.markdown("---")
         display_tasks = [("inv_return", "净投资回报", "净投资回报变动趋势", "直接提取"), 
                          ("uw_profit", "承保财务净损益", "承保财务净损益变动趋势", "公式计算"), 
                          ("inv_profit", "投资利润", "投资利润变动趋势", "公式计算")]
+                         
         c1, c2, c3 = st.columns([2, 2, 3])
         with c1: lab_inv = st.toggle("显示趋势图标签", True)
         with c2: psz_inv = st.slider("趋势图文字大小", 8, 20, 12)
         with c3: gap_inv = st.slider("趋势图柱子粗细", 0.1, 0.8, 0.3)
+        st.write("### 关键年报数据 - 投资收益、承保财务净损益及投资利润")
         for mod_id, field, title, _ in display_tasks:
             an, nt = display_notes(mod_id)
-            fig = create_simple_kpmg_chart(df_plot_final, field, f"投资表现分析 - {title}", lab_inv, psz_inv, gap_inv)
+            fig = create_simple_kpmg_chart(df_plot_final, field, f"{title}", lab_inv, psz_inv, gap_inv)
+            
             st.plotly_chart(fig, use_container_width=True)
             figs_to_ppt.append((title, fig, an, nt))
             display_bottom_note(nt)
-
+            
+        # 保险利润、投资利润变动趋势
         st.markdown("---")
         available_years = sorted(df_profit_raw['报告年份'].astype(str).str.replace(".0", "", regex=False).unique())
         if len(available_years) >= 2:
             yr_old, yr_new = available_years[-2], available_years[-1]
+            st.write("### 关键年报数据 - 保险利润、投资利润变动趋势")           
             for field, title, c_dict, mod_id in [("投资利润", "投资利润变动对比分析", {yr_old: "#FC349B", yr_new: "#97014F"}, "trend_inv"), 
                                                  ("保险利润", "保险利润变动对比分析", {yr_old: "#1E49E2", yr_new: "#00338C"}, "trend_ins")]:
                 an, nt = display_notes(mod_id)
@@ -3632,7 +3632,8 @@ with tab7:
                 st.plotly_chart(fig, use_container_width=True)
                 figs_to_ppt.append((title, fig, an, nt))
                 display_bottom_note(nt)
-
+                
+        # 税前利润和净利润变动趋势
         st.markdown("---")
         an, nt = display_notes("tax_profit")
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -3641,6 +3642,7 @@ with tab7:
         with c3: ui_fs = st.slider("税图字号", 8, 16, 10)
         with c4: ui_cfs = st.slider("公司名大小", 10, 24, 14)
         with c5: ui_co_y = st.slider("税图高度", 1.0, 1.2, 1.05, step=0.01)
+        st.write("### 关键年报数据 - 税前利润和净利润变动趋势")              
         fig_tax = create_tax_subplot_chart(df_tax_pivot, selected_cos, ui_show_lab, ui_bar_w, ui_fs, ui_cfs, ui_co_y)
         st.plotly_chart(fig_tax, use_container_width=True)
         figs_to_ppt.append(("税前利润和净利润变动趋势", fig_tax, an, nt))
@@ -3648,7 +3650,7 @@ with tab7:
 
         # 综合收益变动趋势 (三图共用一组按钮) ----------------
         st.markdown("---")
-        st.write("### 综合收益变动趋势概览")
+        st.write("### 关键年报数据 - 净利润、其他综合收益及综合收益变动趋势")
 
         # 1. 紧凑排布的专属 UI 控制面板 (放在循环最前面)
         ui_f1, ui_f2, ui_f3 = st.columns(3)
@@ -3674,12 +3676,10 @@ with tab7:
                 figs_to_ppt.append((title, fig_fin, an, nt))
             display_bottom_note(nt)
 
-        # 📍 [预留位置：利润分析补充图表]
 
-
-        # ---------------- Section 3 ----------------
+        # IFRS9资产配置
         st.markdown("---")
-        st.write("## 3. 资产负债与 OCI 结构分析")
+        st.write("### 关键年报数据 - IFRS9资产端分类")
         
         ui_ast1, ui_ast2, ui_ast3 = st.columns(3)
         with ui_ast1: lab_ast = st.toggle("显示资产标签", True, key="ast_l")
@@ -3695,12 +3695,14 @@ with tab7:
         display_bottom_note(nt)
 
         st.markdown("---")
+        
         # 共用的年份OCI控制
+        st.write("### 关键年报数据 - 其他综合收益")
         ui_oci1, ui_oci2, ui_oci3 = st.columns(3)
         with ui_oci1: lab_oci = st.toggle("显示OCI标签", True, key="oci_l")
         with ui_oci2: gap_oci = st.slider("OCI柱间距", 0.05, 0.5, 0.15, key="oci_g")
         with ui_oci3: sz_oci = st.slider("OCI公司字号", 8, 20, 13, key="oci_s")
-
+        
         clean_years = [str(y).replace(".0", "") for y in sorted(df_filtered['报告年份'].dropna().unique(), reverse=True)][:2] 
         oci_tasks = [(y, f"OCI变动分析 - {y}年综合收益变动情况", "oci_year_lat" if i==0 else "oci_year_pre") for i, y in enumerate(clean_years)]
         for year_field, title, m_id in oci_tasks:
@@ -3740,8 +3742,9 @@ with tab7:
         display_bottom_note(nt)
 
 
-
+        #净资产及总资产变动趋势    
         st.markdown("---")
+        st.write("### 关键年报数据 - 净资产及总资产变动趋势")  
         ui_n1, ui_n2, ui_n3 = st.columns(3)
         with ui_n1: lab_ast_t = st.toggle("显示净资产标签", True, key="n_l")
         with ui_n2: psz_ast_t = st.slider("净资产趋势字号", 8, 24, 11, key="n_s")
@@ -3756,14 +3759,23 @@ with tab7:
             figs_to_ppt.append((title, fig_ast, an, nt))
             display_bottom_note(nt)
 
-        # 📍 [预留位置：资产负债补充图表]
-
-
-        # ---------------- Section 4 ----------------
+        #合同服务边际
         st.markdown("---")
-        st.write("## 4. CSM (合同服务边际) 分析")
+        st.write("### 关键年报数据 - 合同服务边际")
+        
+        # 💡 新增：统一渲染深蓝色、无透明框的专属标题函数
+        def render_kpmg_blue_title(main_title, sub_title=""):
+            sub_html = f'<div style="font-size: 16px; font-weight: bold; margin-top: 8px;">{sub_title}</div>' if sub_title else ""
+            st.markdown(f"""
+                <div style="color: #00338D; font-family: sans-serif; margin-bottom: 15px; margin-top: 25px;">
+                    <div style="font-size: 18px; font-weight: bold;">{main_title}</div>
+                    {sub_html}
+                </div>
+            """, unsafe_allow_html=True)
 
         # 1、CSM余额变动趋势
+        render_kpmg_blue_title("CSM核心分析 (1/7) - CSM余额变动趋势")
+        
         ui_csm1, ui_csm2, ui_csm3 = st.columns(3)
         with ui_csm1: lab_csm_t = st.toggle("显示CSM标签", True, key="c_l")
         with ui_csm2: psz_csm_t = st.slider("CSM趋势字号", 8, 24, 12, key="c_s")
@@ -3771,13 +3783,16 @@ with tab7:
         df_csm_raw = df_filtered[(df_filtered['字段名'] == 'CSM期末余额') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
         df_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)       
         an1, nt1 = display_notes("csm_bal")
-        fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', 'CSM核心分析 (1/7) - CSM余额变动趋势', lab_csm_t, psz_csm_t, gap_csm_t)
+        
+        # ⚠️ 注意这里：我把传进函数的第三个参数(title)改成了 ""，防止图表内部再重复画一遍标题
+        fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', '', lab_csm_t, psz_csm_t, gap_csm_t)
         st.plotly_chart(fig_csm, use_container_width=True)
         figs_to_ppt.append(('CSM余额变动趋势', fig_csm, an1, nt1))
         display_bottom_note(nt1)
 
         # 2、 CSM期初余额占比分析
-        st.write("### CSM核心分析 (2/7) - CSM占比分析")
+        render_kpmg_blue_title("CSM核心分析 (2/7) - CSM占比分析")
+        
         ui_r1, ui_r2 = st.columns(2)
         with ui_r1: lab_rat_t = st.toggle("显示占比百分比标签", True, key="r_lbl") 
         with ui_r2: gap_rat_t = st.slider("占比图柱距调节 (越小柱子越粗)", 0.1, 0.8, 0.3, key="r_g")    
@@ -3792,23 +3807,26 @@ with tab7:
         an3, nt3 = display_notes("csm_table")
         table_df_2025 = show_csm_summary_table(df_filtered, 2025)
         if table_df_2025 is not None:
-            st.write(f"### CSM核心分析 (3/7) - CSM 概览明细表 (单位:{unit_label})")
+            render_kpmg_blue_title("CSM核心分析 (3/7) - CSM 概览明细表", f"单位：({unit_label})人民币")
             st.dataframe(table_df_2025, use_container_width=True)
             figs_to_ppt.append((f'CSM概览表_单位{unit_label}', table_df_2025, an3, nt3))
         display_bottom_note(nt3)
 
         # 4、按过渡期计量方法拆分CSM ----------
+        render_kpmg_blue_title("CSM核心分析 (4/7) - 按过渡期计量方法拆分CSM")
+        st.caption("下方图表提供了合同服务边际按照过渡期计量方法拆分的占比。")
+        
         ui_ct1, ui_ct2 = st.columns(2)
         with ui_ct1: lab_csm_trans = st.toggle("显示过渡期数据标签", True, key="ct_l")
         with ui_ct2: bw_csm_trans = st.slider("过渡期柱宽", 0.1, 0.8, 0.4, key="ct_w")
         an, nt = display_notes("csm_trans")
         fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, lab_csm_trans, bw_csm_trans)
-        st.write("### CSM核心分析 (4/7) - 按过渡期计量方法拆分CSM")
-        st.caption("下方图表提供了合同服务边际按照过渡期计量方法拆分的占比。")
+        
         if fig_csm_trans:
             st.plotly_chart(fig_csm_trans, use_container_width=True)
             figs_to_ppt.append(('按过渡期拆分CSM', fig_csm_trans, an, nt))
         display_bottom_note(nt)
+
 
         # 5、CSM 摊销比例----------
         ui_cc1, ui_cc2, ui_cc3 = st.columns(3)
@@ -3848,8 +3866,7 @@ with tab7:
         display_bottom_note(nt)
 
 
-
-
+        # 7、CSM 与净资产----------
         st.markdown("---")
         ui_ce1, ui_ce2, ui_ce3 = st.columns(3)
         with ui_ce1: lab_csm_e = st.toggle("净资产对比显示标签", True, key="ce_l")
@@ -3863,11 +3880,10 @@ with tab7:
             figs_to_ppt.append(('CSM核心分析 (7/7) - CSM及净资产对比图', fig_csm_eq, an, nt))
         display_bottom_note(nt)
 
-        # 📍 [预留位置：CSM补充图表]
 
-        # ---------------- Section 5 ----------------
+        # 新业务指标
         st.markdown("---")
-        st.write("## 5. 新业务价值分析")
+        st.write("### 关键年报数据 - 新业务指标")
         #新业务价值1
         ui_nb1, ui_nb2, ui_nb3 = st.columns(3)
         with ui_nb1: lab_nb_c = st.toggle("盈利合同标签", True, key="nbc_l")
@@ -3877,7 +3893,7 @@ with tab7:
         df_nb_csm_raw = df_filtered[(df_filtered['字段名'] == '新业务CSM（集团口径）') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
         df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
         an, nt = display_notes("nb_csm")
-        fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', '新业务价值分析 (1/4) - 盈利合同（CSM）对比', lab_nb_c, psz_nb_c, gap_nb_c)
+        fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', '新业务价值分析 (1/5) - 盈利合同（CSM）对比', lab_nb_c, psz_nb_c, gap_nb_c)
         st.plotly_chart(fig_nb_csm, use_container_width=True)
         figs_to_ppt.append(('新业务盈利合同CSM对比', fig_nb_csm, an, nt))
         display_bottom_note(nt)
@@ -3914,10 +3930,9 @@ with tab7:
             figs_to_ppt.append(('新业务IFRS利润率比例趋势', fig_nb_trend, an4, nt4))         
         display_bottom_note(nt4)
 
-        # ---------------- Section 6 ----------------
+        # 业务与管理费
         st.markdown("---")
-        st.write("## 6. 运营效能分析-业务及管理费")
-        
+        st.write("### 关键披露信息 - 业务及管理费")
         ui_e1, ui_e2, ui_e3 = st.columns(3)
         with ui_e1: lab_exp = st.toggle("显示费用标签", True, key="exp_l")
         with ui_e2: bw_exp = st.slider("费用柱宽", 0.1, 0.8, 0.5, key="exp_w")
