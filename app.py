@@ -1992,15 +1992,30 @@ def show_step_7_content():
                 raw_title = str(mod_data.get('title', '')).strip()
                 current_title = raw_title if raw_title and raw_title.lower() != 'nan' else None
                 
-                # ----------------------------------------
+# ----------------------------------------
                 # 🖼️ 逻辑 1：纯图片模块 (封面、过渡页、截图等)
                 # ----------------------------------------
                 if img_file and str(img_file).lower() != 'nan':
                     import os
+                    
+                    # 💡 获取当前程序运行的真实文件夹路径
+                    current_dir = os.getcwd()
+                    # 💡 拼凑出系统最终去寻找的绝对路径
+                    abs_path = os.path.join(current_dir, img_file)
+                    
                     if os.path.exists(img_file):
+                        # 如果找到了，就正常画图
                         st.image(img_file, use_container_width=True)
                     else:
-                        st.error(f"⚠️ 找不到图片文件：{img_file}。请确保把该图片和 app.py 放在同一个文件夹里！")
+                        # 🚨 找不到时，弹出超级详细的“排查通缉令”
+                        st.error(f"⚠️ **图片文件加载失败！**\n\n"
+                                 f"👉 **Excel里要求找的名字**：`{img_file}`\n\n"
+                                 f"📂 **程序当前所在的文件夹**：`{current_dir}`\n\n"
+                                 f"🔎 **系统最终去敲门的完整地址**：`{abs_path}`\n\n"
+                                 f"**💡 排查建议**：\n"
+                                 f"1. 去 GitHub 看一下，这个文件是否真的和 `app.py` 放在了同一个级别目录下。\n"
+                                 f"2. 🚨 **致命细节**：云服务器（Linux）**极度区分大小写**！请去 GitHub 上核对，图片后缀到底是 `.PNG` 还是 `.png`，必须和上方【Excel里要求找的名字】连大小写都一模一样！")
+                    
                     st.markdown("<br>", unsafe_allow_html=True)
                 
                 # ----------------------------------------
