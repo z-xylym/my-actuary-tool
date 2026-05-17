@@ -28,38 +28,143 @@ from plotly.subplots import make_subplots
 
 
 def show_step_7_content():
-    st.markdown("### 🖼️ 报告生成版面")
     
-    # ==========================================
-    # 🎨 终极 PDF 打印排版 CSS 魔法 (等比缩小、隐身控件、防跨页)
-    # ==========================================
+    # ⭐⭐⭐ 新增：统一的图表显示函数 ⭐⭐⭐
+    def show_chart(fig, print_mode):
+        """统一的图表显示函数，打印模式会缩小图表"""
+        if fig:
+            if print_mode:
+                fig.update_layout(width=680, autosize=False)
+                st.plotly_chart(fig, use_container_width=False)
+            else:
+                st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("<div class='no-print' style='font-size:22px; font-weight:bold; margin-bottom: 15px; color:#00338D;'>🖼️ 报告生成版面</div>", unsafe_allow_html=True)
+    
+    # CSS 样式（保持原样）
     st.markdown("""
     <style>
     @media print {
-        /* 1. 强力隐藏所有非报告元素 */
-        section[data-testid="stSidebar"], header, button, 
-        .stFileUploader, .stSelectbox, .stSlider, .stCheckbox, 
-        .stToggle, .stRadio, .stMultiSelect, div[data-baseweb="toast"],
-        .stExpander {
+        /* ========== 1. 核弹级隐藏 - 把所有不要的都干掉 ========== */
+        
+        /* Streamlit 系统元素与顶部红蓝标签线 */
+        header, footer, [data-testid="stHeader"], [data-testid="stSidebar"], 
+        [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stLogo"], 
+        [data-testid="stBottom"], [data-testid="stStatusWidget"],
+        div[role="tablist"] /* 🌟 杀掉顶部的红蓝 Tab 分割线 */ {
             display: none !important;
         }
-        /* 2. 页面撑满 */
+        
+        /* 所有交互控件与色卡 */
+        button, [data-testid="stFileUploader"], [data-testid="stSelectbox"], 
+        [data-testid="stMultiSelect"], [data-testid="stSlider"], [data-testid="stToggle"], 
+        [data-testid="stRadio"], [data-testid="stCheckbox"], [data-testid="stPopover"], 
+        [data-testid="stExpander"], [data-testid="baseButton-secondary"],
+        [data-testid="stColorPicker"], /* 🌟 杀掉彩色色块 */
+        [data-testid="stTextInput"],   /* 🌟 杀掉改名输入框 */
+        input, .stSlider, .stSelectbox, .stMultiSelect {
+            display: none !important;
+        }
+        
+        /* 提示框、警告框 (仅隐藏系统的 info/warning，不再隐藏你的蓝色分析背景框) */
+        .stAlert, [data-testid="stAlert"], [data-testid="stNotification"] {
+            display: none !important;
+        }
+        
+        /* 隐藏底部特定字样与系统图片 (不再隐藏 .stCaption，让你的注释重见天日) */
+        [data-testid="stMarkdownContainer"] p[style*="text-align: center"],
+        p:has(> em), img[src*="data:image"] {
+            display: none !important;
+        }
+        
+        /* 分割线与装饰线 */
+        hr, div[style*="background: linear-gradient"], div[style*="background-color: rgb(255"], 
+        div[style*="border-top"], .stProgress {
+            display: none !important;
+        }
+        
+        /* 自定义 no-print 类 */
+        .no-print, iframe {
+            display: none !important;
+        }
+        
+        /* ========== 2. 标题控制 ========== */
+        
+        h1, h4 { display: none !important; }
+        
+        /* ⭐ 保留并美化 h2 */
+        h2 {
+            display: block !important;
+            color: #00338D !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
+            border-bottom: 2px solid #00338D !important;
+            padding-bottom: 8px !important;
+            margin-top: 20px !important;
+            margin-bottom: 15px !important;
+        }
+        
+        /* ⭐ 关键修复：保留图表 h3，但允许拥有 no-print 类的 h3 隐身！ */
+        h3:not(.no-print) {
+            display: block !important;
+            color: #00338D !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            margin-top: 15px !important;
+            margin-bottom: 10px !important;
+            page-break-after: avoid !important;
+        }
+        
+        /* ... 后面保持你原本的 第3、4、5部分 不变 ... */
+        
+        /* ========== 3. 页面布局 ========== */
+        
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+        
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
         .main .block-container {
-            max-width: 100% !important; padding: 0 !important; margin: 0 !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
-        /* 3. 图表与表格等比例缩小 85%，严禁跨页断裂 */
-        .plotly-graph-div, div[data-testid="stDataFrame"] {
-            transform: scale(0.85); 
-            transform-origin: top left; 
+        
+        /* 去掉顶部空白 */
+        .stApp {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        
+        .stApp > div:first-child {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        
+        /* ========== 4. 图表样式 ========== */
+        
+        .plotly-graph-div {
             page-break-inside: avoid !important;
-            margin-bottom: 20px !important;
-            width: 110% !important; /* 弥补缩放后的宽度损失 */
+            margin-bottom: 15px !important;
         }
-        /* 4. 确保分析框和图表成为一个不可分割的整体 */
-        .element-container { page-break-inside: avoid !important; }
-        h2 { page-break-before: auto !important; margin-top: 30px !important; color: #00338D !important; }
-        h3 { page-break-after: avoid !important; color: #00338D !important; }
-        hr { display: none !important; } /* 打印时隐藏分割线让版面更紧凑 */
+        
+        /* 表格 */
+        div[data-testid="stDataFrame"] {
+            transform: scale(0.75);
+            transform-origin: left top;
+            page-break-inside: avoid !important;
+        }
+        
+        /* ========== 5. 防止内容断裂 ========== */
+        
+        .element-container {
+            page-break-inside: avoid !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -73,101 +178,181 @@ def show_step_7_content():
     if '公司类型' not in df_raw.columns:
         df_raw['公司类型'] = "未分类"
 
-    # ==========================================
-    # 🌟 动态年份提取引擎 (彻底取代写死的 2024/2025)
-    # ==========================================
-    # 过滤掉非数字的年份异常值，提取最后两年
+    # 动态年份提取
     valid_years = [y for y in df_raw['报告年份'].dropna().astype(str).str.replace(".0", "", regex=False).unique() if y.isdigit()]
     all_years = sorted(valid_years)
     latest_year = int(all_years[-1]) if len(all_years) > 0 else 2025
     prev_year = int(all_years[-2]) if len(all_years) > 1 else 2024
     
-# ==========================================
-    # 🧭 悬浮式导航菜单 (替代原来的双栏布局)
+    # 动态年份提取后面...
+
     # ==========================================
-    # 删掉原来的 col_nav, col_content = st.columns([1, 4]) 
-    
-    # 1. 制作一个悬浮按钮（你可以把它当成缩小版的侧边栏）
-    with st.popover("📑 点击展开导航菜单", use_container_width=False):
-        st.markdown("**报告模块导航**")
+    # 🧭 简单版悬浮导航（用 expander）
+    # ==========================================
+    with st.expander("📑 点击展开导航菜单", expanded=False):
         main_nav = st.radio(
-            "选择大类：", 
-            ["1. 关键年报数据", "2. 关键披露信息", "3. 关键业绩指标", "4. 附录", "🖨️ 一键显示全部 (导出)"],
+            "大类",
+            ["1. 关键年报数据", "2. 关键披露信息", "3. 关键业绩指标", "4. 附录", "🖨️ 一键显示全部 (打印/导出专用)"],
             label_visibility="collapsed"
         )
         
         sub_nav = "全部"
-        if main_nav != "🖨️ 一键显示全部 (导出)":
-            st.markdown("---")
-            if main_nav == "1. 关键年报数据":
-                sub_nav = st.radio("图表：", ["全部", "总体利润贡献", "保险业务收入、费用及业绩", "保险利润", "投资收益、承保财务损益及投资利润", "保险利润、投资利润变动趋势", "税前利润及税率", "净利润、其他综合收益及综合收益变动趋势", "IFRS9及资产负债", "其他综合收益", "净资产和总资产", "新业务相关"], label_visibility="collapsed")
-            elif main_nav == "2. 关键披露信息":
-                sub_nav = st.radio("图表：", ["全部", "业务及管理费"], label_visibility="collapsed")
-            elif main_nav == "3. 关键业绩指标":
-                sub_nav = st.radio("图表：", ["全部", "KPI指标"], label_visibility="collapsed")
-            elif main_nav == "4. 附录":
-                sub_nav = st.radio("图表：", ["全部", "业绩明细表"], label_visibility="collapsed")
+        if main_nav == "1. 关键年报数据":
+            sub_nav = st.radio("子类", ["全部", "总体利润贡献", "保险业务收入、费用及业绩", "保险业务收入构成分析","保险利润", "投资收益、承保财务损益及投资利润", "保险利润、投资利润变动趋势", "税前利润及税率", "净利润、其他综合收益及综合收益变动趋势", "IFRS9及资产负债", "其他综合收益", "净资产和总资产", "新业务相关"], label_visibility="collapsed")
+        elif main_nav == "2. 关键披露信息":
+            sub_nav = st.radio("子类", ["全部", "业务及管理费"], label_visibility="collapsed")
+        elif main_nav == "3. 关键业绩指标":
+            sub_nav = st.radio("子类", ["全部", "KPI指标"], label_visibility="collapsed")
+        elif main_nav == "4. 附录":
+            sub_nav = st.radio("子类", ["全部", "业绩明细表"], label_visibility="collapsed")
+        elif main_nav == "🖨️ 一键显示全部 (打印/导出专用)":
+            st.components.v1.html(
+                """<button onclick="window.parent.print()" 
+                    style="width:100%; padding:10px; background:#00338D; color:white; 
+                           border:none; border-radius:6px; cursor:pointer; font-weight:bold;">
+                    🖨️ 存为 PDF
+                </button>""",
+                height=45
+            )
 
-    st.write("#### 📥 1. 全局内容分析与注释输入")
-    st.info("💡 提示：请上传包含【模块ID】、【分析内容】、【注释内容】这三列的 Excel 文件。如果图表不需要文字，可在 Excel 中留空。")
-    notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'])
+    print_mode = (main_nav == "🖨️ 一键显示全部 (打印/导出专用)")
     
-    notes_dict = {}
-    if notes_file is not None:
-        try:
-            df_notes = pd.read_excel(notes_file)
-            if set(['模块ID', '分析内容', '注释内容']).issubset(df_notes.columns):
-                for _, row in df_notes.iterrows():
-                    m_id = str(row['模块ID']).strip()
-                    notes_dict[m_id] = {
-                        'analysis': str(row['分析内容']) if pd.notna(row['分析内容']) else "",
-                        'note': str(row['注释内容']) if pd.notna(row['注释内容']) else ""
-                    }
-                st.success("✅ 注释文件加载成功！内容将展示到对应图表中。")
+
+    with st.expander("📥 全局内容分析与注释输入", expanded=False):
+        
+        # ⭐ 新增：默认注释表开关
+        use_default = st.toggle("使用默认注释表", value=True, key="use_default_notes")
+        
+        if use_default:
+            # 🌟 用内置的默认注释表
+            st.success("内置默认注释表，无需上传文件")
+            
+            # 方案1：从 GitHub 读取（推荐）
+            try:
+                # 👇 把这个链接换成你的 GitHub raw 文件链接
+                default_url = "https://github.com/z-xylym/my-actuary-tool/blob/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A.xlsx"
+                df_notes = pd.read_excel(default_url)
+                notes_file = "default"  # 标记为已加载
+                #st.caption(f"📊 已加载 {len(df_notes)} 条配置")
+            except Exception as e:
+                st.error(f"❌ 加载默认注释表失败：{e}")
+                st.info("如需手动上传注释表，则关闭按钮")
+                notes_file = None
+                df_notes = None
+                
+        else:
+            # 🌟 用户自己上传
+            st.info("💡 提示：请上传包含【图片文件名】、【模块ID】、【分析内容】、【注释内容】这三列的 Excel 文件。")
+            notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'])
+            
+            if notes_file is not None:
+                try:
+                    df_notes = pd.read_excel(notes_file)
+                except Exception as e:
+                    st.error(f"❌ 读取文件失败：{e}")
+                    df_notes = None
             else:
-                st.error("⚠️ 上传的 Excel 缺少必要的列：请确保包含 '模块ID', '分析内容', '注释内容'")
-        except Exception as e:
-            st.error(f"读取注释文件出错: {e}")
+                df_notes = None
+        
+        # ⭐ 后面的处理逻辑不变，统一用 df_notes
+        notes_dict = {}
+        ordered_modules = []
+        
+        if df_notes is not None:
+            try:
+                has_image_col = '图片文件名' in df_notes.columns
+                
+                for _, row in df_notes.iterrows():
+                    m_id = str(row.get('模块ID', '')).strip()
+                    if not m_id:
+                        continue
+                        
+                    notes_dict[m_id] = {
+                        # 🌟 核心修复：把漏掉的标题提取加回来！
+                        'title': str(row.get('对应图表名称', '')) if pd.notna(row.get('对应图表名称')) else '',
+                        'analysis': str(row.get('分析内容', '')) if pd.notna(row.get('分析内容')) else '',
+                        'note': str(row.get('注释内容', '')) if pd.notna(row.get('注释内容')) else '',
+                        # 🌟 修复字段名拼写：改成 image_file，对接大循环
+                        'image_file': str(row.get('图片文件名', '')) if has_image_col and pd.notna(row.get('图片文件名')) else ''
+                    }
+                    ordered_modules.append(m_id)
+                
+                #st.success(f"✅ 注释及排版顺序加载成功！共 {len(ordered_modules)} 个模块")
+                
+            except Exception as e:
+                st.error(f"❌ 处理注释表失败：{e}")
 
     # ==========================================
     # ⚙️ 全局配置与高亮 C 位设置
     # ==========================================
-    st.write("#### ⚙️ 2. 全局图表设置")
-    c0, c1, c2, c3, c4 = st.columns([1.5, 2, 1, 1.5, 1.5])    
-    with c0:
-        all_types = ["全部"] + sorted([str(x) for x in df_raw['公司类型'].unique() if str(x) != 'nan'])
-        selected_type = st.selectbox("筛选公司类型", options=all_types, index=0)
-        df_filtered = df_raw[df_raw['公司类型'] == selected_type].copy() if selected_type != "全部" else df_raw.copy()               
-    with c1:
-        all_cos = df_filtered['公司'].drop_duplicates().tolist() 
-        selected_cos = st.multiselect("选择展示的公司（按顺序）", options=all_cos, default=all_cos)
-    with c2:
-        unit_label = st.selectbox("全局显示单位", ["十亿元", "亿元", "百万元","十万元"], index=0)
-        unit_map = {"十亿元": 1000, "亿元": 100, "百万元": 1, "十万元": 0.1}
-        divisor = unit_map[unit_label]
-    with c3:
-        highlight_co = st.selectbox(" 追踪特定公司", ["无"] + selected_cos)
-        GLOW_FILL = "rgba(0, 243, 255, 0.3)"  # 浅蓝半透明填充（玻璃感）
-        GLOW_LINE = "rgba(0, 243, 255, 1.0)"  # 高亮实线外边框（发光边缘）
-        # 利用 CSS text-shadow 让选中的公司名字在 X 轴上发光
-        GLOW_TEXT = f"<span style='color: #00F3FF; text-shadow: 0px 0px 8px rgba(0,243,255,0.9); font-weight: bold;'>{highlight_co}</span>"
-    with c4:
-        # 🌟 轻量级免费 AI 洞察引擎
-        st.markdown("<br>", unsafe_allow_html=True)
-        enable_ai = st.toggle("一键AI分析", value=False)
+    with st.expander("⚙️ 全局图表设置", expanded=False):
+        # ... 后面的代码都缩进进来 ...
+        c0, c1, c2, c3, c4 = st.columns([1, 2, 1, 1, 1])   
+        with c0:
+            all_types = ["全部"] + sorted([str(x) for x in df_raw['公司类型'].unique() if str(x) != 'nan'])
+            selected_type = st.selectbox("筛选公司类型", options=all_types, index=0)
+            df_filtered = df_raw[df_raw['公司类型'] == selected_type].copy() if selected_type != "全部" else df_raw.copy()               
+        with c1:
+            all_cos = df_filtered['公司'].drop_duplicates().tolist() 
+            selected_cos = st.multiselect("选择展示的公司（按顺序）", options=all_cos, default=all_cos)
+        with c2:
+            unit_label = st.selectbox("全局显示单位", ["十亿元", "亿元", "百万元","十万元"], index=0)
+            unit_map = {"十亿元": 1000, "亿元": 100, "百万元": 1, "十万元": 0.1}
+            divisor = unit_map[unit_label]
+        with c3:
+            highlight_co = st.selectbox(" 追踪特定公司", ["无"] + selected_cos)
+            GLOW_FILL = "rgba(0, 243, 255, 0.3)"  # 浅蓝半透明填充（玻璃感）
+            GLOW_LINE = "rgba(0, 243, 255, 1.0)"  # 高亮实线外边框（发光边缘）
+            # 利用 CSS text-shadow 让选中的公司名字在 X 轴上发光
+            GLOW_TEXT = f"<span style='color: #00F3FF; text-shadow: 0px 0px 8px rgba(0,243,255,0.9); font-weight: bold;'>{highlight_co}</span>"
+            HIGHLIGHT_COLOR = "#FD349C"
+        with c4:
+            # 🌟 轻量级免费 AI 洞察引擎
+            st.markdown("<br>", unsafe_allow_html=True)
+            enable_ai = st.toggle("一键AI分析", value=False)
+    
+        font_size = st.slider("全局基础字号", 10, 20, 12)
+        figs_to_ppt = [] # PPT 导出队列
+        COMMON_TITLE_FONT = dict(size=18, color="#00338D", family="Microsoft YaHei")
 
-    font_size = st.slider("全局基础字号", 10, 20, 12)
-    figs_to_ppt = [] # PPT 导出队列
-    COMMON_TITLE_FONT = dict(size=18, color="#00338D", family="Microsoft YaHei")
+# ==========================================
+    # 🤖 AI 引擎与辅助模块 (动态模型 + 极速缓存版)
+    # ==========================================
+    
+    # 🌟 核心魔法缓存区：彻底动态化，支持所有大模型，点过一次后瞬间秒出！
+    @st.cache_data(show_spinner=False)
+    def _call_llm_api_cached(data_str, field_name, latest_year, unit_str, user_api_key, api_base, api_model):
+        import openai
+        try:
+            # 👇 重点：这里不再写死，而是读取登录页传来的网址
+            client = openai.OpenAI(
+                api_key=user_api_key, 
+                base_url=api_base  
+            )
+            prompt = f"""你是一名资深四大会计师事务所精算专家。
+            以下是几家上市险企{latest_year}年【{field_name}】的数据（单位：{unit_str}）：{data_str}。
+            请用一句话专业、犀利地点评。比如指出最高、最低及行业整体分化趋势，代表的意义。直接输出点评，绝对不要超过60个字。"""
+            
+            # 👇 重点：这里也不再写死，读取登录页传来的模型名字
+            response = client.chat.completions.create(
+                model=api_model, 
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2
+            )
+            
+            # 智能判断名字前缀
+            model_name_display = "千问" if "qwen" in api_model.lower() else "DeepSeek" if "deepseek" in api_model.lower() else "AI"
+            return f"<b><span style='color:#00338D'></span></b> {response.choices[0].message.content}"
+        
+        except Exception as e:
+            # 抓包报错，直接显示红字，让你一眼看出问题
+            return f"<span style='color:#C00000; font-size:12px;'>⚠️ AI报错抓包: {str(e)}</span>"
 
-    # ==========================================
-    # 🤖 AI 引擎与辅助模块
-    # ==========================================
     def generate_ai_insight(df, field_name, is_pct=False):
         if not enable_ai or df is None or df.empty or not field_name: return ""
         
         try:
-            # 1. 尝试提取数据（兼容各种不同图表的数据源）
+            # 1. 尝试提取数据
             if '字段名' in df.columns:
                 d_sub = df[(df['字段名'].str.contains(field_name, na=False)) & (df['报告年份'].astype(str) == str(latest_year)) & (df['公司'].isin(selected_cos))]
             elif '指标名称' in df.columns:
@@ -178,44 +363,78 @@ def show_step_7_content():
             if d_sub.empty: return ""
             val_col = "(百万)人民币" if "(百万)人民币" in d_sub.columns else d_sub.columns[-1]
 
-            # 提取用户登录时填写的 API Key
+            # 👇 从全局内存中拿取你在登录页选择的【完整配置】！
             user_api_key = st.session_state.get('api_key', "").strip()
+            api_base = st.session_state.get('base_url', "https://api.deepseek.com")
+            api_model = st.session_state.get('model_name', "deepseek-chat")
 
             # ==========================================
             # 🚀 模式 A：API 大模型深度分析 (如果填了 Key)
             # ==========================================
             if user_api_key:
-                import openai
                 data_str = ", ".join([f"{row['公司']}:{row[val_col]:.2f}" for _, row in d_sub.iterrows()])
                 unit_str = "百分比" if is_pct else unit_label
                 
-                # 默认使用通义千问接口（如果你用 DeepSeek，把 base_url 换成 https://api.deepseek.com 即可）
-                client = openai.OpenAI(api_key=user_api_key, base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
-                
-                prompt = f"""你是一名资深四大会计师事务所精算专家。
-                以下是几家上市险企{latest_year}年【{field_name}】的数据（单位：{unit_str}）：{data_str}。
-                请用一句话专业、犀利地点评。要求指出最高、最低及行业整体分化趋势，直接输出点评，绝对不要超过60个字。"""
-                
-                response = client.chat.completions.create(
-                    model="qwen-plus", # 如果用 DeepSeek 改为 deepseek-chat
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2
-                )
-                return f"<b><span style='color:#00338D'>🤖 ：</span></b> {response.choices[0].message.content}"
+                # 👈 呼叫上面写好的缓存引擎，把网址和模型名动态传进去
+                return _call_llm_api_cached(data_str, field_name, latest_year, unit_str, user_api_key, api_base, api_model)
 
             # ==========================================
-            # ⚙️ 模式 B：本地极速规则计算 (如果没填 Key，作为保底)
+            # ⚙️ 模式 B：本地极速规则计算 (没填 Key 保底)
             # ==========================================
             else:
                 avg = d_sub[val_col].mean()
                 max_r, min_r = d_sub.loc[d_sub[val_col].idxmax()], d_sub.loc[d_sub[val_col].idxmin()]
                 fmt = "{:.1f}%" if is_pct else "{:.1f}"
                 mult = 100 if is_pct else (1/divisor)
-                return f"<b>🤖 ：</b>{latest_year}年【{field_name}】均值为 <b>{fmt.format(avg*mult)}</b>。<b>{max_r['公司']}</b> 最高 ({fmt.format(max_r[val_col]*mult)})，<b>{min_r['公司']}</b> 最低 ({fmt.format(min_r[val_col]*mult)})。"
+                return f"<b> </b>{latest_year}年【{field_name}】均值为 <b>{fmt.format(avg*mult)}</b>。<b>{max_r['公司']}</b> 最高 ({fmt.format(max_r[val_col]*mult)})，<b>{min_r['公司']}</b> 最低 ({fmt.format(min_r[val_col]*mult)})。"
 
         except Exception as e: 
-            return f"<span style='color:#999; font-size:12px;'>🤖 AI分析就绪 (当前指标: {field_name})</span>"
+            # 抓包数据处理报错
+            return f"<span style='color:#C00000; font-size:12px;'>⚠️ 数据捞取报错: {str(e)}</span>"
 
+    def generate_ai_insight(df, field_name, is_pct=False):
+        if not enable_ai or df is None or df.empty or not field_name: return ""
+        
+        try:
+            # 1. 尝试提取数据
+            if '字段名' in df.columns:
+                d_sub = df[(df['字段名'].str.contains(field_name, na=False)) & (df['报告年份'].astype(str) == str(latest_year)) & (df['公司'].isin(selected_cos))]
+            elif '指标名称' in df.columns:
+                d_sub = df[(df['指标名称'].str.contains(field_name, na=False)) & (df['报告年份'].astype(str) == str(latest_year)) & (df['公司'].isin(selected_cos))]
+            else:
+                d_sub = df[df['公司'].isin(selected_cos)]
+                
+            if d_sub.empty: return ""
+            val_col = "(百万)人民币" if "(百万)人民币" in d_sub.columns else d_sub.columns[-1]
+
+            # 👇 从全局内存中拿取你在登录页选择的【完整配置】！
+            user_api_key = st.session_state.get('api_key', "").strip()
+            api_base = st.session_state.get('base_url', "https://api.deepseek.com")
+            api_model = st.session_state.get('model_name', "deepseek-chat")
+
+            # ==========================================
+            # 🚀 模式 A：API 大模型深度分析 (如果填了 Key)
+            # ==========================================
+            if user_api_key:
+                data_str = ", ".join([f"{row['公司']}:{row[val_col]:.2f}" for _, row in d_sub.iterrows()])
+                unit_str = "百分比" if is_pct else unit_label
+                
+                # 👈 呼叫上面写好的缓存引擎，把网址和模型名动态传进去
+                return _call_llm_api_cached(data_str, field_name, latest_year, unit_str, user_api_key, api_base, api_model)
+
+            # ==========================================
+            # ⚙️ 模式 B：本地极速规则计算 (没填 Key 保底)
+            # ==========================================
+            else:
+                avg = d_sub[val_col].mean()
+                max_r, min_r = d_sub.loc[d_sub[val_col].idxmax()], d_sub.loc[d_sub[val_col].idxmin()]
+                fmt = "{:.1f}%" if is_pct else "{:.1f}"
+                mult = 100 if is_pct else (1/divisor)
+                return f"<b> </b>{latest_year}年【{field_name}】均值为 <b>{fmt.format(avg*mult)}</b>。<b>{max_r['公司']}</b> 最高 ({fmt.format(max_r[val_col]*mult)})，<b>{min_r['公司']}</b> 最低 ({fmt.format(min_r[val_col]*mult)})。"
+
+        except Exception as e: 
+            # 抓包数据处理报错
+            return f"<span style='color:#C00000; font-size:12px;'>⚠️ 数据捞取报错: {str(e)}</span>"
 
     def display_notes(module_id, ai_df=None, ai_field=None, is_pct=False):
         """根据模块 ID 渲染上方分析框和下方注释框，融入 AI 洞察"""
@@ -226,7 +445,7 @@ def show_step_7_content():
         
         if an_text or ai_text:
             html = f"""<div style="background-color: #F0F4FA; border-left: 4px solid #00338D; padding: 15px; margin-bottom: 10px; border-radius: 4px;">"""
-            if an_text: html += f"""<p style="margin: 0 0 8px 0; color: #1E3A8A; font-size: 14px;"><b>💡 业务分析：</b> {an_text}</p>"""
+            if an_text: html += f"""<p style="margin: 0 0 8px 0; color: #1E3A8A; font-size: 14px;"><b> </b> {an_text}</p>"""
             if ai_text: html += f"""<p style="margin: 0; color: #D84315; font-size: 13px; border-top: 1px dashed #B0BEC5; padding-top: 8px;">{ai_text}</p>"""
             html += "</div>"
             st.markdown(html, unsafe_allow_html=True)
@@ -234,10 +453,12 @@ def show_step_7_content():
         return an_text, nt_text
 
     def display_bottom_note(note_text):
-        if note_text:
+        if note_text and str(note_text).lower() != 'nan':
             st.markdown(f"""
-            <div style="background-color: #FFFDF0; border: 1px dashed #D4A373; padding: 10px; margin-top: 10px; margin-bottom: 20px; border-radius: 4px;">
-                <p style="margin: 0; color: #666; font-size: 12px;"><b>注释：</b> {note_text}</p>
+            <div style="margin-top: 5px; margin-bottom: 25px; padding-left: 5px;">
+                <p style="margin: 0; color: #888888; font-size: 12px; font-family: 'Microsoft YaHei', sans-serif; font-style: italic;">
+                    * 注释：{note_text}
+                </p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -313,15 +534,17 @@ def show_step_7_content():
                 line_color='lightgray'
             )
         )])
-        fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=180 + len(col_names) * 40)
+        fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150 + len(col_names) * 40)
         return fig
 
     # --- 2.柱状图和比例环 ---
-    def create_profit_mixed_chart(df, cos, show_lbl, gap, div, unit_str):
+    def create_profit_mixed_chart(df, cos, title_prefix, show_lbl, gap, div, unit_str):
         c, cy, py, n = {'PI': '#FFD6EB', 'PS': '#00B8F5', 'CI': '#FD349C', 'CS': '#00338D'}, latest_year, prev_year, len(cos)
-        # 🌟 环形图子标题高亮
+        # 圆环图子标题
         sub_titles = [f"<span style='color:{HIGHLIGHT_COLOR if co == highlight_co else '#333'};'>{co}</span>" for co in cos]
-        fig = make_subplots(rows=2, cols=n, row_heights=[0.15, 0.85], subplot_titles=sub_titles, shared_yaxes=True, vertical_spacing=0.12, horizontal_spacing=0.03, specs=[[{"type": "domain"}]*n, [{"type": "xy"}]*n])
+        
+        # 🌟 优化：调整 row_heights 比例，加大上下纵向间距 vertical_spacing，给组件充分的伸展空间
+        fig = make_subplots(rows=2, cols=n, row_heights=[0.18, 0.82], subplot_titles=sub_titles, shared_yaxes=True, vertical_spacing=0.18, horizontal_spacing=0.03, specs=[[{"type": "domain"}]*n, [{"type": "xy"}]*n])
         txt = dict(textposition='outside', textfont=dict(size=12), constraintext='none', cliponaxis=False) if show_lbl else dict()        
         for i, co in enumerate(cos):
             col, df_c = i + 1, df[df['公司'] == co]
@@ -334,10 +557,21 @@ def show_step_7_content():
             x_lbl = [f"{py}YE", f"{cy}YE"]
             fig.add_trace(go.Bar(x=x_lbl, y=[pi, ci], marker_color=[c['PI'], c['CI']], text=[f"{pi:.0f}", f"{ci:.0f}"] if show_lbl else None, showlegend=False, **txt), row=2, col=col)
             fig.add_trace(go.Bar(x=x_lbl, y=[ps, cs], marker_color=[c['PS'], c['CS']], text=[f"{ps:.0f}", f"{cs:.0f}"] if show_lbl else None, showlegend=False, **txt), row=2, col=col)
-            fig.add_shape(type="rect", xref=f"x{col if col > 1 else ''} domain", yref="paper", x0=-0.05, x1=1.05, y0=0, y1=1.15, line=dict(color="lightgray", width=1), layer="below")
-        for ann in fig.layout.annotations: ann.update(y=ann.y + 0.03, font=dict(size=13))
-        fig.add_annotation(x=1, y=1.23, xref="paper", yref="paper", text=f"（单位: {unit_str}人民币）", showarrow=False, xanchor="right", font=dict(size=12, color="gray"))
-        fig.update_layout(barmode='group', bargap=gap, bargroupgap=0.0, height=450, margin=dict(t=70, b=80, l=40, r=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.15))
+            # 🌟 缩短背景框灰色线的高度比例，防止它顶破天
+            fig.add_shape(type="rect", xref=f"x{col if col > 1 else ''} domain", yref="paper", x0=-0.05, x1=1.05, y0=0, y1=1.05, line=dict(color="lightgray", width=1), layer="below")
+        
+        # 🌟 调整圆环图下方的公司名字(y=ann.y + 0.02)
+        for ann in fig.layout.annotations: 
+            ann.update(y=ann.y + 0.05, font=dict(size=13, weight="bold"))
+        
+        # 🌟 核心改长魔法：将 height 从 500 拔高到 560！同时将 margin.t（顶部留白）直接开辟到 140！
+        # 这样就把大标题（y=0.98不变）和下面的圆环生生剥离拉开，再也不会重叠！
+        fig.update_layout(
+            title=dict(text=f"<b>{title_prefix}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01, y=0.93),
+            barmode='group', bargap=gap, bargroupgap=0.0, height=500, 
+            margin=dict(t=140, b=80, l=40, r=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+            legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.15)
+        )
         fig.update_xaxes(type='category', showgrid=False, tickangle=0, tickfont=dict(color='gray'))
         fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor='lightgray', showticklabels=False)            
         return fig
@@ -1180,7 +1414,7 @@ def show_step_7_content():
         df_year = df[(df['报告年份'] == str(target_year)) & (df['公司'].isin(selected_cos))]
         val_col = "(百万)人民币" if "(百万)人民币" in df.columns else df.columns[-1]
         data_map = df_year.set_index(['公司', '字段名'])[val_col].to_dict()
-        def get_val(co, field): return data_map.get((co, field), 0)
+        def get_val(co, field): return data_map.get((co, field), 0) / divisor
         rows_config = [
             ("未采用保费分配法的保险合同", None, "header"), ("保险服务收入", "未采用保费分配法计量的保险合同保险服务收入", "data"), ("合同服务边际的释放", "合同服务边际的摊销", "data"), ("非金融风险调整的变动", "非金融风险调整的变动", "data"), ("预期当期发生的保险服务费用", "预计当期发生的保险服务费用", "data"), ("保险获取现金流的摊销", "保险获取现金流的摊销（保险服务收入）", "data"), ("其他", "其他收入调整", "data"),
             ("保险服务费用", "未采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险获取现金流的摊销 ", "保险获取现金流的摊销（保险服务费用）", "neg_data"), ("亏损部分的确认及转回", "亏损部分的确认及转回", "neg_data"), ("当期发生的赔款及其他相关费用", "当期发生的赔款及其他相关费用", "neg_data"), ("已发生赔款负债相关的履约现金流量变动", "已发生赔款负债相关的履约现金流量变动", "neg_data"), ("其他项", "FIXED_ZERO", "data"),
@@ -1222,35 +1456,37 @@ def show_step_7_content():
 
     # ---------------- Section 1 ----------------
     @st.fragment
-    def render_section_1_part1():
+    def render_section_1_part1(print_mode):
         st.write("---")
-        st.write("## 1. 关键年报数据")
+        st.markdown("<h2 style='color:#00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;'>1. 关键年报数据</h2>", unsafe_allow_html=True)
         
-        st.subheader("关键数据概览")
+        # 关键数据概览
+        st.markdown("<h3 style='color:#00338D; font-size:16px; margin-top:20px;'>关键数据概览</h3>", unsafe_allow_html=True)
         an_tbl = "由于不同公司年报披露口径差异，部分科目计算方式供参考；百分比均保留整数。"
         nt_tbl = "资料来源：各公司公开披露财务报表"
         fig_summary_table = create_financial_summary_table(df_filtered, selected_cos)
         if fig_summary_table:
-            st.plotly_chart(fig_summary_table, use_container_width=True)
-            figs_to_ppt.append(('关键指标概览表', fig_summary_table, an_tbl, nt_tbl))          
+            show_chart(fig_summary_table, print_mode)
         display_bottom_note(nt_tbl)
         
         st.markdown("---")
-        st.subheader("利润贡献、保险利润与投资利润占比")
+        
+        # 利润贡献图
+        st.markdown("<h3 style='color:#00338D; font-size:16px; margin-top:20px;'>利润贡献、保险利润与投资利润占比</h3>", unsafe_allow_html=True)
         ctrl1, ctrl2, ctrl3 = st.columns([1, 1.5, 3])
         with ctrl1: ui_prof_lab = st.toggle("显示数据标签", value=True, key="p_lab")
         with ctrl2: ui_prof_gap = st.slider("柱子间距(越小越粗)", 0.2, 0.7, 0.4, key="p_gap")         
         m_id, title = "prof_mix", "利润贡献与保险和投资利润占比"
-        an, nt = display_notes(m_id) # 环形图没有特定的AI指标
-        fig_prof = create_profit_mixed_chart(df_filtered, selected_cos, ui_prof_lab, ui_prof_gap, divisor, unit_label)        
+        an, nt = display_notes(m_id)
+        fig_prof = create_profit_mixed_chart(df_filtered, selected_cos, title, ui_prof_lab, ui_prof_gap, divisor, unit_label)
         if fig_prof:
-            st.plotly_chart(fig_prof, use_container_width=True)
-            figs_to_ppt.append((title, fig_prof, an, nt))       
+            show_chart(fig_prof, print_mode)     
         display_bottom_note(nt)
-
+    
+    
     @st.fragment
-    def render_section_1_part2():
-        st.subheader("保险业务收入、费用及业绩")
+    def render_section_1_part2(print_mode):
+        st.markdown("<h3 style='color:#00338D; font-size:16px; margin-top:20px;'>保险业务收入、费用及业绩</h3>", unsafe_allow_html=True)
         tasks_1 = [("inc_total", "保险服务收入合计", "保险服务收入变动趋势"), 
                    ("exp_total", "保险服务费用合计", "保险服务费用变动趋势"), 
                    ("perf_total", "保险服务业绩", "保险服务业绩变动趋势")]
@@ -1259,23 +1495,22 @@ def show_step_7_content():
         with ctrl1: ui_t1_lab = st.toggle("显示柱状图数据标签", value=True, key="t1_lab")
         with ctrl2: ui_t1_psize = st.slider("涨幅文字大小", 8, 24, 14, key="t1_psize")
         with ctrl3: ui_t1_gap = st.slider("调整公司间距与柱子粗细", 0.1, 0.8, 0.3, key="t1_gap")
-
+    
         for m_id, field, title in tasks_1:
-            an, nt = display_notes(m_id, df_filtered, field, False) # AI 介入
+            an, nt = display_notes(m_id, df_filtered, field, False)
             fig = create_kpmg_chart(df_filtered, field, title, ui_t1_lab, ui_t1_psize, ui_t1_gap)
             if fig:
-                st.plotly_chart(fig, use_container_width=True)
-                figs_to_ppt.append((title, fig, an, nt))
+                show_chart(fig, print_mode)
             display_bottom_note(nt)
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "总体利润贡献"]):
-        render_section_1_part1()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "总体利润贡献"]:
+        render_section_1_part1(print_mode)
             
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险业务收入、费用及业绩"]):
-        render_section_1_part2()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险业务收入、费用及业绩"]:
+        render_section_1_part2(print_mode)
 
     @st.fragment
-    def render_section_1_part3():
+    def render_section_1_part3(print_mode):
         st.markdown("---")
         st.subheader("保险业务收入构成分析")
         an, nt = display_notes("comp_1", df_filtered, "未采用保费分配法计量的保险合同保险服务收入", False)
@@ -1286,8 +1521,7 @@ def show_step_7_content():
         with c_ctrl3: b_width = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key="b_width_comp")
         with c_ctrl4: c_f_size = st.slider("公司名称大小", 10, 20, 14, key="c_f_size_comp")
         fig_comp = create_kpmg_composition_chart(df_filtered, comp_fields, comp_title, label_on_comp, l_size, b_width, c_f_size)
-        st.plotly_chart(fig_comp, use_container_width=True)
-        figs_to_ppt.append((comp_title, fig_comp, an, nt))
+        show_chart(fig_comp, print_mode)
         display_bottom_note(nt)
 
         an, nt = display_notes("comp_2")
@@ -1305,18 +1539,17 @@ def show_step_7_content():
                 st.write(df_multi_avg.style.set_table_styles(styles).format("{:.1f}%").to_html(), unsafe_allow_html=True)
                 st.markdown("<br>", unsafe_allow_html=True) 
                 
-            st.plotly_chart(fig_multi, use_container_width=True)
-            figs_to_ppt.append((title_2, fig_multi, an, nt))
-            if not df_multi_avg.empty: figs_to_ppt.append((title_2 + " 平均占比", df_multi_avg, "", ""))
+            show_chart(fig_multi, print_mode)
 
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "总体利润贡献"]):
-        render_section_1_part3()  # ✅ 对应 Part1 抽屉
+
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险业务收入构成分析"]:
+        render_section_1_part3(print_mode)  # ✅ 对应 Part1 抽屉
 
 
     # ---------------- Section 2 ----------------
     @st.fragment
-    def render_section_2_part1():
+    def render_section_2_part1(print_mode):
         st.markdown("---")
         c1, c2, c3, c4 = st.columns(4)
         with c1: ui_prof_lab = st.toggle("显示利润标签", value=False, key="prof_lab")
@@ -1330,13 +1563,12 @@ def show_step_7_content():
             if fig_p:
                 st.write(f"### 利润表现 - {year_val}年保险利润构成")
                 st.dataframe(contrib_p.style.format("{:.0f}%"), use_container_width=True)
-                st.plotly_chart(fig_p, use_container_width=True)
-                figs_to_ppt.append((f'{year_val}年保险利润构成', fig_p, an, nt))
+                show_chart(fig_p, print_mode)
             display_bottom_note(nt)
 
     # ---------------- Section 2.2：投资收益、承保财务损益及投资利润 ----------------
     @st.fragment
-    def render_section_2_part2():
+    def render_section_2_part2(print_mode):
         st.markdown("---")
         display_tasks = [("inv_return", "净投资回报", "净投资回报变动趋势", "直接提取"), 
                          ("uw_profit", "承保财务净损益", "承保财务净损益变动趋势", "公式计算"), 
@@ -1351,13 +1583,12 @@ def show_step_7_content():
             an, nt = display_notes(mod_id, df_plot_final, field, False) # AI 介入
             fig = create_simple_kpmg_chart(df_plot_final, field, f" {title}", lab_inv, psz_inv, gap_inv)
             if fig:
-                st.plotly_chart(fig, use_container_width=True)
-                figs_to_ppt.append((title, fig, an, nt))
+                show_chart(fig, print_mode)
             display_bottom_note(nt)
 
     # ---------------- Section 2.3：保险利润、投资利润变动趋势 ----------------
     @st.fragment
-    def render_section_2_part3():
+    def render_section_2_part3(print_mode):
         st.markdown("---")
         available_years = sorted(df_profit_raw['报告年份'].astype(str).str.replace(".0", "", regex=False).unique())
         if len(available_years) >= 2:
@@ -1369,13 +1600,12 @@ def show_step_7_content():
                 # 注意：这里需要传入控件的值，如果你想独立控制，可以像part2一样加上 slider
                 fig = create_profit_chart_v4(df_profit_raw, field, title, c_dict, True, 12, 0.3)
                 if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-                    figs_to_ppt.append((title, fig, an, nt))
+                    show_chart(fig, print_mode)
                 display_bottom_note(nt)
 
     # ---------------- Section 2.4：税前利润及税率 ----------------
     @st.fragment
-    def render_section_2_part4():
+    def render_section_2_part4(print_mode):
         st.markdown("---")
         an, nt = display_notes("tax_profit", df_tax_pivot, "有效税率", True)
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -1387,13 +1617,12 @@ def show_step_7_content():
         st.write("### 税前利润和净利润变动趋势")              
         fig_tax = create_tax_subplot_chart(df_tax_pivot, selected_cos, ui_show_lab, ui_bar_w, ui_fs, ui_cfs, ui_co_y)
         if fig_tax:
-            st.plotly_chart(fig_tax, use_container_width=True)
-            figs_to_ppt.append(("税前利润和净利润变动趋势", fig_tax, an, nt))
+            show_chart(fig_tax, print_mode)
         display_bottom_note(nt)
 
     # ---------------- Section 2.5：净利润、其他综合收益变动趋势 ----------------
     @st.fragment
-    def render_section_2_part5():
+    def render_section_2_part5(print_mode):
         st.markdown("---")
         st.write("### 净利润、其他综合收益及综合收益变动趋势")
         ui_f1, ui_f2, ui_f3 = st.columns(3)
@@ -1409,28 +1638,27 @@ def show_step_7_content():
             an, nt = display_notes(m_id, df_fin_raw, metric, False)
             fig_fin = create_financial_trend_chart_v5(df_fin_raw, metric, title, lab_fin, psz_fin, gap_fin)
             if fig_fin:
-                st.plotly_chart(fig_fin, use_container_width=True)
-                figs_to_ppt.append((title, fig_fin, an, nt))
+                show_chart(fig_fin, print_mode)
             display_bottom_note(nt)
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险利润"]):
-        render_section_2_part1()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险利润"]:
+        render_section_2_part1(print_mode)
             
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "投资收益、承保财务损益及投资利润"]):
-        render_section_2_part2()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "投资收益、承保财务损益及投资利润"]:
+        render_section_2_part2(print_mode)
         
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险利润、投资利润变动趋势"]):
-        render_section_2_part3()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "保险利润、投资利润变动趋势"]:
+        render_section_2_part3(print_mode)
         
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "税前利润及税率"]):
-        render_section_2_part4()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "税前利润及税率"]:
+        render_section_2_part4(print_mode)
         
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "净利润、其他综合收益及综合收益变动趋势"]):
-        render_section_2_part5()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "净利润、其他综合收益及综合收益变动趋势"]:
+        render_section_2_part5(print_mode)
 
     # ---------------- Section 3 ----------------
     @st.fragment
-    def render_section_3_part1():
+    def render_section_3_part1(print_mode):
         st.markdown("---")
         st.write("### IFRS9资产端分类")        
         ui_ast1, ui_ast2, ui_ast3 = st.columns(3)
@@ -1444,13 +1672,12 @@ def show_step_7_content():
         # 注意：此处函数调用确保参数匹配你之前的定义
         fig_asset_comp = create_asset_composition_chart(df_filtered, selected_cos, field_map_asset, color_map_asset, "资产配置结构分析", lab_ast, sz_ast, bw_ast, 14)
         if fig_asset_comp:
-            st.plotly_chart(fig_asset_comp, use_container_width=True)
-            figs_to_ppt.append(("资产配置结构分析", fig_asset_comp, an, nt))
+            show_chart(fig_asset_comp, print_mode)
         display_bottom_note(nt)
 
     # ---------------- Section 3.2：其他综合收益 (OCI) ----------------
     @st.fragment
-    def render_section_3_part2():
+    def render_section_3_part2(print_mode):
         st.markdown("---")
         st.write("### 其他综合收益 (OCI) 深度分析")
         ui_oci1, ui_oci2, ui_oci3 = st.columns(3)
@@ -1463,8 +1690,7 @@ def show_step_7_content():
             an, nt = display_notes("oci_year_lat" if i==0 else "oci_year_pre")
             fig_oci = create_oci_chart(df_filtered, y, f"OCI变动分析 - {y}年综合收益变动情况", lab_oci, sz_oci, gap_oci, selected_cos)
             if fig_oci:
-                st.plotly_chart(fig_oci, use_container_width=True)
-                figs_to_ppt.append((f"{y}年OCI变动", fig_oci, an, nt))
+                show_chart(fig_oci, print_mode)
             display_bottom_note(nt)
 
         # 资负深度分析图
@@ -1472,8 +1698,7 @@ def show_step_7_content():
         df_analysis, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos)
         if not df_analysis.empty:
             fig_deep = create_asset_liab_oci_chart(df_filtered, selected_cos, gap_oci, sz_oci, lab_oci)
-            st.plotly_chart(fig_deep, use_container_width=True)
-            figs_to_ppt.append(("资负深度分析图", fig_deep, an_d, nt_d))
+            show_chart(fig_deep,print_mode)
         display_bottom_note(nt_d)
 
         # 资负分析表
@@ -1487,17 +1712,16 @@ def show_step_7_content():
                 "负债OCI变动": "负债OCI变动", 
                 "两年资负OCI变动比率": "资负匹配率"
             })
-            st.dataframe(df_t.style.format("{:.2%}"), use_container_width=True)
+            st.dataframe(df_t.style.format("{:.2%}"), print_mode)
             # 存入PPT的格式化数据
             df_ppt = df_t.reset_index().rename(columns={"index": "指标名称"})
             for col in df_ppt.columns[1:]:
                 df_ppt[col] = df_ppt[col].apply(lambda x: f"{x:.2%}" if pd.notna(x) else "-")               
-            figs_to_ppt.append((f"资负OCI匹配分析-{c_y}", df_ppt, an_d, nt_d))
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ---------------- Section 3.3：净资产及总资产变动趋势 ----------------
     @st.fragment
-    def render_section_3_part3():
+    def render_section_3_part3(print_mode):
         st.markdown("---")
         st.write("### 规模趋势分析 - 净资产及总资产")  
         ui_n1, ui_n2, ui_n3 = st.columns(3)
@@ -1511,22 +1735,21 @@ def show_step_7_content():
             an, nt = display_notes(m_id, df_asset_raw, field, False)
             fig_ast = create_asset_trend_chart(df_asset_raw, field, title, lab_ast_t, psz_ast_t, gap_ast_t)
             if fig_ast:
-                st.plotly_chart(fig_ast, use_container_width=True)
-                figs_to_ppt.append((title, fig_ast, an, nt))
+                show_chart(fig_ast, print_mode)
             display_bottom_note(nt)
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "IFRS9及资产负债"]):
-        render_section_3_part1()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "IFRS9及资产负债"]:
+        render_section_3_part1(print_mode)
             
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "其他综合收益"]):
-        render_section_3_part2()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "其他综合收益"]:
+        render_section_3_part2(print_mode)
         
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "净资产和总资产"]):
-        render_section_3_part3()
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "净资产和总资产"]:
+        render_section_3_part3(print_mode)
 
     # ---------------- Section 4 ----------------
     @st.fragment
-    def render_section_4():
+    def render_section_4(print_mode):
         st.markdown("---")
         st.write("### CSM (合同服务边际) 表现分析")
         
@@ -1549,8 +1772,7 @@ def show_step_7_content():
         an1, nt1 = display_notes("csm_bal", df_csm_raw, "CSM期末余额", False)
         
         fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', '', lab_csm_t, psz_csm_t, gap_csm_t)
-        st.plotly_chart(fig_csm, use_container_width=True)
-        figs_to_ppt.append(('CSM余额变动趋势', fig_csm, an1, nt1))
+        show_chart(fig_csm, print_mode)
         display_bottom_note(nt1)
 
         render_kpmg_blue_title("CSM核心分析 (2/7) - CSM期初余额占比分析")
@@ -1560,16 +1782,14 @@ def show_step_7_content():
         an2, nt2 = display_notes("csm_ratio")
         fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, lab_rat_t, gap_rat_t)
         if fig_rat:
-            st.plotly_chart(fig_rat, use_container_width=True)
-            figs_to_ppt.append(('CSM期初余额占比分析', fig_rat, an2, nt2))
+            show_chart(fig_rat, print_mode)
         display_bottom_note(nt2)
 
         an3, nt3 = display_notes("csm_table")
         table_df_2025 = show_csm_summary_table(df_filtered, latest_year)
         if table_df_2025 is not None:
             render_kpmg_blue_title(f"CSM核心分析 (3/7) - {latest_year}年 CSM 概览明细表", f"单位：({unit_label})人民币")
-            st.dataframe(table_df_2025, use_container_width=True)
-            figs_to_ppt.append((f'CSM概览表_单位{unit_label}', table_df_2025, an3, nt3))
+            st.dataframe(table_df_2025, print_mode)
         display_bottom_note(nt3)
 
         render_kpmg_blue_title("CSM核心分析 (4/7) - 按过渡期计量方法拆分CSM")
@@ -1580,8 +1800,7 @@ def show_step_7_content():
         an, nt = display_notes("csm_trans")
         fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, lab_csm_trans, bw_csm_trans)
         if fig_csm_trans:
-            st.plotly_chart(fig_csm_trans, use_container_width=True)
-            figs_to_ppt.append(('按过渡期拆分CSM', fig_csm_trans, an, nt))
+            show_chart(fig_csm_trans, print_mode)
         display_bottom_note(nt)
 
         ui_cc1, ui_cc2, ui_cc3 = st.columns(3)
@@ -1593,15 +1812,14 @@ def show_step_7_content():
             an, nt = display_notes(m_id)
             fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, lab_csm_c, sz_csm_c, bw_csm_c)
             if fig_csm_comp:
-                st.plotly_chart(fig_csm_comp, use_container_width=True)
-                figs_to_ppt.append((f"CSM核心分析 (5/7) - 未到期责任负债中CSM占未来现金流现值BEL和非金融风险调整比例RA_{y}", fig_csm_comp, an, nt))
+                show_chart(fig_csm_comp, print_mode)
             display_bottom_note(nt)
             
         ui_cr1, ui_cr2 = st.columns(2)
         with ui_cr1: lab_csm_r = st.toggle("比率折线显示数值", True, key="cr_l")
         with ui_cr2: sz_csm_r = st.slider("比率点大小", 4, 15, 8, key="cr_s")
 
-        an, nt = display_notes("csm_ratio")
+        an, nt = display_notes("csm_ratio_trend")
         color_mapping = get_company_color_mapping(selected_cos, key_prefix="sec4")
         df_csm_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
         df_csm_sub['摊销比率'] = -df_csm_sub['CSM摊销'] / (df_csm_sub['CSM期末余额'] - df_csm_sub['CSM摊销'])
@@ -1612,11 +1830,10 @@ def show_step_7_content():
         col_l, col_r = st.columns(2)
         with col_l:
             fig_r1 = create_ratio_line_chart_v3(df_csm_sub[['公司', '报告年份', '摊销比率']].rename(columns={'摊销比率': 'value'}), "CSM核心分析 (6/7) - 摊销比率趋势", color_mapping, lab_csm_r, sz_csm_r, 11, ".1%")
-            st.plotly_chart(fig_r1, use_container_width=True)
+            show_chart(fig_r1, print_mode)
         with col_r:
             fig_r2 = create_ratio_line_chart_v3(df_csm_sub[['公司', '报告年份', '持续率']].rename(columns={'持续率': 'value'}), "CSM核心分析 (6/7) - 持续率趋势", color_mapping, lab_csm_r, sz_csm_r, 11, ".1%")
-            st.plotly_chart(fig_r2, use_container_width=True)
-        figs_to_ppt.append(("CSM核心分析 (6/7) - CSM摊销与持续率分析", [fig_r1, fig_r2], an, nt))
+            show_chart(fig_r2, print_mode)
         display_bottom_note(nt)
 
         st.markdown("---")
@@ -1628,17 +1845,16 @@ def show_step_7_content():
         an, nt = display_notes("csm_equity")
         fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, lab_csm_e, sz_csm_e, bw_csm_e, 16, 20)
         if fig_csm_eq:
-            st.plotly_chart(fig_csm_eq, use_container_width=True)
-            figs_to_ppt.append(('CSM核心分析 (7/7) - CSM及净资产对比图', fig_csm_eq, an, nt))
+            show_chart(fig_csm_eq, print_mode)
         display_bottom_note(nt)
         # 📍 [预留位置：CSM补充图表]
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "CSM相关分析"]):
-            render_section_4() 
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "CSM相关分析"]:
+        render_section_4(print_mode)
 
     # ---------------- Section 5 ----------------
     @st.fragment
-    def render_section_5():
+    def render_section_5(print_mode):
         st.markdown("---")
         st.write("### 新业务相关分析")
         ui_nb1, ui_nb2, ui_nb3 = st.columns(3)
@@ -1650,8 +1866,7 @@ def show_step_7_content():
         df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
         an, nt = display_notes("nb_csm", df_nb_csm_raw, "新业务CSM（集团口径）", False)
         fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', '新业务价值分析 (1/5) - 盈利合同（CSM）对比', lab_nb_c, psz_nb_c, gap_nb_c)
-        st.plotly_chart(fig_nb_csm, use_container_width=True)
-        figs_to_ppt.append(('新业务盈利合同CSM对比', fig_nb_csm, an, nt))
+        show_chart(fig_nb_csm, print_mode)
         display_bottom_note(nt)
         
         ui_ns1, ui_ns2, ui_ns3 = st.columns(3)
@@ -1662,10 +1877,9 @@ def show_step_7_content():
         an, nt = display_notes("nb_struct")
         fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, lab_nb_s, sz_nb_s, bw_nb_s, 14)
         if fig_csm_nb:
-            st.plotly_chart(fig_csm_nb, use_container_width=True)
-            st.plotly_chart(fig_lc, use_container_width=True)
-            st.plotly_chart(fig_ra, use_container_width=True)
-            figs_to_ppt.append(('新业务价值结构', [fig_csm_nb, fig_lc, fig_ra], an, nt))
+            show_chart(fig_csm_nb, print_mode)
+            show_chart(fig_lc, print_mode)
+            show_chart(fig_ra, print_mode)
         display_bottom_note(nt)
         
         st.write("---")        
@@ -1681,17 +1895,16 @@ def show_step_7_content():
         if fig_nb_trend:
             col_left, col_right = st.columns([1.1, 1]) 
             with col_left:
-                st.plotly_chart(fig_nb_trend, use_container_width=True)
-            figs_to_ppt.append(('新业务IFRS利润率比例趋势', fig_nb_trend, an4, nt4))         
+                show_chart(fig_nb_trend, print_mode)
         display_bottom_note(nt4)
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "1. 关键年报数据" and sub_nav in ["全部", "新业务相关"]):
-            render_section_5() 
+    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "新业务相关"]:
+        render_section_5(print_mode)
 
     # ---------------- Section 6 ----------------
     @st.fragment
-    def render_disclosure_expense():
+    def render_disclosure_expense(print_mode):
         st.markdown("---")
-        st.write("## 2. 关键披露信息")
+        st.markdown("<h2 style='color:#00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;'>2. 关键披露信息</h2>", unsafe_allow_html=True)
         st.write("### 业务及管理费")
         ui_e1, ui_e2, ui_e3 = st.columns(3)
         with ui_e1: lab_exp = st.toggle("显示费用标签", True, key="exp_l")
@@ -1706,23 +1919,22 @@ def show_step_7_content():
         <div style="background-color: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 10px;">
             <p style="margin: 0; font-size: 14px; color: #333;">
                 <strong>全行业平均占比：</strong> 
-                <span style='color:rgb(30,73,226)'>■ 获取费用 {p_acq:.0f}%</span> &nbsp;|&nbsp; 
-                <span style='color:rgb(118,210,255)'>■ 维持费用 {p_maint:.0f}%</span> &nbsp;|&nbsp; 
-                <span style='color:rgb(114,19,234)'>■ 非履约费用 {p_non:.0f}%</span>
+                <span style='color:rgb(30,73,226)'> 获取费用 {p_acq:.0f}%</span> &nbsp;|&nbsp; 
+                <span style='color:rgb(118,210,255)'> 维持费用 {p_maint:.0f}%</span> &nbsp;|&nbsp; 
+                <span style='color:rgb(114,19,234)'> 非履约费用 {p_non:.0f}%</span>
             </p>
         </div>
         """, unsafe_allow_html=True)        
         
         if fig_exp:
-            st.plotly_chart(fig_exp, use_container_width=True)
-            figs_to_ppt.append(('费用结构分析', fig_exp, an, nt))
+            show_chart(fig_exp, print_mode)
         display_bottom_note(nt)
 
     # ---------------- 关键业绩指标 - KPI指标(六维图) ----------------
     @st.fragment
-    def render_kpi_six_dim():
+    def render_kpi_six_dim(print_mode):
         st.markdown("---")
-        st.write("## 3. 关键业绩指标")
+        st.markdown("<h2 style='color:#00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;'>3. 关键业绩指标</h2>", unsafe_allow_html=True)
         st.write("### KPI指标")
         ui_6d1, ui_6d2, ui_6d3 = st.columns(3)
         with ui_6d1: lab_6d = st.toggle("显示六维雷达点标签", True, key="6d_l")
@@ -1739,118 +1951,329 @@ def show_step_7_content():
                     idx = row * 3 + col_idx
                     if idx < len(figs_6d):
                         with cols[col_idx]: 
-                            st.plotly_chart(figs_6d[idx], use_container_width=True, config={'displayModeBar': False})
-            figs_to_ppt.append(("财务六维分析", figs_6d, an, nt))
+                            st.plotly_chart(figs_6d[idx], print_mode, config={'displayModeBar': False})
         display_bottom_note(nt)
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "2. 关键披露信息" and sub_nav in ["全部", "业务及管理费"]):
-        render_disclosure_expense()
+    if main_nav == "2. 关键披露信息" and sub_nav in ["全部", "业务及管理费"]:
+        render_disclosure_expense(print_mode)
             
     # 拉开【KPI指标】抽屉
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "3. 关键业绩指标" and sub_nav in ["全部", "KPI指标"]):
-        render_kpi_six_dim()
+    if main_nav == "3. 关键业绩指标" and sub_nav in ["全部", "KPI指标"]:
+        render_kpi_six_dim(print_mode)
 
     # ---------------- Section 7 ----------------
     @st.fragment
-    def render_section_7():
+    def render_section_7(print_mode):
         st.markdown("---")
-        st.write("## 附录")
+        st.markdown("<h2 style='color:#00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;'>附录</h2>", unsafe_allow_html=True)
         
         an, nt = display_notes("fin_detail")
         df_l_table = create_financial_report_table(df_filtered, latest_year, selected_cos)
         if df_l_table is not None and not df_l_table.empty:
-            st.dataframe(format_financial_df(df_l_table), use_container_width=True)
-            figs_to_ppt.append(("保险服务业绩明细表", format_financial_df(df_l_table), an, nt))
+            st.dataframe(format_financial_df(df_l_table), print_mode)
         display_bottom_note(nt)
 
-    if main_nav == "🖨️ 一键显示全部 (导出)" or (main_nav == "4. 附录" and sub_nav in ["全部", "业绩明细表"]):
-            render_section_7() 
+    if main_nav == "4. 附录" and sub_nav in ["全部", "业绩明细表"]:
+        render_section_7(print_mode)
 
-    # ==========================================
-    # 📂 报告输出区：一键生成 PPT 与 PDF (仅在“一键显示全部”模式下暴露)
-    # ==========================================
     if main_nav == "🖨️ 一键显示全部 (打印/导出专用)":
         st.markdown("---")
-        st.write("### 报告导出")
-        export_col1, export_col2 = st.columns(2)
-        with export_col1:
-            if st.button("🌞 一键生成 PPT", use_container_width=True):
-                with st.spinner("正在将所有图表与分析排版至 PPT，请稍候..."):
-                    try:
-                        from pptx import Presentation
-                        from pptx.util import Inches, Pt
-                        from pptx.enum.text import PP_ALIGN
-                        import io
-                        
-                        prs = Presentation()
-                        prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5) # 16:9 画幅
-                        
-                        for title_text, content, an_txt, nt_txt in figs_to_ppt:
-                            contents = content if isinstance(content, list) else [content]
-                            for single_content in contents:
-                                slide = prs.slides.add_slide(prs.slide_layouts[6]) 
-                                txBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(12), Inches(0.8))
-                                p = txBox.text_frame.paragraphs[0]
-                                p.text, p.font.size, p.font.bold = title_text, Pt(24), True
-                                
-                                if an_txt:
-                                    anBox = slide.shapes.add_textbox(Inches(0.5), Inches(0.8), Inches(12), Inches(0.8))
-                                    p_an = anBox.text_frame.paragraphs[0]
-                                    p_an.text = "\n" + an_txt
-                                    p_an.font.size = Pt(13)
-                                
-                                content_top = Inches(1.8) if an_txt else Inches(1.0)
-                                if hasattr(single_content, 'write_image'):
-                                    img_buf = io.BytesIO()
-                                    single_content.write_image(img_buf, format="png", width=1200, height=500)
-                                    img_buf.seek(0)
-                                    slide.shapes.add_picture(img_buf, Inches(1.5), content_top, width=Inches(10))
-                                elif isinstance(single_content, pd.DataFrame):
-                                    rows, cols = single_content.shape[0] + 1, single_content.shape[1]
-                                    table = slide.shapes.add_table(rows, cols, Inches(0.5), content_top, Inches(12.0), Inches(3.0)).table
-                                    for j, col_name in enumerate(single_content.columns): table.cell(0, j).text = str(col_name)
-                                    for i in range(rows - 1):
-                                        for j in range(cols): table.cell(i+1, j).text = str(single_content.iloc[i, j])
-                                    for r in range(rows):
-                                        for c in range(cols):
-                                            for pr in table.cell(r, c).text_frame.paragraphs: pr.font.size = Pt(10)
-                                if nt_txt:
-                                    ntBox = slide.shapes.add_textbox(Inches(0.5), Inches(6.8), Inches(12), Inches(0.5))
-                                    p_nt = ntBox.text_frame.paragraphs[0]
-                                    p_nt.text = "注释：" + nt_txt
-                                    p_nt.font.size = Pt(11)
+        # 🚫 删掉这里重复的报告导出按钮，因为上面导航栏里已经有了
 
-                        ppt_buf = io.BytesIO()
-                        prs.save(ppt_buf)
-                        st.session_state['pptx_output'] = ppt_buf.getvalue()
-                        st.success("PPT生成成功！")
-                        
-                    except Exception as e:
-                        if "kaleido" in str(e).lower():
-                            st.error("⚠️ 导出 PPT 失败！原因：缺少将图表转为图片的必须组件。请在命令提示符运行：`pip install -U kaleido`")
-                        else:
-                            st.error(f"生成 PPT 时发生未知错误: {e}")
+        if 'ordered_modules' not in locals() or not ordered_modules:
+            st.warning("⚠️ 报告顺序未加载：请先在上方【全局内容分析与注释输入】处，上传包含了排版顺序和图片文件名的 Excel 分析表。")
+        else:
+            # 开始按照 Excel 的行顺序，一行一行往下画
+            for m_id in ordered_modules:
+                mod_data = notes_dict.get(m_id, {})
+                img_file = mod_data.get('image', '') # 💡 根据你代码第303行，提取的名字叫 'image'
+                
+                # 安全提取 Excel 里的对应图表名称，没有的话自动补充默认名字
+                raw_title = str(mod_data.get('title', '')).strip()
+                current_title = raw_title if raw_title and raw_title.lower() != 'nan' else None
+                
+                # ----------------------------------------
+                # 🖼️ 逻辑 1：纯图片模块 (封面、过渡页、截图等)
+                # ----------------------------------------
+                if img_file and str(img_file).lower() != 'nan':
+                    import os
+                    if os.path.exists(img_file):
+                        st.image(img_file, use_container_width=True)
+                    else:
+                        st.error(f"⚠️ 找不到图片文件：{img_file}。请确保把该图片和 app.py 放在同一个文件夹里！")
+                    st.markdown("<br>", unsafe_allow_html=True)
+                
+                # ----------------------------------------
+                # 📊 逻辑 2：图表/表格模块 (根据模块 ID 呼叫函数)
+                # ----------------------------------------
+                elif m_id == "summary_table":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else '关键数据概览')
+                    fig_summary_table = create_financial_summary_table(df_filtered, selected_cos)
+                    if fig_summary_table: st.plotly_chart(fig_summary_table, use_container_width=True)
+                    display_bottom_note(nt)
+                    
+                elif m_id == "prof_mix":
+                    an, nt = display_notes(m_id)
+                    title_text = current_title if current_title else '利润贡献与保险和投资利润占比'
+                    fig_prof = create_profit_mixed_chart(df_filtered, selected_cos, title_text, True, 0.4, divisor, unit_label)        
+                    if fig_prof: st.plotly_chart(fig_prof, use_container_width=True)
+                    display_bottom_note(nt)
 
-            if 'pptx_output' in st.session_state:
-                st.download_button("📥 下载专业排版 PPT", st.session_state['pptx_output'], file_name="深度保险财务分析报告.pptx", use_container_width=True)
+                elif m_id in ["inc_total", "exp_total", "perf_total"]:
+                    field_map = {"inc_total": "保险服务收入合计", "exp_total": "保险服务费用合计", "perf_total": "保险服务业绩"}
+                    field = field_map[m_id]
+                    title_fallback = {"inc_total": "保险服务收入变动趋势", "exp_total": "保险服务费用变动趋势", "perf_total": "保险服务业绩变动趋势"}[m_id]
+                    an, nt = display_notes(m_id) # 💡 剔除脏参数，走新版自适应引擎
+                    fig = create_kpmg_chart(df_filtered, field, current_title if current_title else title_fallback, True, 14, 0.3)
+                    if fig: st.plotly_chart(fig, use_container_width=True)
+                    display_bottom_note(nt)
 
-        with export_col2:
-            st.components.v1.html(
-                """
-                <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                    <button onclick="window.parent.print()" 
-                            style="width: 100%; padding: 12px; background-color: #F0F2F6; color: #31333F; 
-                                   border: 1px solid #D0D4DC; border-radius: 8px; font-size: 16px; cursor: pointer;
-                                   font-family: 'Source Sans Pro', sans-serif; font-weight: bold;">
-                        🖨️ 网页一键存为高清 PDF (Ctrl+P)
-                    </button>
-                </div>
-                """,
-                height=50
-            )
-            st.caption("提示：这是保存完美排版的最清晰方式。点击后请在打印设置中将【布局】选为“横向”，并在更多设置中勾选【背景图形】。")
+                elif m_id == "comp_1":
+                    an, nt = display_notes(m_id)
+                    comp_fields = ["采用保费分配法计量的保险合同保险服务收入", "未采用保费分配法计量的保险合同保险服务收入"]
+                    fig_comp = create_kpmg_composition_chart(df_filtered, comp_fields, current_title if current_title else '收入结构分析 - PAA与非PAA对比', True, 12, 0.6, 14)
+                    if fig_comp: st.plotly_chart(fig_comp, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "comp_2":
+                    an, nt = display_notes(m_id)
+                    f_m2 = {"合同服务边际的摊销":"合同服务边际的释放", "非金融风险调整的变动":"非金融风险调整的变动", "预计当期发生的保险服务费用":"预期当期发生的保险服务费用", "保险获取现金流的摊销（保险服务收入）":"保险获取现金流的摊销", "与当期服务或过去服务相关得保费经验调整":"与当期服务或过去服务相关的保费经验调整", "其他收入调整":"其他"}
+                    c_m2 = {"合同服务边际的摊销":"rgb(30, 73, 226)", "非金融风险调整的变动":"rgb(254, 174, 215)", "预计当期发生的保险服务费用":"rgb(0, 163, 161)", "保险获取现金流的摊销（保险服务收入）":"rgb(1, 184, 245)", "与当期服务或过去服务相关得保费经验调整":"rgb(0, 219, 214)", "其他收入调整":"rgb(114, 19, 234)"}
+                    fig_multi, df_multi_avg = create_kpmg_multi_composition_chart(df_filtered, f_m2, c_m2, current_title if current_title else '收入结构分析 - 详细收入构成拆解', True, 12, 0.6, 14)
+                    if fig_multi: 
+                        if not df_multi_avg.empty:
+                            st.write("##### 各公司平均占比情况")
+                            styles = [{'selector': 'th', 'props': [('text-align', 'center'), ('font-weight', 'bold'), ('border', '1px solid white')]}, {'selector': 'td', 'props': [('text-align', 'center')]}]
+                            for i, (orig_k, display_name) in enumerate(f_m2.items()):
+                                bg_c, tx_c = c_m2[orig_k], "white" if any(x in c_m2[orig_k] for x in ["30, 73, 226", "114, 19, 234", "0, 163, 161"]) else "black"
+                                styles.append({'selector': f'th.col_heading.col{i}', 'props': [('background-color', bg_c), ('color', tx_c)]})
+                            st.write(df_multi_avg.style.set_table_styles(styles).format("{:.1f}%").to_html(), unsafe_allow_html=True)
+                            st.markdown("<br>", unsafe_allow_html=True) 
+                        st.plotly_chart(fig_multi, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id in ["prof_2025", "prof_2024"]:
+                    year_val = latest_year if m_id == "prof_2025" else prev_year
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else f'利润表现 - {year_val}年保险利润构成')
+                    fig_p, contrib_p = create_profit_composition_chart(df_filtered, selected_cos, year_val, False, 11, 0.4, 14)
+                    if fig_p:
+                        st.dataframe(contrib_p.style.format("{:.0f}%"), use_container_width=True)
+                        st.plotly_chart(fig_p, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id in ["inv_return", "uw_profit", "inv_profit"]:
+                    field_map = {"inv_return": "净投资回报", "uw_profit": "承保财务净损益", "inv_profit": "投资利润"}
+                    field = field_map[m_id]
+                    title_fallback = {"inv_return": "净投资回报变动趋势", "uw_profit": "承保财务净损益变动趋势", "inv_profit": "投资利润变动趋势"}[m_id]
+                    an, nt = display_notes(m_id)
+                    fig = create_simple_kpmg_chart(df_plot_final, field, current_title if current_title else title_fallback, True, 12, 0.3)
+                    if fig: st.plotly_chart(fig, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id in ["trend_inv", "trend_ins"]:
+                    field_map = {"trend_inv": "投资利润", "trend_ins": "保险利润"}
+                    yr_old, yr_new = str(prev_year), str(latest_year)
+                    color_map = {"trend_inv": {yr_old: "#FC349B", yr_new: "#97014F"}, "trend_ins": {yr_old: "#1E49E2", yr_new: "#00338C"}}
+                    field = field_map[m_id]
+                    an, nt = display_notes(m_id)
+                    fig = create_profit_chart_v4(df_profit_raw, field, current_title if current_title else (field + "变动对比分析"), color_map[m_id], True, 12, 0.3)
+                    if fig: st.plotly_chart(fig, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "tax_profit":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else '税前利润和净利润变动趋势')
+                    fig_tax = create_tax_subplot_chart(df_tax_pivot, selected_cos, True, 0.4, 10, 14, 1.05)
+                    if fig_tax: st.plotly_chart(fig_tax, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id in ["net_profit", "oci_profit", "total_profit"]:
+                    field_map = {"net_profit": "净利润", "oci_profit": "其他综合收益", "total_profit": "综合收益总额"}
+                    field = field_map[m_id]
+                    title_fallback = {"net_profit": "综合收益概览 (1/3) - 净利润(亏损)趋势", "oci_profit": "综合收益概览 (2/3) - OCI变动趋势", "total_profit": "综合收益概览 (3/3) - 综合收益总额趋势"}[m_id]
+                    an, nt = display_notes(m_id)
+                    fig_fin = create_financial_trend_chart_v5(df_fin_raw, field, current_title if current_title else title_fallback, True, 12, 0.3)
+                    if fig_fin: st.plotly_chart(fig_fin, use_container_width=True)
+                    display_bottom_note(nt)                
+
+                elif m_id == "asset_struct":
+                    an, nt = display_notes(m_id)
+                    field_map_asset = {"AC": "债权投资", "FVOCI": "其他债权投资", "FVTPL": "交易性金融资产", "指定FVOCI": "其他权益工具投资"}
+                    color_map_asset = {"AC": "rgb(0, 184, 245)", "FVOCI": "rgb(114, 19, 234)", "FVTPL": "rgb(253, 52, 156)", "指定FVOCI": "rgb(181, 2, 95)"}
+                    fig_asset_comp = create_asset_composition_chart(df_filtered, selected_cos, field_map_asset, color_map_asset, current_title if current_title else '资产配置结构分析 - IFRS9资产端分类', True, 11, 0.6, 14)
+                    if fig_asset_comp: st.plotly_chart(fig_asset_comp, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id in ["oci_year_lat", "oci_year_pre"]:
+                    y = latest_year if m_id == "oci_year_lat" else prev_year
+                    an, nt = display_notes(m_id)
+                    fig_oci = create_oci_chart(df_filtered, y, current_title if current_title else f"OCI变动分析 - {y}年综合收益变动情况", True, 13, 0.15, selected_cos)
+                    if fig_oci: st.plotly_chart(fig_oci, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "oci_deep":
+                    an_d, nt_d = display_notes(m_id)
+                    df_analysis, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos)
+                    if not df_analysis.empty:
+                        fig_deep = create_asset_liab_oci_chart(df_filtered, selected_cos, 0.15, 13, True)
+                        st.plotly_chart(fig_deep, use_container_width=True)
+                        st.write(f"#####  资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)")
+                        df_t = df_analysis.set_index("公司").T
+                        df_t = df_t.rename(index={f"FVOCI占比_{p_y}": f"FVOCI占比({p_y})", f"FVOCI占比_{c_y}": f"FVOCI占比({c_y})", "FVOCI变动": "FVOCI变动", "负债OCI变动": "负债OCI变动", "两年资负OCI变动比率": "资负匹配率"})
+                        st.dataframe(df_t.style.format("{:.2%}"), use_container_width=True)
+                    display_bottom_note(nt_d)
+
+                elif m_id in ["equity_trend", "asset_trend"]:
+                    field_map = {"equity_trend": "期末股东权益", "asset_trend": "总资产"}
+                    field = field_map[m_id]
+                    title_fallback = "规模趋势分析 - 净资产变动趋势" if m_id == "equity_trend" else "规模趋势分析 - 总资产变动趋势"
+                    df_asset_raw = df_filtered[df_filtered['字段名'].isin(['期末股东权益', '总资产']) & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
+                    df_asset_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
+                    an, nt = display_notes(m_id)
+                    fig_ast = create_asset_trend_chart(df_asset_raw, field, current_title if current_title else title_fallback, True, 11, 0.3)
+                    if fig_ast: st.plotly_chart(fig_ast, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "csm_bal":
+                    df_csm_raw = df_filtered[(df_filtered['字段名'] == 'CSM期末余额') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
+                    df_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)       
+                    an1, nt1 = display_notes(m_id)
+                    fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', current_title if current_title else 'CSM核心分析 (1/7) - CSM余额变动趋势', True, 12, 0.35)
+                    st.plotly_chart(fig_csm, use_container_width=True)
+                    display_bottom_note(nt1)
+
+                elif m_id == "csm_ratio":
+                    an2, nt2 = display_notes(m_id)
+                    st.subheader(current_title if current_title else 'CSM核心分析 (2/7) - CSM期初余额占比分析')
+                    fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, True, 0.3)
+                    if fig_rat: st.plotly_chart(fig_rat, use_container_width=True)
+                    display_bottom_note(nt2)
+
+                elif m_id == "csm_table":
+                    an3, nt3 = display_notes(m_id)
+                    st.subheader(current_title if current_title else f'CSM核心分析 (3/7) - {latest_year}年 CSM 概览明细表')
+                    table_df_2025 = show_csm_summary_table(df_filtered, latest_year)
+                    if table_df_2025 is not None: st.dataframe(table_df_2025, use_container_width=True)
+                    display_bottom_note(nt3)
+
+                elif m_id == "csm_trans":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else 'CSM核心分析 (4/7) - 按过渡期计量方法拆分CSM')
+                    fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, True, 0.4)
+                    if fig_csm_trans: st.plotly_chart(fig_csm_trans, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id in ["csm_comp_lat", "csm_comp_pre"]:
+                    y = latest_year if m_id == "csm_comp_lat" else prev_year
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else f'CSM核心分析 (5/7) - {y}年未到期责任负债中CSM占比')
+                    fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, True, 11, 0.5)
+                    if fig_csm_comp: st.plotly_chart(fig_csm_comp, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "csm_ratio_trend":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else 'CSM核心分析 (6/7) - CSM摊销与持续率分析')
+                    color_mapping = get_company_color_mapping(selected_cos, key_prefix="sec4")
+                    df_csm_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
+                    df_csm_sub['摊销比率'] = -df_csm_sub['CSM摊销'] / (df_csm_sub['CSM期末余额'] - df_csm_sub['CSM摊销'])
+                    df_csm_sub['持续率'] = -df_csm_sub['新业务CSM（集团口径）'] / df_csm_sub['CSM摊销']
+                    df_csm_sub.replace([np.inf, -np.inf], np.nan, inplace=True)
+                    df_csm_sub['报告年份'] = df_csm_sub['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
+                    col_l, col_r = st.columns(2)
+                    with col_l:
+                        fig_r1 = create_ratio_line_chart_v3(df_csm_sub[['公司', '报告年份', '摊销比率']].rename(columns={'摊销比率': 'value'}), "摊销比率趋势", color_mapping, True, 8, 11, ".1%")
+                        st.plotly_chart(fig_r1, use_container_width=True)
+                    with col_r:
+                        fig_r2 = create_ratio_line_chart_v3(df_csm_sub[['公司', '报告年份', '持续率']].rename(columns={'持续率': 'value'}), "持续率趋势", color_mapping, True, 8, 11, ".1%")
+                        st.plotly_chart(fig_r2, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "csm_equity":
+                    an, nt = display_notes(m_id)
+                    fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, True, 11, 0.53, 16, 20)
+                    if fig_csm_eq: st.plotly_chart(fig_csm_eq, use_container_width=True)
+                    display_bottom_note(nt)      
+
+                elif m_id == "nb_csm":
+                    df_nb_csm_raw = df_filtered[(df_filtered['字段名'] == '新业务CSM（集团口径）') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
+                    df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
+                    an, nt = display_notes(m_id)
+                    fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', current_title if current_title else '新业务价值分析 (1/5) - 盈利合同（CSM）对比', True, 12, 0.3)
+                    st.plotly_chart(fig_nb_csm, use_container_width=True)
+                    display_bottom_note(nt)
+                
+                elif m_id == "nb_struct":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else '新业务价值结构拆解')
+                    fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, True, 12, 0.6, 14)
+                    if fig_csm_nb:
+                        st.plotly_chart(fig_csm_nb, use_container_width=True)
+                        st.plotly_chart(fig_lc, use_container_width=True)
+                        st.plotly_chart(fig_ra, use_container_width=True)
+                    display_bottom_note(nt)
+                
+                elif m_id == "nb_margin_trend":
+                    an4, nt4 = display_notes(m_id)
+                    color_mapping = get_company_color_mapping(selected_cos, key_prefix="sec5")
+                    fig_nb_trend = create_nb_margin_trend_chart(df_filtered, selected_cos, current_title if current_title else "新业务价值分析 (5/5) - 新业务IFRS利润率趋势", color_mapping, True, 8, 12)  
+                    if fig_nb_trend:
+                        col_left, col_right = st.columns([1.1, 1]) 
+                        with col_left: st.plotly_chart(fig_nb_trend, use_container_width=True)
+                    display_bottom_note(nt4)
+
+                elif m_id == "exp_struct":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else '业务及管理费（新准则分类） - 费用结构')
+                    fig_exp, stats = create_expense_breakdown_chart(df_filtered, selected_cos, True, 10, 0.5, 15)
+                    p_acq, p_maint, p_non = stats       
+                    st.markdown(f"""
+                    <div style="background-color: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 10px;">
+                        <p style="margin: 0; font-size: 14px; color: #333;">
+                            <strong>全行业平均占比：</strong> 
+                            <span style='color:rgb(30,73,226)'>■ 获取费用 {p_acq:.0f}%</span> &nbsp;|&nbsp; 
+                            <span style='color:rgb(118,210,255)'>■ 维持费用 {p_maint:.0f}%</span> &nbsp;|&nbsp; 
+                            <span style='color:rgb(114,19,234)'>■ 非履约费用 {p_non:.0f}%</span>
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)        
+                    if fig_exp: st.plotly_chart(fig_exp, use_container_width=True)
+                    display_bottom_note(nt)
+
+                elif m_id == "six_dim":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else '关键业绩指标 - KPI指标')
+                    figs_6d = create_six_dimensional_charts(df_filtered, latest_year, 10, True, 13)
+                    if figs_6d:
+                        for row in range(2):
+                            cols = st.columns(3)
+                            for col_idx in range(3):
+                                idx = row * 3 + col_idx
+                                if idx < len(figs_6d):
+                                    with cols[col_idx]: st.plotly_chart(figs_6d[idx], use_container_width=True, config={'displayModeBar': False})
+                    display_bottom_note(nt)
+
+                elif m_id == "fin_detail":
+                    an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else '附录：保险服务业绩明细表')
+                    df_l_table = create_financial_report_table(df_filtered, latest_year, selected_cos)
+                    if df_l_table is not None and not df_l_table.empty:
+                        st.dataframe(format_financial_df(df_l_table), use_container_width=True)
+                    display_bottom_note(nt)
+                    
+                    
+                    
+                else:
+                    # 如果在 Excel 里写了一个代码里还没配置 elif 的 ID，给个柔和的提示，防止程序崩溃
+                    #st.info(f"⏳ 模块 [{m_id}] 尚未配置底层绘图代码，或这是个单纯的文本分割模块。")
+                    pass
+                # 每个模块画完，加一条隐形分割线，防止 PDF 打印时上下的图挤在一起
+                st.markdown("<br>", unsafe_allow_html=True)
+
     else:
-        st.info("💡 提示：为了提升渲染速度，当前处于单模块浏览模式。如需打印 PDF 或导出完整 PPT，请在侧边栏选中【🖨️ 一键显示全部 (打印/导出专用)】。") 
+        st.info("💡 提示：为了提升渲染速度，当前处于单模块浏览模式。如需生成完整排版并一键打印 PDF，请在上方导航菜单选择【🖨️ 一键显示全部 (打印/导出专用)】。")
 
 # 1. 先定义这个名单（全局变量）
 DEFAULT_COMPANIES = [
@@ -2029,7 +2452,7 @@ def extract_single_page_vision(pdf_bytes, page_num, expected_name, api_key, base
         
     except Exception as e:
         return None, f"图像处理失败: {str(e)}"
-def extract_single_page(pdf_bytes, page_num, expected_name, api_key):
+def extract_single_page(pdf_bytes, page_num, expected_name, api_key, base_url, model_name):
     """使用 pdfplumber 提取文本，并用 LLM 转换为结构化数据"""
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         if page_num < 1 or page_num > len(pdf.pages):
@@ -2052,9 +2475,10 @@ def extract_single_page(pdf_bytes, page_num, expected_name, api_key):
 以下是原始文本，请开始输出：
 {raw_text}"""
 
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=model_name,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0
     )
@@ -2090,7 +2514,7 @@ def extract_single_page(pdf_bytes, page_num, expected_name, api_key):
     return pd.DataFrame(parsed_data), raw_text
 
 # ==================== 后台引擎：调用 DeepSeek (混合双引擎) ====================
-def ai_find_pages(pdf_bytes, api_key, target_tables):
+def ai_find_pages(pdf_bytes, api_key, target_tables, base_url, model_name):
     """混合双引擎：AI负责读目录推算主表，Python雷达负责深潜寻找附注表"""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     
@@ -2240,13 +2664,11 @@ def ai_find_pages(pdf_bytes, api_key, target_tables):
 ⚠️ 警告：输出的 JSON 的键（Key）必须【完全包含】《需求表单列表》中的所有字段，【绝对不能有任何遗漏】！如果文中真的找不到，请严格对应填写 [0]。
 格式示例：{{"合并利润表": [8, 9], "资产负债表 (合并优先)": [2, 3, 4]}}"""
 
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+    client = OpenAI(api_key=api_key, base_url=base_url) # 网址动态化
     response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {"role": "system", "content": "你是一个只输出JSON格式的数据处理机器人。"},
-            {"role": "user", "content": prompt}
-        ],
+        model=model_name, # 模型动态化
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.1
     )
     
@@ -2301,85 +2723,102 @@ st.markdown("""
 
 
 # ==========================================
-# 🔐 1. 初始化系统状态变量
+# 🔐 1. 初始化系统状态变量 (紧凑写法)
 # ==========================================
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-if 'user_role' not in st.session_state:
-    st.session_state['user_role'] = None
-if 'api_key' not in st.session_state:
-    st.session_state['api_key'] = ""
+for k, v in {'logged_in':False, 'user_role':None, 'api_key':"", 'base_url':"https://api.deepseek.com", 'model_name':"deepseek-chat"}.items():
+    if k not in st.session_state: st.session_state[k] = v
 
 # ==========================================
-# 🚪 2. 独立登录界面
+# 🚪 2. 独立登录界面 (极致压缩 + 旗舰科技发光主题)
 # ==========================================
 if not st.session_state['logged_in']:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center; color: #00338D; font-family: Microsoft YaHei;'>寿研数智 ACTUARIAL INTELLIGENCE</h1>", unsafe_allow_html=True)
-    st.markdown("<hr style='width: 50%; margin: 20px auto;'>", unsafe_allow_html=True)
+    
+    # 这段专属暗色 CSS 仅在登录界面生效，登录后自动恢复上方的主系统浅色配置
+    st.markdown("""<style>
+    header {visibility: hidden;}
+    .stApp {background: linear-gradient(135deg, #040B16 0%, #0A1931 50%, #002266 100%); color: #E2E8F0;}
+    /* 毛玻璃卡片底座，微微泛青蓝光 */
+    [data-testid="column"]:nth-of-type(2) {background: rgba(255,255,255,0.08); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-radius: 20px; border: 1px solid rgba(0,243,255,0.3); box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 15px rgba(0,243,255,0.15); padding: 40px 30px; margin-top: 6vh;}
+    
+    /* 💎 寿研数智年报平台 - 顶级银青渐变全息发光 */
+    .title-glow {background: linear-gradient(90deg, #FFFFFF 0%, #76D2FF 50%, #00F3FF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; filter: drop-shadow(0 0 15px rgba(0,243,255,0.6));}
 
-    # 居中排版框
-    col1, col2, col3 = st.columns([1, 2, 1])
+    div[data-baseweb="input"]>div, div[data-baseweb="select"]>div {background: rgba(0,0,0,0.4)!important; border: 1px solid rgba(0,243,255,0.3)!important; border-radius: 8px!important;}
+    div[data-baseweb="input"]>div:focus-within, div[data-baseweb="select"]>div:focus-within {border-color: #00F3FF!important; box-shadow: 0 0 12px rgba(0,243,255,0.5)!important;}
+    
+    div[data-testid="stRadio"] label p {color: #FFFFFF!important; font-weight: bold!important; font-size: 14px!important;}
+    
+    /* 🌟 穿透级 CSS：强制修改 AI 下拉框和 API 框的文字颜色为 #00F3FF */
+    label p, .stSelectbox label p, .stTextInput label p {color: #00F3FF!important; letter-spacing: 1px!important;}
+    input, .stSelectbox span {color: #FFFFFF!important; font-size: 14px!important;}
+    
+    /* 大按钮发光样式 */
+    button[kind="primary"] {background: linear-gradient(90deg, #0044CC, #0088FF)!important; border: 1px solid rgba(0,243,255,0.5)!important; box-shadow: 0 0 15px rgba(0,136,255,0.4)!important; color: white!important; font-weight: bold!important; letter-spacing: 2px!important; border-radius: 8px!important; margin-top: 5px!important;}
+    button[kind="primary"]:hover {box-shadow: 0 0 25px rgba(0,243,255,0.8)!important; transform: scale(1.02);}
+    
+    /* 💡 将 popover 悬浮窗按钮伪装成靠右的超链接小字 */
+    [data-testid="stPopover"] {display: flex; justify-content: flex-end;}
+    [data-testid="stPopover"] button {background: transparent!important; border: none!important; box-shadow: none!important; color: #94A3B8!important; font-size: 12px!important; font-weight: normal!important; padding: 0!important; min-height: 0!important; text-decoration: underline; margin-top: 8px; margin-bottom: 15px;}
+    [data-testid="stPopover"] button:hover {color: #00F3FF!important;}
+    </style>""", unsafe_allow_html=True)
+
+    _, col2, _ = st.columns([1, 1.5, 1])
     with col2:
-        st.markdown("#### 1. 请选择您的用户类型")
-        user_type = st.radio("用户类型", ["普通用户", "KPMG成员"], label_visibility="collapsed", horizontal=True)
+        st.markdown("<div style='text-align:center; margin-bottom:30px;'><h1 style='font-size:32px; margin:0;'><span class='title-glow'>寿研数智年报平台</span></h1><p style='color:#76D2FF; font-size:11px; letter-spacing:4px; margin-top:8px; font-weight:bold;'>ACTUARIAL INTELLIGENCE</p></div>", unsafe_allow_html=True)
         
-        # 权限校验安全码框
-        sec_code = ""
-        if user_type == "KPMG成员":
-            sec_code = st.text_input("🔑请输入内部安全码", type="password", placeholder="输入安全码...")
+        u_type = st.radio("访问权限", ["普通用户", "KPMG成员"], label_visibility="collapsed", horizontal=True)
+        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") if u_type == "KPMG成员" else ""
+        
+        # 字典映射压缩代码体积
+        ai_map = {"阿里云百炼 (通义千问)": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"), "DeepSeek (深度求索)": ("https://api.deepseek.com", "deepseek-chat"), "月之暗面 (Kimi)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"), "智谱AI (GLM-4)": ("https://open.bigmodel.cn/api/paas/v4", "glm-4"), "OpenAI (ChatGPT)": ("https://api.openai.com/v1", "gpt-4o")}
+        ai_pr = st.selectbox("选择您将使用的AI", list(ai_map.keys()) + ["自定义私有化节点"])
+        
+        d_url, d_mod = ai_map.get(ai_pr, ("https://api.deepseek.com", "deepseek-chat"))
+        if ai_pr == "自定义私有化节点":
+            d_url, d_mod = st.text_input("RPC 接口地址", "https://api.deepseek.com"), st.text_input("指定模型版本", "deepseek-chat")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        api_input = st.text_input("请填写您使用AI的API Key", type="password", placeholder=" sk-... (不填则仅开放年报检测、数据合并及可视化本地分析功能)")
         
-        # API 填写框
-        st.markdown("#### 2. 填写您的 API KEY")
-        api_input = st.text_input("API Key", type="password", placeholder="sk-...", label_visibility="collapsed")
-        st.caption("提示：可以不填，但不填将无法使用前端的数据提取与AI功能。(DeepSeek不可分析图片版PDF)")
+        # 条件判断：只有选了 OpenAI 时才显示红字警告，否则用一个很小的空白顶位
+        if "OpenAI" in ai_pr:
+            st.markdown("<p style='font-size:11px; color:#F87171; text-align:right; margin-top:4px; margin-bottom:0;'>⚠️ 严禁向境外节点传输涉密数据</p>", unsafe_allow_html=True)
         
-        # 如何获取 API Key 的提示悬浮窗
-        with st.popover("💡 如何获取 API Key？"):
-            st.markdown("""
-            **获取方式：**
-            1. 前往各大模型官方开放平台（如阿里云百炼、DeepSeek开放平台）。
-            2. 注册账号并实名认证后，在“API-KEY管理”处生成一串以 `sk-` 开头的密钥。
-            3. 将密钥复制到上方输入框即可使用。
-            """)
+        # 伪装成超链接小字的帮助菜单
+        with st.popover("如何获取API key?"):
+            st.markdown("**1.** 前往各大模型官方开放平台注册账号。\n\n**2.** 在控制台生成 `sk-` 开头的密钥。\n\n**3.** 复制填入上方输入框即可体验 AI 功能。")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 登录按钮
-        if st.button("🚀 进入系统", type="primary", use_container_width=True):
-            if user_type == "KPMG成员":
-                if sec_code == "KPMG666":
-                    st.session_state['logged_in'] = True
-                    st.session_state['user_role'] = "KPMG成员"
-                    st.session_state['api_key'] = api_input
-                    st.rerun() # 瞬间刷新页面，进入主系统
-                else:
-                    st.error("❌ 安全码错误，请重新输入！")
-            else:
-                st.session_state['logged_in'] = True
-                st.session_state['user_role'] = "普通用户"
-                st.session_state['api_key'] = api_input
+        # 启动大按钮
+        if st.button("启 动 系 统", type="primary", use_container_width=True):
+            if u_type == "KPMG成员" and sec_code != "KPMG666": st.error("❌ 拒绝访问：安全码效验失败")
+            else: 
+                st.session_state.update({'logged_in':True, 'user_role':u_type, 'api_key':api_input, 'base_url':d_url, 'model_name':d_mod})
                 st.rerun()
 
-    # 底部版本号与开发者信息
-    st.markdown("<br><br><br>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style='text-align: center; color: #64748B; font-size: 13px; line-height: 2; letter-spacing: 1px;'>
-        系统版本：v3.0 (Alpha)<br>
-        开发者：林友沐Bella
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; color:#94A3B8; font-size:11px; margin-top:30px; letter-spacing:1px;'>系统版本：v3.0 (Alpha) © 2026<br>Developed by 林友沐Bella</div>", unsafe_allow_html=True)
 
+    # 阻止程序继续往下渲染主系统界面
+    st.stop()
 # ==========================================
 # 📊 3. 主系统界面 (根据角色分发权限)
 # ==========================================
 else:
+    # 👇 解决报错的核心：把存进 session_state 里的变量提出来，放在 else 里面！
+    # 代码规范锁：0123456789
+    api_key = st.session_state.get('api_key', "")
+    base_url = st.session_state.get('base_url', "https://api.deepseek.com")
+    model_name = st.session_state.get('model_name', "deepseek-chat")
+    user_role = st.session_state.get('user_role', "普通用户")  # 👈 修正了这里，删掉了多余的 "KPMG成员"
+
     # 顶部状态栏与退出按钮
     top_col1, top_col2 = st.columns([8, 1])
     with top_col1:
-        st.caption(f"当前身份：**{st.session_state['user_role']}** | 欢迎使用寿研数智分析平台")
+        # 👇 穿上 'no-print' 隐身斗篷
+        st.markdown(
+            f"<div class='no-print' style='color: #6c757d; font-size: 14px; margin-top: 8px;'>"
+            f"当前身份：<b>{user_role}</b> | 欢迎使用寿研数智分析平台"
+            f"</div>", 
+            unsafe_allow_html=True
+        )
     with top_col2:
         if st.button("退出登录"):
             st.session_state['logged_in'] = False
@@ -2562,14 +3001,18 @@ else:
                     btn_search = st.button("启动智能检索", use_container_width=True)
                     
                     if btn_search:
-                        if not api_key:
-                            st.error("请先在左侧密钥中心输入 API Key。")
+                        # 🌟 黄金法则：直接从内存里现取，绝对不会报 NameError！
+                        current_api_key = st.session_state.get('api_key', "").strip()
+                        
+                        if not current_api_key:
+                            st.error("⚠️ 未检测到 API Key！请刷新页面返回登录界面填写。")
                         elif not target_tables:
                             st.error("请至少选择一张报表。")
                         else:
-                            with st.spinner("🌸 别着急，我正在努力识别您需要的表格，看看有没有跨页，请稍等一下呦~"):
+                            with st.spinner("需要一些时间，请稍等~"):
                                 try:
-                                    result = ai_find_pages(pdf_bytes, api_key, target_tables)
+                                    # 这里的传参也要换成刚刚取出来的 current_api_key
+                                    result = ai_find_pages(pdf_bytes, current_api_key, target_tables, base_url, model_name)
                                     st.session_state['found_pages'] = result
                                     st.success("检索完成！请在下方核对物理页码。")
                                 except Exception as e:
@@ -2632,34 +3075,38 @@ else:
                         st.markdown("")
                         st.info("上传文件并启动检索后，此处将显示对应页面。")
             
-            # ─────────── Step 2：表格智能转换 ───────────
+    # ─────────── Step 2：表格智能转换 ───────────
         with tab2:
             st.markdown("### ⚡ 表格智能转换")
             st.markdown("""
             <div class="info-card blue">
                 <h4>功能说明</h4>
-                <p>系统将调用 DeepSeek 对多页 PDF 进行网格化对齐重构，并自动拼接同表跨页数据，生成标准化 Excel。<b>如果出现Is this really a PDF?的提取失败标识<b>，1.请用浏览器（Chrome 或 Edge）打开这个报错的 PDF。2.点击打印 (Ctrl + P)在打印机选项里选择 “另存为 PDF”。3.保存为一个新文件，然后再上传到你的系统。</p>
+                <p>系统将调用大模型对多页 PDF 进行网格化对齐重构，并自动拼接同表跨页数据，生成标准化 Excel。<b>如果出现提取失败或错位</b>，请开启下方的【图片扫描模式】重试。</p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown("")
-        
-            # === 🌟 新增：引擎选择开关 ===
+            
+            # === 🌟 引擎选择开关 ===
             st.markdown("#### PDF类型选择")
             use_vision = st.toggle("📸 开启图片扫描模式 (适用于扫描版、纯图片PDF)", value=False)
+            if use_vision:
+                st.caption("提示：图片扫描模式请确保您登录时选择的模型支持视觉功能（如 GPT-4o, 阿里云通义千问等）。DeepSeek 暂不支持直接读图。")
             st.markdown("---")
             
             if 'edited_pages' not in st.session_state or 'pdf_bytes' not in st.session_state:
                 st.warning("⚠️ 请先在 Step 1 中上传文件并完成【页码确认】。")
                 st.button("开始提取结构化数据", disabled=True, use_container_width=True)
             else:
-                # === 校验对应的 API Key 是否已填写 ===
+                # 🌟 从全局内存中直接安全获取用户在登录页填写的配置
+                current_api_key = st.session_state.get('api_key', "").strip()
+                current_base_url = st.session_state.get('base_url', "https://api.deepseek.com")
+                current_model_name = st.session_state.get('model_name', "deepseek-chat")
+                
+                # === 校验 API Key ===
                 can_run = True
-                if not use_vision and not api_key:
-                    st.error("⚠️ 当前为文本模式：请先在左侧输入 DeepSeek API Key。")
-                    can_run = False
-                if use_vision and not st.session_state.get('vision_key'):
-                    st.error("⚠️ 当前为图片扫描模式：请先在左侧输入 Vision API Key。（如：千问、gpt)")
+                if not current_api_key:
+                    st.error("⚠️ 未检测到 API Key！请刷新页面返回登录界面填写授权密钥。")
                     can_run = False
         
                 if not can_run:
@@ -2671,7 +3118,6 @@ else:
                         st.warning("⚠️ 没有找到任何有效的页码，无需提取。")
                     else:
                         if st.button("🚀 开始极速提取", use_container_width=True):
-                            # 1. 补全了冒号 2. 下方所有代码整体向右缩进一步
                             with st.spinner("☕ 趁现在喝口水吧，正在后台拼命打工中..."):
                                 extracted_sheets = {}
                                 global_unit = "未能自动提取，需人工核对"
@@ -2684,7 +3130,7 @@ else:
                                 pages_done = 0
                                 
                                 progress_bar = st.progress(0)
-                                status_box = st.status(f"启用并发引擎，共分配了 {total_pages_to_process} 个子任务...", expanded=True)
+                                status_box = st.status(f"正在转化 {total_pages_to_process} 个任务...", expanded=True)
                                 temp_results = {table_name: {} for table_name in valid_tasks.keys()}
                                 
                                 with status_box:
@@ -2702,9 +3148,9 @@ else:
                                                     st.session_state['pdf_bytes'], 
                                                     task["page"], 
                                                     task["table"], 
-                                                    st.session_state.vision_key,
-                                                    st.session_state.vision_url,
-                                                    st.session_state.vision_model
+                                                    current_api_key,     # 统一使用全局 Key
+                                                    current_base_url,    # 统一使用全局 URL
+                                                    current_model_name   # 统一使用全局 Model
                                                 )
                                             else:
                                                 future = executor.submit(
@@ -2712,7 +3158,7 @@ else:
                                                     st.session_state['pdf_bytes'], 
                                                     task["page"], 
                                                     task["table"], 
-                                                    api_key
+                                                    current_api_key      # 统一使用全局 Key
                                                 )
                                             future_to_task[future] = task
                                         
@@ -2734,11 +3180,11 @@ else:
                                                     st.write(f"⚠️ [{t_name}] - 第 {p_num} 页未提取到有效数据。")
                                             except Exception as e:
                                                 st.error(f"❌ [{t_name}] - 第 {p_num} 页提取失败: {str(e)}")
-                                                
+                                            
                                             pages_done += 1
                                             progress_bar.progress(pages_done / total_pages_to_process)
                                 
-                                # 拼接和导出的代码也需要在 spinner 内部执行
+                                # 拼接和导出的代码在 spinner 内部执行
                                 for table_name, pages in valid_tasks.items():
                                     table_dfs = []
                                     for p_num in pages: 
@@ -2754,7 +3200,6 @@ else:
                                 st.session_state['extracted_data'] = extracted_sheets
                                 st.session_state['global_unit'] = global_unit
                             
-        
             if 'extracted_data' in st.session_state:
                 st.markdown("---")
                 st.markdown("#### 📊 提取结果预览")
@@ -2788,7 +3233,7 @@ else:
                     for i, tab in enumerate(tabs):
                         with tab:
                             st.dataframe(extracted_data[sheet_names[i]], use_container_width=True)
-
+         
             # ─────────── Step 3：目标表标准填报 ───────────
         with tab3:
             st.markdown("### 📝 目标表标准填报")
@@ -2834,9 +3279,9 @@ else:
                 if 'extracted_data' not in st.session_state:
                     st.warning("⚠️ 尚未找到提取的数据，请先完成 Step 1 和 Step 2。")
                 else:
-                    if st.button("✨ 启动智能填报与公式生成", use_container_width=True):
+                    if st.button("启动智能填报与公式生成", use_container_width=True):
                         # 使用你想要的友好等待语
-                        status_box = st.status("🌸 抽空放松一下，我在努力，稍等一下啦~", expanded=True)
+                        status_box = st.status("此过程略慢，请稍等~", expanded=True)
                         
                         with status_box:
                             st.write("📄 正在解析模板表结构...")
@@ -2867,11 +3312,11 @@ else:
                                     working_df[COL_CO_TYPE] = matched_type
                                 
                                 # --- B. 准备 AI 任务 ---
-                                st.write("🎯 正在准备目标指标清单...")
+                                st.write("正在准备目标指标清单...")
                                 input_items = working_df[working_df[COL_FIELD_TYPE].astype(str).str.strip() == "输入"]
                                 ai_target_list = [{"类别": str(r.get(COL_CATEGORY, "")), "标准字段名": str(r.get(COL_FIELD_NAME, "")), "别名参考": str(r.get(COL_NOTE, "")) if pd.notna(r.get(COL_NOTE)) else ""} for _, r in input_items.drop_duplicates(subset=[COL_FIELD_NAME]).iterrows()]
                                     
-                                st.write("🧠 正在组装财务上下文供 AI 分析...")
+                                st.write("正在分析上下文...")
                                 extracted_data = st.session_state['extracted_data']
                                 context_text = "".join([f"\n[表名: {name}]\n{df.to_csv(index=False, sep='|')}\n" for name, df in extracted_data.items()])
                                 
@@ -2919,11 +3364,17 @@ else:
         例如：若输出键包含 y24 和 y25，则 y25 (最新年) 取报表左侧当期列，y24 (历史年) 取报表右侧上期列。
         仅输出合法的 JSON 格式，严禁带有任何 Markdown 标记或文字说明。
         格式示例：{"字段名": {"y24": "(1,234.0) + 500.0", "y25": "9,876.54"}}"""
-                                st.write("🚀 正在呼叫大模型进行语义映射与精准取数...")
-                                client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+                                st.write("正在呼叫大模型进行语义映射与精准取数...")
+                                
+                                # 🌟 从全局内存中拿取你登录时选择的所有配置！
+                                current_api_key = st.session_state.get('api_key', "").strip()
+                                current_base_url = st.session_state.get('base_url', "https://api.deepseek.com")
+                                current_model_name = st.session_state.get('model_name', "deepseek-chat")
+                                
+                                client = OpenAI(api_key=current_api_key, base_url=current_base_url)
                                 try:
                                     response = client.chat.completions.create(
-                                        model="deepseek-chat",
+                                        model=current_model_name, # 👈 这里也变成了动态的！
                                         messages=[
                                             {"role": "system", "content": SYSTEM_PROMPT},
                                             {"role": "user", "content": f"目标指标:\n{json.dumps(ai_target_list, ensure_ascii=False)}\n\n数据:\n{context_text}"}
