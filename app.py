@@ -230,7 +230,7 @@ def show_step_7_content():
             # 方案1：从 GitHub 读取（推荐）
             try:
                 # 👇 把这个链接换成你的 GitHub raw 文件链接
-                default_url = "https://github.com/z-xylym/my-actuary-tool/blob/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A.xlsx"
+                default_url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A.xlsx"
                 df_notes = pd.read_excel(default_url)
                 notes_file = "default"  # 标记为已加载
                 #st.caption(f"📊 已加载 {len(df_notes)} 条配置")
