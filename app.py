@@ -34,7 +34,8 @@ def show_step_7_content():
         """统一的图表显示函数，打印模式会缩小图表"""
         if fig:
             if print_mode:
-                fig.update_layout(width=1050, autosize=False)
+                # 🌟 云端专供秘籍：不再画大图压缩，直接锁定为 800 像素的黄金 A4 宽度！
+                fig.update_layout(width=800, autosize=False)
                 st.plotly_chart(fig, use_container_width=False)
             else:
                 st.plotly_chart(fig, use_container_width=True)
@@ -115,7 +116,7 @@ def show_step_7_content():
             page-break-after: avoid !important;
         }
         
-        /* ... 后面保持你原本的 第3、4、5部分 不变 ... */
+
         
         /* ========== 3. 页面布局 ========== */
         
@@ -130,39 +131,41 @@ def show_step_7_content():
         }
         
         .main .block-container {
-            max-width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
+            /* 🌟 云端防切断核心：强行给画中画上一个紧箍咒，让容器最宽只有 800px！ */
+            max-width: 800px !important; 
+            width: 100% !important;
+            padding: 0 15px !important;
+            margin: 0 auto !important;
         }
         
         /* 去掉顶部空白 */
-        .stApp {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-        }
+        .stApp { margin-top: 0 !important; padding-top: 0 !important; }
+        .stApp > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
         
-        .stApp > div:first-child {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-        }
-        
-        /* ========== 4. 图表样式 ========== */
+        /* ========== 4. 图表与表格样式 ========== */
         
         .plotly-graph-div {
             page-break-inside: avoid !important;
-            /* 🌟 秘籍2：把刚刚 1050 宽的宽屏图，整体强制等比例缩小 65%！ */
-            /* 1050 * 0.65 = 682 像素，完美且绝对安全地塞进 A4 纸内！ */
-            zoom: 0.65 !important; 
-            margin-bottom: 10px !important;
-            display: flex;
-            justify-content: center;
+            margin-bottom: 20px !important;
+            display: flex !important;
+            justify-content: center !important;
         }
         
-        /* 表格也同样使用 zoom 等比例缩小 */
+        /* 表格强力压缩策略 */
         div[data-testid="stDataFrame"] {
-            zoom: 0.75 !important;
+            /* 专门针对那个超宽的概览表，暴力压缩 65% 并居中对齐 */
+            zoom: 0.65 !important;
             page-break-inside: avoid !important;
-            margin-bottom: 20px !important;
+            margin-bottom: 30px !important;
+        }
+        
+        /* 兼容部分浏览器对 zoom 不支持的备用方案 */
+        @-moz-document url-prefix() {
+            div[data-testid="stDataFrame"] {
+                transform: scale(0.65) !important;
+                transform-origin: left top !important;
+                width: 150% !important; 
+            }
         }
         
         /* ========== 5. 防止内容断裂 ========== */
