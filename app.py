@@ -73,9 +73,9 @@ def show_step_7_content():
             display: none !important;
         }
         
-        /* 隐藏底部特定字样与系统图片 (不再隐藏 .stCaption，让你的注释重见天日) */
+        /* 隐藏底部特定字样 (🌟 修复：删除了 img[src*="data:image"]，绝不再误杀你的封面图！) */
         [data-testid="stMarkdownContainer"] p[style*="text-align: center"],
-        p:has(> em), img[src*="data:image"] {
+        p:has(> em) {
             display: none !important;
         }
         
