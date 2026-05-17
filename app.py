@@ -266,12 +266,11 @@ def show_step_7_content():
                         continue
                         
                     notes_dict[m_id] = {
-                        # 🌟 核心修复：把漏掉的标题提取加回来！
-                        'title': str(row.get('对应图表名称', '')) if pd.notna(row.get('对应图表名称')) else '',
+                        'title': str(row.get('对应图表名称', '')).strip() if pd.notna(row.get('对应图表名称')) else '',
                         'analysis': str(row.get('分析内容', '')) if pd.notna(row.get('分析内容')) else '',
                         'note': str(row.get('注释内容', '')) if pd.notna(row.get('注释内容')) else '',
-                        # 🌟 修复字段名拼写：改成 image_file，对接大循环
-                        'image_file': str(row.get('图片文件名', '')) if has_image_col and pd.notna(row.get('图片文件名')) else ''
+                        # 🌟 统一暗号：就叫 image_file
+                        'image_file': img_val if img_val.lower() != 'nan' else ''
                     }
                     ordered_modules.append(m_id)
                 
@@ -1993,12 +1992,15 @@ def show_step_7_content():
                 # ----------------------------------------
                 # 🖼️ 逻辑 1：纯图片模块 (封面、过渡页、截图等)
                 # ----------------------------------------
-                if img_file and str(img_file).lower() != 'nan':
+                if img_file:  # 只要不是空字符串，就强行进去找
                     import os
                     if os.path.exists(img_file):
+                        # 找到了，完美画图
                         st.image(img_file, use_container_width=True)
                     else:
-                        st.error(f"⚠️ 找不到图片文件：{img_file}。请确保把该图片和 app.py 放在同一个文件夹里！")
+                        # 找不到，爆出红字！
+                        st.error(f"⚠️ 致命排查：Excel里写了要找『{img_file}』，但是 GitHub 当前文件夹里没这个文件！请检查大小写！")
+                    
                     st.markdown("<br>", unsafe_allow_html=True)
                 
                 # ----------------------------------------
