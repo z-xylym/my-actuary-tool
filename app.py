@@ -231,7 +231,6 @@ def show_step_7_content():
                 default_url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A.xlsx"
                 df_notes = pd.read_excel(default_url)
                 notes_file = "default"  # 标记为已加载
-                #st.caption(f"📊 已加载 {len(df_notes)} 条配置")
             except Exception as e:
                 st.error(f"❌ 加载默认注释表失败：{e}")
                 st.info("如需手动上传注释表，则关闭按钮")
@@ -262,17 +261,23 @@ def show_step_7_content():
                 
                 for _, row in df_notes.iterrows():
                     m_id = str(row.get('模块ID', '')).strip()
-                    if not m_id:
+                    if not m_id or m_id.lower() == 'nan':
                         continue
+                        
+                    # 🌟 核心修复：在这里先提取当前行的图片名字，并赋值给 img_val！
+                    img_val = str(row.get('图片文件名', '')).strip() if has_image_col and pd.notna(row.get('图片文件名')) else ''
                         
                     notes_dict[m_id] = {
                         'title': str(row.get('对应图表名称', '')).strip() if pd.notna(row.get('对应图表名称')) else '',
-                        'analysis': str(row.get('分析内容', '')) if pd.notna(row.get('分析内容')) else '',
-                        'note': str(row.get('注释内容', '')) if pd.notna(row.get('注释内容')) else '',
-                        # 🌟 统一暗号：就叫 image_file
+                        'analysis': str(row.get('分析内容', '')).strip() if pd.notna(row.get('分析内容')) else '',
+                        'note': str(row.get('注释内容', '')).strip() if pd.notna(row.get('注释内容')) else '',
+                        # 🌟 统一暗号：提取刚才算好的 img_val
                         'image_file': img_val if img_val.lower() != 'nan' else ''
                     }
-                    ordered_modules.append(m_id)
+                    
+                    # 确保排版顺序里没有重复的 ID
+                    if m_id not in ordered_modules:
+                        ordered_modules.append(m_id)
                 
                 #st.success(f"✅ 注释及排版顺序加载成功！共 {len(ordered_modules)} 个模块")
                 
