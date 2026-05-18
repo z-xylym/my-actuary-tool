@@ -29,14 +29,12 @@ from plotly.subplots import make_subplots
 
 def show_step_7_content():
     
-    # ⭐⭐⭐ 新增：统一的图表显示函数 ⭐⭐⭐
+# ⭐⭐⭐ 统一的图表显示函数 ⭐⭐⭐
     def show_chart(fig, print_mode):
         """统一的图表显示函数，打印模式会缩小图表"""
         if fig:
             if print_mode:
-                # 🌟 终极物理防爆法则：A4 纸去白边后最宽只有 718px。
-                # 锁定 710 像素，图表生出来就比 A4 纸窄一点点，不管本地还是云端，绝对切不到！
-                fig.update_layout(width=710, autosize=False)
+                fig.update_layout(width=850, autosize=False)
                 st.plotly_chart(fig, use_container_width=False)
             else:
                 st.plotly_chart(fig, use_container_width=True)
@@ -46,6 +44,16 @@ def show_step_7_content():
     # CSS 样式（保持原样）
     st.markdown("""
     <style>
+    /* 图表居中 */
+     .stPlotlyChart {
+        display: flex !important;
+        justify-content: center !important;
+    }
+    /* 表格也居中 */
+    div[data-testid="stDataFrame"] {
+        display: flex !important;
+        justify-content: center !important;
+    }
     @media print {
         /* ========== 1. 核弹级隐藏 - 把所有不要的都干掉 ========== */
         
@@ -150,6 +158,7 @@ def show_step_7_content():
             justify-content: center !important;
             /* 🚫 核心修复：彻底删除了坑人的 zoom 和 scale！全权交给上方 Python 的 710px 控制！ */
         }
+           
         
         /* 附录的超长明细表属于原生 HTML table，依然需要用 zoom 稍微压一下 */
         div[data-testid="stDataFrame"] {
@@ -1822,7 +1831,12 @@ def show_step_7_content():
         with ui_cr2: sz_csm_r = st.slider("比率点大小", 4, 15, 8, key="cr_s")
 
         an, nt = display_notes("csm_ratio_trend")
-        color_mapping = get_company_color_mapping(selected_cos, key_prefix="sec4")
+        if not print_mode:
+            color_mapping = get_company_color_mapping(selected_cos, key_prefix="sec4")
+        else:
+            # 打印模式：不画色块，直接用默认颜色
+            PRESET_COLORS_FIXED = ["#C00000", "#0865EE", "#FEAED7", "#92D050", "#7030A0", "#EF9867", "#61CBF4", "#C7A0F7"]
+            color_mapping = {co: PRESET_COLORS_FIXED[i % len(PRESET_COLORS_FIXED)] for i, co in enumerate(selected_cos)}
         df_csm_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
         df_csm_sub['摊销比率'] = -df_csm_sub['CSM摊销'] / (df_csm_sub['CSM期末余额'] - df_csm_sub['CSM摊销'])
         df_csm_sub['持续率'] = -df_csm_sub['新业务CSM（集团口径）'] / df_csm_sub['CSM摊销']
@@ -2015,14 +2029,14 @@ def show_step_7_content():
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else '关键数据概览')
                     fig_summary_table = create_financial_summary_table(df_filtered, selected_cos)
-                    if fig_summary_table: st.plotly_chart(fig_summary_table, use_container_width=True)
+                    if fig_summary_table: show_chart(fig_summary_table,print_mode)
                     display_bottom_note(nt)
                     
                 elif m_id == "prof_mix":
                     an, nt = display_notes(m_id)
                     title_text = current_title if current_title else '利润贡献与保险和投资利润占比'
                     fig_prof = create_profit_mixed_chart(df_filtered, selected_cos, title_text, True, 0.4, divisor, unit_label)        
-                    if fig_prof: st.plotly_chart(fig_prof, use_container_width=True)
+                    if fig_prof: show_chart(fig_prof, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["inc_total", "exp_total", "perf_total"]:
@@ -2031,14 +2045,14 @@ def show_step_7_content():
                     title_fallback = {"inc_total": "保险服务收入变动趋势", "exp_total": "保险服务费用变动趋势", "perf_total": "保险服务业绩变动趋势"}[m_id]
                     an, nt = display_notes(m_id) # 💡 剔除脏参数，走新版自适应引擎
                     fig = create_kpmg_chart(df_filtered, field, current_title if current_title else title_fallback, True, 14, 0.3)
-                    if fig: st.plotly_chart(fig, use_container_width=True)
+                    if fig: show_chart(fig, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "comp_1":
                     an, nt = display_notes(m_id)
                     comp_fields = ["采用保费分配法计量的保险合同保险服务收入", "未采用保费分配法计量的保险合同保险服务收入"]
                     fig_comp = create_kpmg_composition_chart(df_filtered, comp_fields, current_title if current_title else '收入结构分析 - PAA与非PAA对比', True, 12, 0.6, 14)
-                    if fig_comp: st.plotly_chart(fig_comp, use_container_width=True)
+                    if fig_comp: show_chart(fig_comp, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "comp_2":
@@ -2055,7 +2069,7 @@ def show_step_7_content():
                                 styles.append({'selector': f'th.col_heading.col{i}', 'props': [('background-color', bg_c), ('color', tx_c)]})
                             st.write(df_multi_avg.style.set_table_styles(styles).format("{:.1f}%").to_html(), unsafe_allow_html=True)
                             st.markdown("<br>", unsafe_allow_html=True) 
-                        st.plotly_chart(fig_multi, use_container_width=True)
+                        show_chart(fig_multi, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["prof_2025", "prof_2024"]:
@@ -2065,7 +2079,7 @@ def show_step_7_content():
                     fig_p, contrib_p = create_profit_composition_chart(df_filtered, selected_cos, year_val, False, 11, 0.4, 14)
                     if fig_p:
                         st.dataframe(contrib_p.style.format("{:.0f}%"), use_container_width=True)
-                        st.plotly_chart(fig_p, use_container_width=True)
+                        show_chart(fig_p, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["inv_return", "uw_profit", "inv_profit"]:
@@ -2074,7 +2088,7 @@ def show_step_7_content():
                     title_fallback = {"inv_return": "净投资回报变动趋势", "uw_profit": "承保财务净损益变动趋势", "inv_profit": "投资利润变动趋势"}[m_id]
                     an, nt = display_notes(m_id)
                     fig = create_simple_kpmg_chart(df_plot_final, field, current_title if current_title else title_fallback, True, 12, 0.3)
-                    if fig: st.plotly_chart(fig, use_container_width=True)
+                    if fig: show_chart(fig, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["trend_inv", "trend_ins"]:
@@ -2084,14 +2098,14 @@ def show_step_7_content():
                     field = field_map[m_id]
                     an, nt = display_notes(m_id)
                     fig = create_profit_chart_v4(df_profit_raw, field, current_title if current_title else (field + "变动对比分析"), color_map[m_id], True, 12, 0.3)
-                    if fig: st.plotly_chart(fig, use_container_width=True)
+                    if fig: show_chart(fig, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "tax_profit":
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else '税前利润和净利润变动趋势')
                     fig_tax = create_tax_subplot_chart(df_tax_pivot, selected_cos, True, 0.4, 10, 14, 1.05)
-                    if fig_tax: st.plotly_chart(fig_tax, use_container_width=True)
+                    if fig_tax: show_chart(fig_tax, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["net_profit", "oci_profit", "total_profit"]:
@@ -2100,7 +2114,7 @@ def show_step_7_content():
                     title_fallback = {"net_profit": "综合收益概览 (1/3) - 净利润(亏损)趋势", "oci_profit": "综合收益概览 (2/3) - OCI变动趋势", "total_profit": "综合收益概览 (3/3) - 综合收益总额趋势"}[m_id]
                     an, nt = display_notes(m_id)
                     fig_fin = create_financial_trend_chart_v5(df_fin_raw, field, current_title if current_title else title_fallback, True, 12, 0.3)
-                    if fig_fin: st.plotly_chart(fig_fin, use_container_width=True)
+                    if fig_fin: show_chart(fig_fin, print_mode)
                     display_bottom_note(nt)                
 
                 elif m_id == "asset_struct":
@@ -2108,14 +2122,14 @@ def show_step_7_content():
                     field_map_asset = {"AC": "债权投资", "FVOCI": "其他债权投资", "FVTPL": "交易性金融资产", "指定FVOCI": "其他权益工具投资"}
                     color_map_asset = {"AC": "rgb(0, 184, 245)", "FVOCI": "rgb(114, 19, 234)", "FVTPL": "rgb(253, 52, 156)", "指定FVOCI": "rgb(181, 2, 95)"}
                     fig_asset_comp = create_asset_composition_chart(df_filtered, selected_cos, field_map_asset, color_map_asset, current_title if current_title else '资产配置结构分析 - IFRS9资产端分类', True, 11, 0.6, 14)
-                    if fig_asset_comp: st.plotly_chart(fig_asset_comp, use_container_width=True)
+                    if fig_asset_comp: show_chart(fig_asset_comp, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["oci_year_lat", "oci_year_pre"]:
                     y = latest_year if m_id == "oci_year_lat" else prev_year
                     an, nt = display_notes(m_id)
                     fig_oci = create_oci_chart(df_filtered, y, current_title if current_title else f"OCI变动分析 - {y}年综合收益变动情况", True, 13, 0.15, selected_cos)
-                    if fig_oci: st.plotly_chart(fig_oci, use_container_width=True)
+                    if fig_oci: show_chart(fig_oci, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "oci_deep":
@@ -2123,7 +2137,7 @@ def show_step_7_content():
                     df_analysis, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos)
                     if not df_analysis.empty:
                         fig_deep = create_asset_liab_oci_chart(df_filtered, selected_cos, 0.15, 13, True)
-                        st.plotly_chart(fig_deep, use_container_width=True)
+                        show_chart(fig_deep, print_mode)
                         st.write(f"#####  资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)")
                         df_t = df_analysis.set_index("公司").T
                         df_t = df_t.rename(index={f"FVOCI占比_{p_y}": f"FVOCI占比({p_y})", f"FVOCI占比_{c_y}": f"FVOCI占比({c_y})", "FVOCI变动": "FVOCI变动", "负债OCI变动": "负债OCI变动", "两年资负OCI变动比率": "资负匹配率"})
@@ -2138,7 +2152,7 @@ def show_step_7_content():
                     df_asset_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
                     an, nt = display_notes(m_id)
                     fig_ast = create_asset_trend_chart(df_asset_raw, field, current_title if current_title else title_fallback, True, 11, 0.3)
-                    if fig_ast: st.plotly_chart(fig_ast, use_container_width=True)
+                    if fig_ast: show_chart(fig_ast, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "csm_bal":
@@ -2146,14 +2160,14 @@ def show_step_7_content():
                     df_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)       
                     an1, nt1 = display_notes(m_id)
                     fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', current_title if current_title else 'CSM核心分析 (1/7) - CSM余额变动趋势', True, 12, 0.35)
-                    st.plotly_chart(fig_csm, use_container_width=True)
+                    show_chart(fig_csm, print_mode)
                     display_bottom_note(nt1)
 
                 elif m_id == "csm_ratio":
                     an2, nt2 = display_notes(m_id)
                     st.subheader(current_title if current_title else 'CSM核心分析 (2/7) - CSM期初余额占比分析')
                     fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, True, 0.3)
-                    if fig_rat: st.plotly_chart(fig_rat, use_container_width=True)
+                    if fig_rat: show_chart(fig_rat, print_mode)
                     display_bottom_note(nt2)
 
                 elif m_id == "csm_table":
@@ -2167,7 +2181,7 @@ def show_step_7_content():
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else 'CSM核心分析 (4/7) - 按过渡期计量方法拆分CSM')
                     fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, True, 0.4)
-                    if fig_csm_trans: st.plotly_chart(fig_csm_trans, use_container_width=True)
+                    if fig_csm_trans: show_chart(fig_csm_trans, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id in ["csm_comp_lat", "csm_comp_pre"]:
@@ -2175,7 +2189,7 @@ def show_step_7_content():
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else f'CSM核心分析 (5/7) - {y}年未到期责任负债中CSM占比')
                     fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, True, 11, 0.5)
-                    if fig_csm_comp: st.plotly_chart(fig_csm_comp, use_container_width=True)
+                    if fig_csm_comp: show_chart(fig_csm_comp, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "csm_ratio_trend":
@@ -2190,24 +2204,25 @@ def show_step_7_content():
                     col_l, col_r = st.columns(2)
                     with col_l:
                         fig_r1 = create_ratio_line_chart_v3(df_csm_sub[['公司', '报告年份', '摊销比率']].rename(columns={'摊销比率': 'value'}), "摊销比率趋势", color_mapping, True, 8, 11, ".1%")
-                        st.plotly_chart(fig_r1, use_container_width=True)
+                        show_chart(fig_r1, print_mode)
                     with col_r:
                         fig_r2 = create_ratio_line_chart_v3(df_csm_sub[['公司', '报告年份', '持续率']].rename(columns={'持续率': 'value'}), "持续率趋势", color_mapping, True, 8, 11, ".1%")
-                        st.plotly_chart(fig_r2, use_container_width=True)
+                        show_chart(fig_r2, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "csm_equity":
                     an, nt = display_notes(m_id)
+                    st.subheader(current_title if current_title else 'CSM核心分析(7/7) - CSM与净资产综合对比')
                     fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, True, 11, 0.53, 16, 20)
-                    if fig_csm_eq: st.plotly_chart(fig_csm_eq, use_container_width=True)
-                    display_bottom_note(nt)      
+                    if fig_csm_eq: show_chart(fig_csm_eq, print_mode)
+                    display_bottom_note(nt)   
 
                 elif m_id == "nb_csm":
                     df_nb_csm_raw = df_filtered[(df_filtered['字段名'] == '新业务CSM（集团口径）') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
                     df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
                     an, nt = display_notes(m_id)
                     fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', current_title if current_title else '新业务价值分析 (1/5) - 盈利合同（CSM）对比', True, 12, 0.3)
-                    st.plotly_chart(fig_nb_csm, use_container_width=True)
+                    show_chart(fig_nb_csm, print_mode)
                     display_bottom_note(nt)
                 
                 elif m_id == "nb_struct":
@@ -2215,9 +2230,9 @@ def show_step_7_content():
                     st.subheader(current_title if current_title else '新业务价值结构拆解')
                     fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, True, 12, 0.6, 14)
                     if fig_csm_nb:
-                        st.plotly_chart(fig_csm_nb, use_container_width=True)
-                        st.plotly_chart(fig_lc, use_container_width=True)
-                        st.plotly_chart(fig_ra, use_container_width=True)
+                        show_chart(fig_csm_nb, print_mode)
+                        show_chart(fig_lc, print_mode)
+                        show_chart(fig_ra, print_mode)
                     display_bottom_note(nt)
                 
                 elif m_id == "nb_margin_trend":
@@ -2226,7 +2241,7 @@ def show_step_7_content():
                     fig_nb_trend = create_nb_margin_trend_chart(df_filtered, selected_cos, current_title if current_title else "新业务价值分析 (5/5) - 新业务IFRS利润率趋势", color_mapping, True, 8, 12)  
                     if fig_nb_trend:
                         col_left, col_right = st.columns([1.1, 1]) 
-                        with col_left: st.plotly_chart(fig_nb_trend, use_container_width=True)
+                        with col_left: show_chart(fig_nb_trend, print_mode)
                     display_bottom_note(nt4)
 
                 elif m_id == "exp_struct":
@@ -2244,7 +2259,7 @@ def show_step_7_content():
                         </p>
                     </div>
                     """, unsafe_allow_html=True)        
-                    if fig_exp: st.plotly_chart(fig_exp, use_container_width=True)
+                    if fig_exp: show_chart(fig_exp, print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "six_dim":
@@ -2257,7 +2272,8 @@ def show_step_7_content():
                             for col_idx in range(3):
                                 idx = row * 3 + col_idx
                                 if idx < len(figs_6d):
-                                    with cols[col_idx]: st.plotly_chart(figs_6d[idx], use_container_width=True, config={'displayModeBar': False})
+                                    # ✅ 改后
+                                    with cols[col_idx]: show_chart(figs_6d[idx], print_mode)
                     display_bottom_note(nt)
 
                 elif m_id == "fin_detail":
@@ -3163,7 +3179,9 @@ else:
                                                     st.session_state['pdf_bytes'], 
                                                     task["page"], 
                                                     task["table"], 
-                                                    current_api_key      # 统一使用全局 Key
+                                                    current_api_key,
+                                                    current_base_url,    # 统一使用全局 URL
+                                                    current_model_name   # 统一使用全局 Model# 统一使用全局 Key
                                                 )
                                             future_to_task[future] = task
                                         
