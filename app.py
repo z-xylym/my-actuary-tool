@@ -226,7 +226,7 @@ def show_step_7_content():
         if main_nav == "1. 关键年报数据":
             sub_nav = st.radio("子类", ["全部", "总体利润贡献", "保险业务收入、费用及业绩", "保险业务收入构成分析","保险利润", "投资收益、承保财务损益及投资利润", "保险利润、投资利润变动趋势", "税前利润及税率", "净利润、其他综合收益及综合收益变动趋势", "IFRS9及资产负债", "其他综合收益", "净资产和总资产", "新业务相关"], label_visibility="collapsed")
         elif main_nav == "2. 关键披露信息":
-            sub_nav = st.radio("子类", ["全部", "业务及管理费","折现率假设","非金融风险调整置信水平"], label_visibility="collapsed")
+            sub_nav = st.radio("子类", ["全部", "业务及管理费","折现率假设","非金融风险调整置信水平","合同服务边际摊销"], label_visibility="collapsed")
         elif main_nav == "3. 关键业绩指标":
             sub_nav = st.radio("子类", ["全部", "KPI指标"], label_visibility="collapsed")
         elif main_nav == "4. 附录":
@@ -256,7 +256,7 @@ def show_step_7_content():
             # 方案1：从 GitHub 读取（推荐）
             try:
                 # 👇 把这个链接换成你的 GitHub raw 文件链接
-                default_url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A519.xlsx"
+                default_url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A520.xlsx"
                 df_notes = pd.read_excel(default_url)
                 notes_file = "default"  # 标记为已加载
             except Exception as e:
@@ -496,7 +496,7 @@ def show_step_7_content():
     # ==========================================
 # --- 关键年报数据 ---   
 # --- 1.新业务相关比例（超紧凑/完美封口高亮版） ---
-    def create_financial_summary_table(df, cos):
+    def create_financial_summary_table(df, cos, highlight_co="无"):
         cy, py = latest_year, prev_year
         cy_str, py_str = str(cy)[-2:], str(py)[-2:]
         col_names, c1, c2, c3, c4, c5, c6, c7, c8 = [], [], [], [], [], [], [], [], []
@@ -515,23 +515,31 @@ def show_step_7_content():
             c5.append(calc(-amort_cy, csm_end - amort_cy, False)); c6.append(calc(-nb_cy, amort_cy, False)); c7.append(calc(rev_cy, rev_py, True)); c8.append(calc(liab_cy, liab_py, True))
     
         headers = ["公司名称", f"净资产<br>%变化<br>{cy_str}YE/{py_str}YE-1", f"净利润<br>%变化<br>{cy_str}YE/{py_str}YE-1", f"{cy}年12月31日<br>%CSM增长率<br>{cy_str}YE/{py_str}YE-1", f"%NB CSM<br>增长率<br>{cy_str}YE/{py_str}YE-1", f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)", f"CSM持续率<br>(新业务CSM/<br>CSM摊销)", f"保险服务收入<br>%变化<br>{cy_str}YE/{py_str}YE-1", f"保险合同负债<br>%变化<br>{cy_str}YE/{py_str}YE-1"]
-        # 🌟 黄金修复点：如果某家公司被高亮，则表头对应的列底线变为透明，绝不切断下方高亮行的“头顶大框”！
-        current_hl = highlight_co if highlight_co else "无"
-        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px;'>"
-        html += "<tr style='background-color: #00338D; color: white; font-size: 13px; text-align: center; font-weight: bold;'>"
+        
+        current_hl = str(highlight_co).strip()
+        
+        # 🌟 优化点 1：全局字号改为 11px，缩减 margin-bottom
+        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 15px;'>"
+        
+        # 🌟 优化点 2：表头 padding 从 12px 8px 极限压缩到 6px 4px，字号缩小到 11px
+        html += "<tr style='background-color: #00338D; color: white; font-size: 11px; text-align: center; font-weight: bold;'>"
         for idx, h in enumerate(headers):
             is_col_hl = (idx > 0 and str(col_names[idx-1]).strip() == str(current_hl).strip()) if idx <= len(col_names) else False
             b_bottom = "border-bottom: none;" if is_col_hl else "border-bottom: 1.5px solid white;"
-            html += f"<th style='padding: 12px 8px; { 'text-align: left;' if idx == 0 else 'text-align: center;' } border-left: 1.5px solid white; border-right: 1.5px solid white; border-top: 1.5px solid white; {b_bottom}'>{h}</th>"
+            html += f"<th style='padding: 6px 4px; { 'text-align: left;' if idx == 0 else 'text-align: center;' } border: 1.5px solid white; {b_bottom}'>{h}</th>"
         html += "</tr>"
+        
+        # 🌟 优化点 3：数据行 padding 压缩到 4px 4px，字号缩小为 11px，去掉了杂乱的阴影
         for i, co in enumerate(col_names):
             row_vals = [c1[i], c2[i], c3[i], c4[i], c5[i], c6[i], c7[i], c8[i]]
-            is_hl = (str(co).strip() == str(current_hl).strip())
-            bg = "rgba(0, 51, 141, 0.04)" if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
-            base = f"background-color: {bg}; padding: 12px 8px; font-size: 14px; " + ("border-top: 2px solid #00338D; border-bottom: 1.5px solid #00338D; font-weight: bold; box-shadow: 0px 4px 8px rgba(0,51,141,0.08);" if is_hl else "border: 1.5px solid #EAEAEA;")
+            is_hl = (str(co).strip() == current_hl)
+            bg = "rgba(0, 51, 141, 0.05)" if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
+            
+            base = f"background-color: {bg}; padding: 4px 4px; font-size: 11px; " + ("border-top: 1.5px solid #00338D; border-bottom: 1.5px solid #00338D; font-weight: bold;" if is_hl else "border: 1px solid #EAEAEA;")
             s_first = base + f"text-align: left; color: #333333; { 'border-left: 1.5px solid #00338D;' if is_hl else '' }"
             s_mid = base + f"text-align: center; { 'color: #00338D; border-left: none; border-right: none;' if is_hl else 'color: #444444;' }"
             s_last = base + f"text-align: center; { 'color: #00338D; border-right: 1.5px solid #00338D; border-left: none;' if is_hl else 'color: #444444;' }"
+            
             html += f"<tr><td style='{s_first}'>{co}</td>" + "".join([f"<td style='{s_last if idx==len(row_vals)-1 else s_mid}'>{v}</td>" for idx, v in enumerate(row_vals)]) + "</tr>"        
         return html + "</table>"
 
@@ -1042,7 +1050,7 @@ def show_step_7_content():
             is_hl = (str(co).strip() == hl_co)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.12, y1=1.12, fillcolor="rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0), layer="above", row=1, col=i+1)
 
-        fig.update_layout(title=dict(text=f"<b>{title_prefix}</b>", font=COMMON_TITLE_FONT), barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', uniformtext=dict(minsize=label_size, mode='show'), margin=dict(t=120, b=120, l=40, r=40), legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5, font=dict(size=11), itemsizing="constant"))
+        fig.update_layout(title=dict(text=f"<b>{title_prefix}</b>", font=COMMON_TITLE_FONT), barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', uniformtext=dict(minsize=label_size, mode='show'), margin=dict(t=120, b=120, l=40, r=40), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11), itemsizing="constant"))
         for i in range(1, len(av_cos) + 1):
             # 🌟 强力避坑：绝对不使用 tickpadding，改用 ticks="", ticklen=0 让年份文字上浮吸附！
             fig.update_xaxes(showgrid=False, showline=False, zeroline=False, tickfont=dict(size=10), ticks="", ticklen=0, row=1, col=i)
@@ -1086,7 +1094,7 @@ def show_step_7_content():
             fig.update_xaxes(showticklabels=False, showline=False, zeroline=False, showgrid=False, ticks="", ticklen=0, row=1, col=col_idx+1)
             
         # 🌟 动态单位直接拼接到标题下方
-        fig.update_layout(title=dict(text=f"<b style='color:#00338D;'>{title}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01, y=0.96), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', barmode='group', bargap=bar_gap, height=420, margin=dict(t=120, b=40, l=40, r=30), legend=dict(orientation="h", yanchor="top", y=-0.25, xanchor="center", x=0.5, font=dict(size=11)))
+        fig.update_layout(title=dict(text=f"<b style='color:#00338D;'>{title}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01, y=0.96), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', barmode='group', bargap=bar_gap, height=420, margin=dict(t=120, b=40, l=40, r=30), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11)))
         fig.update_yaxes(range=y_range, showline=False, zeroline=False, showgrid=False, gridcolor='rgba(0,0,0,0)', gridwidth=0, row=1, col="all")
         for ann in fig.layout.annotations:
             ann.update(y=1.18, font_size=co_font_size)
@@ -1148,85 +1156,109 @@ def show_step_7_content():
             results.append({"公司": co, f"FVOCI占比_{prev_y}": get_ratio(prev_y), f"FVOCI占比_{curr_y}": get_ratio(curr_y), "FVOCI变动": ratio_fvoci, "负债OCI变动": ratio_liab, "两年资负OCI变动比率": ratio_fvoci / ratio_liab if ratio_liab != 0 else 0})
         return pd.DataFrame(results), curr_y, prev_y       
     
-    # --- 15.净资产与总资产 ---
-    def create_asset_trend_chart(df_source, field_name, title, show_labels, p_size, g_gap):
+# --- 15.净资产与总资产 (终极高亮包裹版) ---
+    def create_asset_trend_chart(df_source, field_name, title, show_labels, p_size, g_gap, highlight_co="无"):
         d = df_source[df_source['指标名称'] == field_name].copy()
-        d['报告年份'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False)
-        d['value'] = d['value'] / divisor 
-        fig = go.Figure()
+        d['报告年份'], d['value'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False), d['value'] / divisor 
+        fig, x_idx, hl_co = go.Figure(), list(range(len(selected_cos))), str(highlight_co).strip()
+        
         for yr, col in zip([str(prev_year), str(latest_year)], ["rgb(15, 101, 253)", "rgb(0, 51, 141)"]):
             df_yr = d[d['报告年份'] == yr].set_index('公司').reindex(selected_cos).reset_index()
-            m_colors = [HIGHLIGHT_COLOR if c == highlight_co else col for c in df_yr['公司']]
-            fig.add_trace(go.Bar(name=f"{yr}YE", x=df_yr['公司'], y=df_yr['value'], marker_color=m_colors, text=[f"{v:.1f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=font_size), cliponaxis=False))
+            fig.add_trace(go.Bar(name=f"{yr}YE", x=x_idx, y=df_yr['value'], marker_color=col, text=[f"{v:.1f}" if pd.notna(v) and v!=0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=12), cliponaxis=False))
+            
         all_vals = d['value'].dropna()
         off = (all_vals.max() - all_vals.min()) * 0.12 if not all_vals.empty else 12
         df_old, df_new = d[d['报告年份'] == str(prev_year)].set_index('公司'), d[d['报告年份'] == str(latest_year)].set_index('公司')
-        for co in selected_cos:
+        
+        for i, co in enumerate(selected_cos):
             if co in df_old.index and co in df_new.index:
                 v0, v1 = df_old.loc[co, 'value'], df_new.loc[co, 'value']
                 if pd.notna(v0) and v0 != 0:
                     pct = (v1 - v0) / abs(v0)
-                    arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
-                    y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
-                    fig.add_annotation(x=co, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
+                    fig.add_annotation(x=i, y=(max(v0, v1)+off if v1>=0 else min(v0, v1)-off), text=f"<b>{'↗' if pct>=0 else '↘'} {pct:.1%}</b>", showarrow=False, font=dict(color="#FD349C" if pct>=0 else "#269924", size=p_size), xshift=10, valign="bottom" if v1>=0 else "top")
+                    
+        # 🌟 核心高亮蓝框
+        if hl_co in [str(c).strip() for c in selected_cos]:
+            idx = [str(c).strip() for c in selected_cos].index(hl_co)
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
         fig.update_layout(title=dict(text=f"<b>{title}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01), barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=120, b=60, l=40, r=40), height=500, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02); fig.update_xaxes(showline=False, showgrid=False, zeroline=False)
+        # 🌟 强制将 X 轴标签替换回来，并用 ticks="", ticklen=0 吸附文字
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
+        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02)
         return fig
     
-    # --- 16.CSM 趋势 ---
-    def create_csm_trend_chart(df_source, field_name, title, show_labels, p_size, g_gap):    
+    # --- 16. CSM 趋势 (终极高亮包裹版) ---
+    def create_csm_trend_chart(df_source, field_name, title, show_labels, p_size, g_gap, highlight_co="无"):   
         d = df_source[df_source['指标名称'] == field_name].copy()
         d['value'] = d['value'] / divisor 
-        years_to_show = sorted(d['报告年份'].dropna().astype(str).str.replace(".0", "", regex=False).unique())
-        c_map = {str(latest_year): "#00338D", str(prev_year): "#0F65FD"}
-        if len(years_to_show) > 2: c_map[years_to_show[-3]] = "#ADD8E6"
-        fig = go.Figure()
-        for yr in years_to_show:
+        yrs, hl_co = sorted(d['报告年份'].dropna().astype(str).str.replace(".0", "", regex=False).unique()), str(highlight_co).strip()
+        c_map, fig, x_idx = {str(latest_year): "#00338D", str(prev_year): "#0F65FD"}, go.Figure(), list(range(len(selected_cos)))
+        if len(yrs) > 2: c_map[yrs[-3]] = "#ADD8E6"
+        
+        for yr in yrs:
             df_yr = d[d['报告年份'].astype(str) == yr].set_index('公司').reindex(selected_cos).reset_index()
-            m_colors = [HIGHLIGHT_COLOR if c == highlight_co else c_map.get(yr, "gray") for c in df_yr['公司']]
-            fig.add_trace(go.Bar(name=f"{yr}YE", x=df_yr['公司'], y=df_yr['value'], marker_color=m_colors, text=[f"{v:.0f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=font_size), cliponaxis=False))
+            fig.add_trace(go.Bar(name=f"{yr}YE", x=x_idx, y=df_yr['value'], marker_color=c_map.get(yr, "gray"), text=[f"{v:.0f}" if pd.notna(v) and v!=0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=12), cliponaxis=False))
+            
         all_vals = d['value'].dropna()
         off = (all_vals.max() - all_vals.min()) * 0.12 if not all_vals.empty else 12
         df_old, df_new = d[d['报告年份'].astype(str) == str(prev_year)].set_index('公司'), d[d['报告年份'].astype(str) == str(latest_year)].set_index('公司')
-        for co in selected_cos:
+        
+        for i, co in enumerate(selected_cos):
             if co in df_old.index and co in df_new.index:
                 v0, v1 = df_old.loc[co, 'value'], df_new.loc[co, 'value']
                 if pd.notna(v0) and v0 != 0:
                     pct = (v1 - v0) / abs(v0)
-                    arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
-                    y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
-                    fig.add_annotation(x=co, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=15, valign=v_align)
-        # 支持无标题情况（针对后面新增的需求）
+                    fig.add_annotation(x=i, y=(max(v0, v1)+off if v1>=0 else min(v0, v1)-off), text=f"<b>{'↗' if pct>=0 else '↘'} {pct:.1%}</b>", showarrow=False, font=dict(color="#FD349C" if pct>=0 else "#269924", size=p_size), xshift=15, valign="bottom" if v1>=0 else "top")
+                    
+        # 🌟 核心高亮蓝框
+        if hl_co in [str(c).strip() for c in selected_cos]:
+            idx = [str(c).strip() for c in selected_cos].index(hl_co)
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
         if title: fig.update_layout(title=dict(text=f"<b>{title}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01))
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=120 if title else 40, b=60, l=40, r=40), height=550 if title else 450, legend=dict(orientation="h", yanchor="bottom", y=1.02 if title else 1.1, xanchor="right", x=1))
-        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02); fig.update_xaxes(showline=False, showgrid=False, zeroline=False)
+        # 🌟 强力替换轴与吸附
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
+        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02)
         return fig
 
-    # --- 17.CSM占比（BEL\RA\CSM）        
-    def create_csm_ratio_chart(df, cos, show_lbl, gap):
-            c_bar, c_line = {prev_year: '#C7A0F7', latest_year: '#1E49E2'}, {prev_year: '#7213EA', latest_year: '#00338D'}
-            def get_r(y):
-                data = []
-                for co in cos:
-                    c_df = df[(df['公司'] == co) & (df['报告年份'].astype(str) == str(y))]
-                    v = lambda k: c_df[c_df['字段名'].str.contains(k, regex=False, na=False)]['(百万)人民币'].sum()
-                    a, b, c = v('CSM期初'), v('LRC非亏损部分期初'), v('LRC亏损部分期初')
-                    denom = b + c - a
-                    data.append(a / denom if denom != 0 else 0)
-                return data
-            y_py, y_cy = get_r(prev_year), get_r(latest_year)
-            avg_py, avg_cy = np.mean(y_py) if y_py else 0, np.mean(y_cy) if y_cy else 0
-            fig = go.Figure()
-            for nm, y, yr in [(f"{prev_year}YE", y_py, prev_year), (f"{latest_year}YE", y_cy, latest_year)]:
-                m_colors = [HIGHLIGHT_COLOR if co == highlight_co else c_bar[yr] for co in cos]
-                fig.add_trace(go.Bar(name=nm, x=list(cos), y=y, marker_color=m_colors, text=[f"{v:.1%}" for v in y] if show_lbl else None, textposition='outside', cliponaxis=False))
-            for avg, yr in [(avg_py, prev_year), (avg_cy, latest_year)]:
-                fig.add_shape(type="line", x0=0, x1=1, y0=avg, y1=avg, xref="paper", yref="y", line=dict(color=c_line[yr], dash="dash"))
-                fig.add_annotation(x=1.01, y=avg, text=f"{yr}均值: {avg:.1%}", xref="paper", yref="y", showarrow=False, font_color=c_line[yr], xanchor="left")
-            y_max_val = max(max(y_py) if y_py else 0, max(y_cy) if y_cy else 0)
-            fig.update_layout(barmode='group', bargap=gap, height=450, margin=dict(t=50, b=40, l=40, r=120), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
-            fig.update_xaxes(type='category', showgrid=False); fig.update_yaxes(showgrid=False, tickformat='.0%', zeroline=True, zerolinecolor='lightgray', range=[0, y_max_val * 1.15 + 0.05])
-            return fig
+    # --- 17. CSM占比 (终极高亮包裹版) ---        
+    def create_csm_ratio_chart(df, cos, show_lbl, gap, highlight_co="无"):
+        c_bar, c_line, hl_co = {prev_year: '#C7A0F7', latest_year: '#1E49E2'}, {prev_year: '#7213EA', latest_year: '#00338D'}, str(highlight_co).strip()
+        fig, x_idx = go.Figure(), list(range(len(cos)))
+        
+        def get_r(y):
+            data = []
+            for co in cos:
+                c_df = df[(df['公司'] == co) & (df['报告年份'].astype(str) == str(y))]
+                v = lambda k: c_df[c_df['字段名'].str.contains(k, regex=False, na=False)]['(百万)人民币'].sum()
+                a, b, c = v('CSM期初'), v('LRC非亏损部分期初'), v('LRC亏损部分期初')
+                denom = b + c - a
+                data.append(a / denom if denom != 0 else 0)
+            return data
+            
+        y_py, y_cy = get_r(prev_year), get_r(latest_year)
+        avg_py, avg_cy = np.mean(y_py) if y_py else 0, np.mean(y_cy) if y_cy else 0
+        
+        for nm, y, yr in [(f"{prev_year}YE", y_py, prev_year), (f"{latest_year}YE", y_cy, latest_year)]:
+            fig.add_trace(go.Bar(name=nm, x=x_idx, y=y, marker_color=c_bar[yr], text=[f"{v:.1%}" for v in y] if show_lbl else None, textposition='outside', cliponaxis=False))
+            
+        for avg, yr in [(avg_py, prev_year), (avg_cy, latest_year)]:
+            fig.add_shape(type="line", x0=0, x1=1, y0=avg, y1=avg, xref="paper", yref="y", line=dict(color=c_line[yr], dash="dash"))
+            fig.add_annotation(x=1.01, y=avg, text=f"{yr}均值: {avg:.1%}", xref="paper", yref="y", showarrow=False, font_color=c_line[yr], xanchor="left")
+            
+        # 🌟 核心高亮蓝框
+        if hl_co in [str(c).strip() for c in cos]:
+            idx = [str(c).strip() for c in cos].index(hl_co)
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.10, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
+        y_max_val = max(max(y_py) if y_py else 0, max(y_cy) if y_cy else 0)
+        fig.update_layout(barmode='group', bargap=gap, height=450, margin=dict(t=50, b=40, l=40, r=120), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
+        # 🌟 强力替换轴与吸附
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{c}</b></span>" for c in cos], ticks="", ticklen=0)
+        fig.update_yaxes(showgrid=False, tickformat='.0%', zeroline=True, zerolinecolor='lightgray', range=[0, y_max_val * 1.15 + 0.05])
+        return fig
 
     # --- 18. CSM概览表 ---
     def show_csm_summary_table(df, target_year):
@@ -1238,13 +1270,14 @@ def show_step_7_content():
         for col in d_pivot.columns: d_pivot[col] = d_pivot[col].apply(lambda x: "-" if pd.isna(x) or abs(x)<0.05 else (f"({abs(x):.1f})" if x<0 else f"{x:.1f}"))
         return d_pivot
 
-    # --- 19. CSM过渡期拆分 ---
-    def create_csm_transition_chart(df, selected_cos, show_labels, bar_width):
+    # --- 19. CSM过渡期拆分 (终极高亮包裹子图版) ---
+    def create_csm_transition_chart(df, selected_cos, show_labels, bar_width, highlight_co="无"):
         cols, m = 3, [("采用公允价值法计量的合同", "rgb(0, 51, 141)", "采用公允价值法计量的合同"), ("采用修正追溯法计量的合同", "rgb(1, 176, 234)", "采用修正追溯调整法计量的合同"), ("其他保险合同", "#7213Ea", "其他合同")]
         rows = (len(selected_cos) + cols - 1) // cols
-        titles = [f"<span style='color:{HIGHLIGHT_COLOR if co == highlight_co else '#333'};'><b>{co}</b></span>" for co in selected_cos]
+        titles = [f"<b><span style='color:#00338D;'>{co}</span></b>" for co in selected_cos]
         fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, horizontal_spacing=0.08, vertical_spacing=0.15)
-        ym = latest_year
+        ym, hl_co = latest_year, str(highlight_co).strip()
+        
         for i, co in enumerate(selected_cos):
             r, c, df_c = (i // cols) + 1, (i % cols) + 1, df[df['公司'] == co]
             for yt in [ym-2, ym-1, ym]:
@@ -1258,17 +1291,25 @@ def show_step_7_content():
                     for j, (name, clr, _) in enumerate(m):
                         pct = vs[j] / tot * 100
                         fig.add_trace(go.Bar(x=[pct],textangle=0, constraintext='none',y=[f"{yt}YE"], orientation='h', name=name, marker_color=clr, width=bar_width, showlegend=bool(i==0 and yt==ym), text=[f"{pct:.0f}%" if show_labels and pct>0 else ""], textposition='inside', insidetextanchor='middle', textfont=dict(size=11, color="white")), row=r, col=c)
+            is_hl = (str(co).strip() == hl_co)
+            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
+            # 🌟 y1=1.3 确保包裹住悬浮在子上方的公司标题，y0=-0.15 兜住底轴
+            fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.08, x1=1.08, y0=-0.15, y1=1.30, fillcolor=bg_fill, line=line_dict, layer="above", row=r, col=c)
+
         fig.update_layout(barmode='stack', height=300 * rows, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgb(245, 245, 245)', margin=dict(t=60, b=80, l=50, r=20), legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08))
-        fig.update_yaxes(showgrid=False, ticks="outside", ticklen=8, tickcolor="rgba(0,0,0,0)"); fig.update_xaxes(range=[0, 100], tickvals=[0, 20, 40, 60, 80, 100], ticksuffix="%", showgrid=False)
+        
+        # 🌟 强力防报错避坑：绝对不用 tickpadding，改用 ticks="", ticklen=0 让年份吸附！
+        fig.update_yaxes(showgrid=False, ticks="", ticklen=0, tickcolor="rgba(0,0,0,0)") 
+        fig.update_xaxes(range=[0, 100], tickvals=[0, 20, 40, 60, 80, 100], ticksuffix="%", showgrid=False)
         fig.update_annotations(yshift=15)
         return fig
 
-    # --- 20.摊销前 CSM ---
-    def create_csm_composition_chart(df, selected_cos, target_year, show_labels, label_size, bar_width):
+    # --- 20.摊销前 CSM (终极高亮包裹索引版) ---
+    def create_csm_composition_chart(df, selected_cos, target_year, show_labels, label_size, bar_width, highlight_co="无"):
         field_map = {"新业务CSM（集团口径）": "新业务 CSM", "CSM计息": "CSM 计息", "CSM调整": "CSM 调整"}
         color_map = {"新业务CSM（集团口径）": "rgb(0, 51, 140)", "CSM计息": "rgb(147, 157, 253)", "CSM调整": "rgb(253, 52, 156)"}
-        fields = list(field_map.keys())
-        year_str = str(target_year).replace(".0", "")
+        fields, year_str = list(field_map.keys()), str(target_year).replace(".0", "")
         d_sub = df[(df['报告年份'].astype(str).str.contains(year_str)) & (df['公司'].isin(selected_cos)) & (df['字段名'].isin(fields))].copy()
         if d_sub.empty: return None
         d_pivot = d_sub.pivot(index='公司', columns='字段名', values='(百万)人民币')
@@ -1276,17 +1317,24 @@ def show_step_7_content():
             if f not in d_pivot.columns: d_pivot[f] = 0
         d_pivot = d_pivot.reindex(selected_cos).fillna(0)
         d_pivot['Total'] = d_pivot[fields].abs().sum(axis=1).replace(0, 1)
-        fig = go.Figure()
+        fig, hl_co = go.Figure(), str(highlight_co).strip()
+        # 🌟 强转数字坐标轴，为精准定位胶囊框打基础
+        x_idx = list(range(len(selected_cos)))
         for f_name in fields:
             vals_pct = (d_pivot[f_name] / d_pivot['Total']) * 100
             t_color = "white" if f_name == "新业务CSM（集团口径）" else "black"
-            fig.add_trace(go.Bar(name=field_map[f_name], x=d_pivot.index, y=vals_pct, width=bar_width, marker_color=color_map[f_name],
-                                 text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in vals_pct] if show_labels else None,
-                                 textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=t_color), constraintext='none'))
-        tick_txt = [f"<span style='font-size:14px; color:{HIGHLIGHT_COLOR if co == highlight_co else '#00338D'};'><b>{co}</b></span>" for co in d_pivot.index]
-        fig.update_layout(title=dict(text=f"<b>CSM核心分析 (5/7) - {year_str}年摊销前CSM变动项占比</b>", x=0.5, y=0.95, xanchor='center', font=COMMON_TITLE_FONT),
-                          barmode='relative', height=550, margin=dict(t=80, b=100, l=60, r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5))
-        fig.update_xaxes(showgrid=False, zeroline=False, ticktext=tick_txt, tickvals=d_pivot.index)
+            fig.add_trace(go.Bar(name=field_map[f_name], x=x_idx, y=vals_pct, width=bar_width, marker_color=color_map[f_name], text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in vals_pct] if show_labels else None, textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=t_color), constraintext='none'))
+        # 🌟 绘制数字定位高亮蓝框
+        if hl_co in [str(c).strip() for c in selected_cos]:
+            idx = [str(c).strip() for c in selected_cos].index(hl_co)
+            # y0=-0.12 下探包裹公司名字
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
+        tick_txt = [f"<span style='font-size:14px; color:#00338D;'><b>{co}</b></span>" for co in selected_cos]
+        fig.update_layout(title=dict(text=f"<b>CSM核心分析 (5/7) - {year_str}年摊销前CSM变动项占比</b>", x=0.5, y=0.95, xanchor='center', font=COMMON_TITLE_FONT), barmode='relative', height=550, margin=dict(t=80, b=100, l=60, r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5))
+        
+        # 🌟 把坐标轴文字贴回去，用 ticks="", ticklen=0 强制上吸防报错
+        fig.update_xaxes(showgrid=False, zeroline=False, ticktext=tick_txt, tickvals=x_idx, ticks="", ticklen=0)
         fig.update_yaxes(showgrid=False, range=[-25, 105], tickvals=[-20, 0, 20, 40, 60, 80, 100], ticktext=["-20%", "0%", "20%", "40%", "60%", "80%", "100%"], zeroline=True, zerolinecolor='#FFB07C', zerolinewidth=1.5)
         return fig
 
@@ -1317,17 +1365,22 @@ def show_step_7_content():
         fig.update_xaxes(showgrid=False, showline=False, zeroline=False); fig.update_yaxes(showgrid=False, zeroline=False, tickformat=y_axis_format)
         return fig
 
-    # --- 22.综合净资产指标 --- 
-    def create_csm_equity_analysis(df, selected_cos, show_labels, label_size, bar_width, co_font_size, pct_height_adjust):
+    # --- 22.综合净资产指标 (终极高亮包裹 + 标题下挂单位版) --- 
+    def create_csm_equity_analysis(df, selected_cos, show_labels, label_size, bar_width, co_font_size, pct_height_adjust, highlight_co="无"):
         d_sub = df[(df['报告年份'].astype(str).isin([str(prev_year), str(latest_year)])) & (df['公司'].isin(selected_cos)) & (df['字段名'].isin(["CSM期末余额", "期末股东权益"]))].copy()
         d_sub['value'] = d_sub['(百万)人民币'] / divisor            
         _all_totals = [d_sub[(d_sub['公司'] == _co) & (d_sub['报告年份'].astype(str) == str(_yr))]['value'].sum() for _co in selected_cos for _yr in [prev_year, latest_year]]
         global_max_bar = max(_all_totals + [1.0])
         global_base_y, global_y_top = global_max_bar * 1.03, global_max_bar * 1.12
-        titles = [f"<span style='color:{HIGHLIGHT_COLOR if co == highlight_co else '#00338D'}; font-size:{co_font_size}px;'><b>{co}</b></span>" for co in selected_cos]
-        fig = make_subplots(rows=1, cols=len(selected_cos), horizontal_spacing=0.015, subplot_titles=titles)           
+        hl_co = str(highlight_co).strip()
+        
+        # 🌟 名字统一加粗并应用传入的 co_font_size (建议调用时传入 11 或 12)
+        titles = [f"<span style='color:#00338D; font-size:{co_font_size}px;'><b>{co}</b></span>" for co in selected_cos]
+        fig = make_subplots(rows=1, cols=len(selected_cos), horizontal_spacing=0.015, subplot_titles=titles)            
+        
         for leg_name, leg_color in [("再保前净CSM", "rgb(0, 184, 245)"), ("净资产", "rgb(30, 73, 226)"), ("再保前税后CSM/净资产", "rgb(114, 19, 214)")]:
             fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=12, color=leg_color), name=leg_name, showlegend=True), row=1, col=1)                
+        
         for i, co in enumerate(selected_cos):
             col_idx, cd = i + 1, d_sub[d_sub['公司'] == co]
             v24b, v25b = cd[(cd['报告年份'].astype(str)==str(prev_year)) & (cd['字段名']=="CSM期末余额")]['value'].sum(), cd[(cd['报告年份'].astype(str)==str(latest_year)) & (cd['字段名']=="CSM期末余额")]['value'].sum()
@@ -1335,56 +1388,82 @@ def show_step_7_content():
             v24c, v25c = v24b*0.75, v25b*0.75
             p24, p25 = (v24c / v24e * 100) if v24e != 0 else 0, (v25c / v25e * 100) if v25e != 0 else 0
             x_axis = [f"{prev_year}YE", f"{latest_year}YE"]
-            fig.add_trace(go.Bar(x=x_axis, y=[v24c, v25c], marker_color="rgb(0, 184, 245)", width=bar_width, showlegend=False, text=[f"{v:.0f}" for v in [v24c, v25c]] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                
-            fig.add_trace(go.Bar(x=x_axis, y=[v24e, v25e], marker_color="rgb(30, 73, 226)", width=bar_width, showlegend=False, text=[f"{v:.0f}" for v in [v24e, v25e]] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                
+            
+            fig.add_trace(go.Bar(x=x_axis, y=[v24c, v25c], marker_color="rgb(0, 184, 245)", width=bar_width, showlegend=False, text=[f"{v:.0f}" if pd.notna(v) and v!=0 else "" for v in [v24c, v25c]] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                
+            fig.add_trace(go.Bar(x=x_axis, y=[v24e, v25e], marker_color="rgb(30, 73, 226)", width=bar_width, showlegend=False, text=[f"{v:.0f}" if pd.notna(v) and v!=0 else "" for v in [v24e, v25e]] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                
+            
             pct_max, delta = max(abs(p24), abs(p25), 1.0), global_max_bar * 0.04
-            y24_line, y25_line = global_base_y + (p24 / pct_max) * delta * 0.5, global_base_y + (p25 / pct_max) * delta * 0.5               
+            y24_line, y25_line = global_base_y + (p24 / pct_max) * delta * 0.5, global_base_y + (p25 / pct_max) * delta * 0.5                
             fig.add_trace(go.Scatter(x=x_axis, y=[y24_line, y25_line], mode="lines", line=dict(color="rgb(114, 19, 214)", width=1.2), showlegend=False, hoverinfo="skip"), row=1, col=col_idx)
             fig.add_trace(go.Scatter(x=x_axis, y=[y24_line, y25_line], mode="markers+text", marker=dict(symbol="triangle-up", size=7, color="rgb(114, 19, 214)"), text=[f"{p24:.0f}%", f"{p25:.0f}%"], textposition="top center", textfont=dict(color="rgb(114, 19, 214)", size=label_size), showlegend=False, hoverinfo="skip"), row=1, col=col_idx)                
+            
             fig.update_yaxes(range=[0, global_y_top], showticklabels=False, showgrid=False, zeroline=False, row=1, col=col_idx)                
-            xref_d, yref_d = "x domain" if col_idx == 1 else f"x{col_idx} domain", "y domain" if col_idx == 1 else f"y{col_idx} domain"
-            fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=0, x1=1, y0=0, y1=1, line=dict(color="#CCCCCC", width=1), fillcolor="rgba(200, 200, 200, 0.18)" if i % 2 == 1 else "rgba(255,255,255,0)", layer="below")
-        fig.add_annotation(text=f"(单位：{unit_label})", xref="paper", yref="paper", x=1.0, y=1.0, showarrow=False, font=dict(size=12, color="#00338D"), xanchor="right", yanchor="bottom")
-        fig.update_xaxes(type="category", showgrid=False, zeroline=False)       
-        fig.update_layout(title=dict(text=f"<b>CSM核心分析 (7/7) - CSM与净资产综合对比</b>", font=COMMON_TITLE_FONT), barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=100, b=100, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, font=dict(size=12), itemsizing="constant"))            
+            
+            # 🌟 核心高亮蓝框：y1拉高到 1.15，横向x1略微拓宽，将公司名和年份完美锁死在内！
+            is_hl = (str(co).strip() == hl_co)
+            xref_d, yref_d = f"x{col_idx} domain" if col_idx > 1 else "x domain", f"y{col_idx} domain" if col_idx > 1 else "y domain"
+            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else ("rgba(200, 200, 200, 0.12)" if i % 2 == 1 else "rgba(255,255,255,0)")
+            border_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="#EAEAEA", width=1)
+            
+            # y0=-0.12 兜住年份，y1=1.15 稳稳包住顶部公司名字
+            fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=-0.04, x1=1.04, y0=-0.12, y1=1.15, line=border_dict, fillcolor=bg_fill, layer="above" if is_hl else "below", row=1, col=col_idx)
+
+        # 🌟 核心排版调整：单位彻底并入左侧总标题下方，移除原右侧悬浮 annotation
+        fig.update_layout(
+            title=dict(text=f"<b>CSM核心分析 (7/7) - CSM与净资产综合对比</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, y=0.96, x=0.01), 
+            barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+            margin=dict(t=120, b=100, l=20, r=20), 
+            legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, font=dict(size=12), itemsizing="constant")
+        )            
+        
+        # 🌟 核心排版调整：把原本沉底的公司名字统一推高至 y=1.12 贴紧蓝框顶部
+        for ann in fig.layout.annotations:
+            if "span" in str(ann.text) and "单位" not in str(ann.text):
+                ann.update(y=1.08)
+                
+        for i in range(1, len(selected_cos) + 1):
+            fig.update_xaxes(type="category", showgrid=False, zeroline=False, ticks="", ticklen=0, row=1, col=i)
+            
         return fig
 
     # --- 23.新业务盈利合同 ---   
-    def create_new_biz_csm_chart(df_source, field_name, title, show_labels, p_size, g_gap):
+    def create_new_biz_csm_chart(df_source, field_name, title, show_labels, p_size, g_gap, highlight_co="无"):
         d = df_source[df_source['指标名称'] == field_name].copy()
-        d['报告年份'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False)
-        d['value'] = d['value'] / divisor 
-        y_old, y_new = str(prev_year), str(latest_year)
-        fig = go.Figure()
+        d['报告年份'], d['value'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False), d['value'] / divisor 
+        y_old, y_new, hl_co = str(prev_year), str(latest_year), str(highlight_co).strip()
+        fig, x_idx = go.Figure(), list(range(len(selected_cos)))
+        
         for yr, col in zip([y_old, y_new], ["rgb(15, 101, 253)", "rgb(0, 51, 141)"]):
             df_yr = d[d['报告年份'] == yr].set_index('公司').reindex(selected_cos).reset_index()
-            m_colors = [HIGHLIGHT_COLOR if c == highlight_co else col for c in df_yr['公司']]
-            fig.add_trace(go.Bar(
-                name=f"{yr}年新业务盈利合同（CSM）", x=df_yr['公司'], y=df_yr['value'], marker_color=m_colors,
-                text=[f"{v:.1f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None,
-                textposition='outside', textfont=dict(size=font_size), textangle=0, cliponaxis=False))
+            fig.add_trace(go.Bar(name=f"{yr}年新业务盈利合同（CSM）", x=x_idx, y=df_yr['value'], marker_color=col, text=[f"{v:.1f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=font_size), textangle=0, cliponaxis=False))
+            
+        # 🌟 核心高亮：定位坐标轴大蓝框
+        if hl_co in [str(c).strip() for c in selected_cos]:
+            idx = [str(c).strip() for c in selected_cos].index(hl_co)
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
         all_vals = d['value'].dropna()
         y_max, y_min = (all_vals.max(), all_vals.min()) if not all_vals.empty else (100, 0)
         off = (y_max - y_min) * 0.15 if not all_vals.empty else 12
         df_old, df_new = d[d['报告年份'] == y_old].set_index('公司'), d[d['报告年份'] == y_new].set_index('公司')
-        for co in selected_cos:
+        for i, co in enumerate(selected_cos):
             if co in df_old.index and co in df_new.index:
                 v0, v1 = df_old.loc[co, 'value'], df_new.loc[co, 'value']
                 if pd.notna(v0) and v0 != 0:
                     pct = (v1 - v0) / abs(v0)
                     arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
                     y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
-                    fig.add_annotation(x=co, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
-        fig.update_layout(title=dict(text=f"<b>{title}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01),
-                          barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                          margin=dict(t=120, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
+                    fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
+                    
+        fig.update_layout(title=dict(text=f"<b>{title}</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, x=0.01), barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=120, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
         r_top, r_bot = y_max + (y_max - y_min) * 0.18, y_min - (y_max - y_min) * 0.15 if y_min < 0 else 0
         fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02, range=[r_bot, r_top])
-        fig.update_xaxes(showline=False, showgrid=False, zeroline=False)
+        # 🌟 强力替换文字，解除吸附错误
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
         return fig
 
-    # --- 24.新业务指标 ---   
-    def create_new_business_metrics_charts(df_raw, selected_cos, show_lab, lab_sz, bar_width, co_sz):
+    # --- 24.新业务指标结构拆解 ---   
+    def create_new_business_metrics_charts(df_raw, selected_cos, show_lab, lab_sz, bar_width, co_sz, highlight_co="无"):
         df_clean = df_raw.copy()
         df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
         val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
@@ -1393,6 +1472,7 @@ def show_step_7_content():
         df_pivot = df_base.pivot_table(index=['公司', '报告年份'], columns='字段名', values=val_col, aggfunc='sum').reset_index()
         if selected_cos: df_pivot = df_pivot[df_pivot['公司'].isin(selected_cos)]
         if df_pivot.empty: return None, None, None
+        
         df_pivot['新业务CSM利润率'] = np.where(df_pivot.get('新业务未来现金流入现值（盈利）', 0) == 0, np.nan, df_pivot.get('新业务CSM（集团口径）', 0) / df_pivot.get('新业务未来现金流入现值（盈利）', 1))
         df_pivot['新业务LC亏损率'] = np.where(df_pivot.get('新业务未来现金流入现值（亏损）', 0) == 0, np.nan, df_pivot.get('新业务亏损合同（LC）——非PAA', 0) / df_pivot.get('新业务未来现金流入现值（亏损）', 1))
         df_pivot['新业务RA率'] = np.where(df_pivot.get('新业务未来现金流入现值', 0) == 0, np.nan, df_pivot.get('新业务RA', 0) / df_pivot.get('新业务未来现金流入现值', 1))
@@ -1400,24 +1480,32 @@ def show_step_7_content():
         configs = [("新业务CSM利润率", "新业务价值分析 (2/5) - 新业务CSM利润率", "rgb(30, 73, 225)", "rgb(149, 229, 255)"), 
                    ("新业务LC亏损率", "新业务价值分析 (3/5) - 新业务LC亏损率", "rgb(253, 52, 156)", "rgb(255, 214, 235)"), 
                    ("新业务RA率", "新业务价值分析 (4/5) - 新业务RA率", "rgb(114, 19, 234)", "rgb(227, 207, 251)")]
-        figs = []
-        plot_bargap = max(0, 1.0 - bar_width) 
+        figs, plot_bargap, hl_co, x_idx = [], max(0, 1.0 - bar_width), str(highlight_co).strip(), list(range(len(selected_cos)))
+        
         for metric, title, c_latest, c_prev in configs:
-            df_lat, df_pre = df_pivot[df_pivot['报告年份'] == str(latest_year)].dropna(subset=[metric]), df_pivot[df_pivot['报告年份'] == str(prev_year)].dropna(subset=[metric])
+            df_lat = df_pivot[df_pivot['报告年份'] == str(latest_year)].set_index('公司').reindex(selected_cos).reset_index()
+            df_pre = df_pivot[df_pivot['报告年份'] == str(prev_year)].set_index('公司').reindex(selected_cos).reset_index()
             fig = go.Figure()
-            # 🌟 柱图外框高亮法
-            line_lat = [dict(color=HIGHLIGHT_COLOR, width=3) if c == highlight_co else dict(color='rgba(0,0,0,0)', width=0) for c in df_lat['公司']]
-            fig.add_trace(go.Bar(x=df_pre['公司'], y=df_pre[metric], name=f"{prev_year}年", marker_color=c_prev, text=[f"{x*100:.1f}%" if pd.notnull(x) else "" for x in df_pre[metric]] if show_lab else None, textposition='outside', textfont=dict(size=lab_sz)))
-            fig.add_trace(go.Bar(x=df_lat['公司'], y=df_lat[metric], name=f"{latest_year}年", marker_color=c_latest, marker_line=dict(color=[l['color'] for l in line_lat], width=[l['width'] for l in line_lat]), text=[f"{x*100:.1f}%" if pd.notnull(x) else "" for x in df_lat[metric]] if show_lab else None, textposition='outside', textfont=dict(size=lab_sz)))
+            
+            fig.add_trace(go.Bar(x=x_idx, y=df_pre[metric], name=f"{prev_year}年", marker_color=c_prev, text=[f"{x*100:.1f}%" if pd.notnull(x) else "" for x in df_pre[metric]] if show_lab else None, textposition='outside', textfont=dict(size=lab_sz)))
+            fig.add_trace(go.Bar(x=x_idx, y=df_lat[metric], name=f"{latest_year}年", marker_color=c_latest, text=[f"{x*100:.1f}%" if pd.notnull(x) else "" for x in df_lat[metric]] if show_lab else None, textposition='outside', textfont=dict(size=lab_sz)))
+            
+            # 🌟 洗去原来的边框高亮，换用数字坐标的胶囊蓝框
+            if hl_co in [str(c).strip() for c in selected_cos]:
+                idx = [str(c).strip() for c in selected_cos].index(hl_co)
+                fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.11, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
             margin_b, leg_y, leg_anchor = 20, 1.02, "bottom"
-            if not df_lat.empty:
+            if not df_lat[metric].dropna().empty:
                 avg_val = df_lat[metric].mean()
                 if avg_val < 0: leg_y, leg_anchor, margin_b = -0.15, "top", 60
                 fig.add_hline(y=avg_val, line_dash="dash", line_color=c_latest, line_width=1.5)
                 fig.add_annotation(x=1.0, xref="paper", y=avg_val, yref="y", xanchor="left", xshift=10, text=f"<b>{str(latest_year)[-2:]}年平均 {avg_val*100:.1f}%</b>", showarrow=False, bgcolor="white", bordercolor=c_latest, borderwidth=1.5, borderpad=6, font=dict(color=c_latest, size=lab_sz))
             
-            tick_txt = [f"<span style='font-size:{co_sz}px; color:{HIGHLIGHT_COLOR if c == highlight_co else '#333'};'><b>{c}</b></span>" for c in df_lat['公司']]
-            fig.update_layout(title=dict(text=f"<b>{title}</b>", x=0.5, xanchor='center', y=0.95, font=COMMON_TITLE_FONT), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", barmode='group', bargap=plot_bargap, margin=dict(t=80, b=margin_b, l=20, r=120), yaxis=dict(tickformat=".0%", showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02), xaxis=dict(showgrid=False, zeroline=False, ticktext=tick_txt, tickvals=df_lat['公司']), legend=dict(orientation="h", yanchor=leg_anchor, y=leg_y, xanchor="right", x=1))
+            tick_txt = [f"<span style='font-size:{co_sz}px; color:#00338D;'><b>{c}</b></span>" for c in selected_cos]
+            fig.update_layout(title=dict(text=f"<b>{title}</b>", x=0.5, xanchor='center', y=0.95, font=COMMON_TITLE_FONT), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", barmode='group', bargap=plot_bargap, margin=dict(t=80, b=margin_b, l=20, r=120), yaxis=dict(tickformat=".0%", showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02), legend=dict(orientation="h", yanchor=leg_anchor, y=leg_y, xanchor="right", x=1))
+            # 🌟 无缝吸附
+            fig.update_xaxes(showgrid=False, zeroline=False, ticktext=tick_txt, tickvals=x_idx, ticks="", ticklen=0)
             figs.append(fig)
         return figs[0], figs[1], figs[2]
 
@@ -1447,8 +1535,8 @@ def show_step_7_content():
         return fig
 
 # --- 关键披露信息 ---  
-    # --- 26. 费用结构 --- 
-    def create_expense_breakdown_chart(df, selected_cos, show_labels, label_size, bar_width, co_font_size):
+# --- 26. 费用结构 (终极高亮包裹 + 标题下挂单位版) --- 
+    def create_expense_breakdown_chart(df, selected_cos, show_labels, label_size, bar_width, co_font_size, highlight_co="无"):
         y, f = [str(prev_year), str(latest_year)], ["获取费用", "维持费用", "非履约费用"]
         d_sub = df[(df['报告年份'].astype(str).isin(y)) & (df['公司'].isin(selected_cos)) & (df['字段名'].isin(f))].copy()
         d_sub['value'] = d_sub['(百万)人民币'] / divisor
@@ -1456,11 +1544,14 @@ def show_step_7_content():
         avg_total = avg_acq + avg_maint + avg_non
         p_acq, p_maint, p_non = (avg_acq/avg_total*100) if avg_total>0 else 0, (avg_maint/avg_total*100) if avg_total>0 else 0, (avg_non/avg_total*100) if avg_total>0 else 0
         global_max = max([d_sub[(d_sub['公司']==co) & (d_sub['报告年份'].astype(str)==yr)]['value'].sum() for co in selected_cos for yr in y] + [1.0])
+        hl_co = str(highlight_co).strip()
         
-        titles = [f"<span style='color:{HIGHLIGHT_COLOR if co == highlight_co else '#00338D'}; font-size:{co_font_size}px;'><b>{co}</b></span>" for co in selected_cos]
+        titles = [f"<span style='color:#00338D; font-size:{co_font_size}px;'><b>{co}</b></span>" for co in selected_cos]
         fig = make_subplots(rows=1, cols=len(selected_cos), horizontal_spacing=0.02, subplot_titles=titles)
+        
         for leg_name, leg_color in [("获取费用", "rgb(30, 73, 226)"), ("维持费用", "rgb(118, 210, 255)"), ("非履约费用", "rgb(114, 19, 234)")]:
             fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=12, color=leg_color), name=leg_name, showlegend=True), row=1, col=1)
+            
         for i, co in enumerate(selected_cos):
             col_idx = i + 1
             xref_key, yref_key, xref_d, yref_d = f"x{col_idx}" if col_idx>1 else "x", f"y{col_idx}" if col_idx>1 else "y", f"x{col_idx} domain" if col_idx>1 else "x domain", f"y{col_idx} domain" if col_idx>1 else "y domain"
@@ -1470,13 +1561,16 @@ def show_step_7_content():
             t24, t25 = v24a+v24m+v24n, v25a+v25m+v25n
             lbl = lambda v, t: f"{v/t*100:.0f}%, {v:.0f}" if t>0 and v>0 else ""
             x_axis = [f"{prev_year}YE", f"{latest_year}YE"]
+            
             fig.add_trace(go.Bar(x=x_axis, y=[v24a, v25a], marker_color="rgb(30, 73, 226)", width=bar_width, showlegend=False, text=[lbl(v24a,t24), lbl(v25a,t25)] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)
             fig.add_trace(go.Bar(x=x_axis, y=[v24m, v25m], marker_color="rgb(118, 210, 255)", width=bar_width, showlegend=False, text=[lbl(v24m,t24), lbl(v25m,t25)] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="#1a1a2e"), constraintext='none'), row=1, col=col_idx)
             fig.add_trace(go.Bar(x=x_axis, y=[v24n, v25n], marker_color="rgb(114, 19, 234)", width=bar_width, showlegend=False, text=[lbl(v24n,t24), lbl(v25n,t25)] if show_labels else None, textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                        
+            
             for y0, y1 in [(v24a, v25a), (v24a+v24m, v25a+v25m), (t24, t25)]:
                 fig.add_shape(type="line", xref=xref_key, yref=yref_key, x0=bar_width/2, y0=y0, x1=1-bar_width/2, y1=y1, line=dict(color="rgba(170,170,170,0.85)", width=0.9), layer="above")
             for x_cat, total_v in [(f"{prev_year}YE", t24), (f"{latest_year}YE", t25)]:
                 fig.add_annotation(x=x_cat, y=total_v+global_max*0.02, xref=xref_key, yref=yref_key, text=f"<b>{total_v:.0f}</b>", showarrow=False, font=dict(size=label_size, color="#222"), bgcolor="white", bordercolor="#BBB", borderwidth=1, xanchor="center", yanchor="bottom")
+            
             pct = ((t25-t24)/t24*100) if t24>0 else 0
             base_arrow_y, slope = max(t24, t25) + global_max*0.12, global_max*0.01
             if pct > 0: y_start, y_end, arr_clr, sign = base_arrow_y-slope, base_arrow_y+slope, "rgb(253, 52, 155)", "+"
@@ -1484,24 +1578,30 @@ def show_step_7_content():
             else: y_start, y_end, arr_clr, sign = base_arrow_y, base_arrow_y, "rgb(253, 52, 155)", ""
             fig.add_annotation(x=0.65, y=y_end, ax=0.35, ay=y_start, xref=xref_key, yref=yref_key, axref=xref_key, ayref=yref_key, text="", showarrow=True, arrowhead=2, arrowsize=0.7, arrowwidth=1.5, arrowcolor=arr_clr)
             fig.add_annotation(x=0.5, xref=xref_d, y=max(y_start, y_end)+global_max*0.02, yref=yref_key, text=f"<b>{sign}{pct:.0f}%</b>", showarrow=False, font=dict(size=label_size+1, color=arr_clr), xanchor="center", yanchor="bottom")
-            fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=0, x1=1, y0=0, y1=1, line=dict(color="#CCCCCC", width=1), fillcolor="rgba(200,200,200,0.18)" if i%2==1 else "rgba(255,255,255,0)", layer="below")
-            fig.update_yaxes(range=[0, global_max*1.35], showticklabels=False, showgrid=False, zeroline=False, row=1, col=col_idx)
-            fig.update_xaxes(type="category", showgrid=False, zeroline=False, row=1, col=col_idx)
-            # ✅ 修复后的代码：
-        fig.add_annotation(text=f"(单位：{unit_label}人民币)", xref="paper", yref="paper", x=1.0, y=1.08, showarrow=False, font=dict(size=12, color="#00338D"), xanchor="right", yanchor="bottom")
-        # 🚫 删除了那行导致“幽灵字幕”的重复图例代码！
-        
-        # 🌟 核心调整：
-        # 1. 左右边距(l, r)从 30 缩小到 10，让图表向两侧舒展，整体变宽！
-        # 2. 底部边距(b)从 80 加大到 110，给图例留出充足的空间。
-        # 3. legend 的 y 值从 -0.08 改为 -0.15，图例完美下沉！
+            
+            is_hl = (str(co).strip() == hl_co)
+            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else ("rgba(200, 200, 200, 0.18)" if i % 2 == 1 else "rgba(255,255,255,0)")
+            border_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="#CCCCCC", width=1)
+            # 🌟 胶囊框拉高到 1.15 包裹公司名称
+            fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=0, x1=1, y0=-0.1, y1=1.15, line=border_dict, fillcolor=bg_fill, layer="above" if is_hl else "below", row=1, col=col_idx)
+
+            fig.update_yaxes(range=[0, global_max*1.3], showticklabels=False, showgrid=False, zeroline=False, row=1, col=col_idx)
+            fig.update_xaxes(type="category", showgrid=False, zeroline=False, ticks="", ticklen=0, row=1, col=col_idx)
+            
+        # 🌟 核心调整：废除原单位注解，拼接进 title，顶部 margin 增加至 120 留出呼吸空间
         fig.update_layout(
-            title=dict(text=f"<b>业务及管理费（新准则分类） - 费用结构</b>", font=COMMON_TITLE_FONT, y=0.98, x=0.01), 
-            barmode='stack', height=550,  # 高度我也稍微帮你压扁了一点，显得更宽敞
+            title=dict(text=f"<b>业务及管理费（新准则分类） - 费用结构</b><br><span style='font-size:12px;'>单位：({unit_label}人民币)</span>", font=COMMON_TITLE_FONT, y=0.957, x=0.01), 
+            barmode='stack', height=550, 
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-            margin=dict(t=100, b=110, l=10, r=10), 
+            margin=dict(t=120, b=80, l=10, r=10), 
             legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, font=dict(size=12), itemsizing="constant")
         )
+        
+        # 🌟 核心调整：把公司的名字统一推高到 y=1.12，完美进入蓝框顶端
+        for ann in fig.layout.annotations:
+            if "span" in str(ann.text) and "单位" not in str(ann.text):
+                ann.update(y=1.08)
+
         return fig, (p_acq, p_maint, p_non)
 
 
@@ -1660,6 +1760,9 @@ def show_step_7_content():
             html += "</tr>"
             
         return html + "</table>"
+
+
+
 # --- 关键业绩指标 ---  
     # --- 27. 六维图 ---
     def create_six_dimensional_charts(df_raw, target_year, label_size, show_labels, dot_size):
@@ -1708,16 +1811,36 @@ def show_step_7_content():
         df = df_raw.copy()
         df['报告年份'] = df['报告年份'].astype(str).str.replace('.0', '', regex=False)
         df_year = df[(df['报告年份'] == str(target_year)) & (df['公司'].isin(cos))]
+        
+        # 兼容处理字段名
         val_col = "(百万)人民币" if "(百万)人民币" in df.columns else df.columns[-1]
         data_map = df_year.set_index(['公司', '字段名'])[val_col].to_dict()
         get_val = lambda co, field: data_map.get((co, field), 0) / div
 
         rows_config = [
-            ("未采用保费分配法的保险合同", None, "header"), ("保险服务收入", "未采用保费分配法计量的保险合同保险服务收入", "data"), ("合同服务边际的释放", "合同服务边际的摊销", "data"), ("非金融风险调整的变动", "非金融风险调整的变动", "data"), ("预期当期发生的保险服务费用", "预计当期发生的保险服务费用", "data"), ("保险获取现金流的摊销", "保险获取现金流的摊销（保险服务收入）", "data"), ("其他", "其他收入调整", "data"),
-            ("保险服务费用", "未采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险获取现金流的摊销 ", "保险获取现金流的摊销（保险服务费用）", "neg_data"), ("亏损部分的确认及转回", "亏损部分的确认及转回", "neg_data"), ("当期发生的赔款及其他相关费用", "当期发生的赔款及其他相关费用", "neg_data"), ("已发生赔款负债相关的履约现金流量变动", "已发生赔款负债相关的履约现金流量变动", "neg_data"), ("其他项", "FIXED_ZERO", "data"),
+            ("未采用保费分配法的保险合同", None, "header"), 
+            ("保险服务收入", "未采用保费分配法计量的保险合同保险服务收入", "data"), 
+            ("合同服务边际的释放", "合同服务边际的摊销", "data"), 
+            ("非金融风险调整的变动", "非金融风险调整的变动", "data"), 
+            ("预期当期发生的保险服务费用", "预计当期发生的保险服务费用", "data"), 
+            ("保险获取现金流的摊销", "保险获取现金流的摊销（保险服务收入）", "data"), 
+            ("其他", "其他收入调整", "data"),
+            ("保险服务费用", "未采用保费分配法计量的保险合同保险服务费用", "neg_data"), 
+            ("保险获取现金流的摊销 ", "保险获取现金流的摊销（保险服务费用）", "neg_data"), 
+            ("亏损部分的确认及转回", "亏损部分的确认及转回", "neg_data"), 
+            ("当期发生的赔款及其他相关费用", "当期发生的赔款及其他相关费用", "neg_data"), 
+            ("已发生赔款负债相关的履约现金流量变动", "已发生赔款负债相关的履约现金流量变动", "neg_data"), 
+            ("其他项", "FIXED_ZERO", "data"),
             ("保险服务业绩", "FORMULA_KPI_1", "subtotal"), 
-            ("采用保费分配法的保险合同", None, "header"), ("保险服务收入 ", "采用保费分配法计量的保险合同保险服务收入", "data"), ("保险服务费用 ", "采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险服务业绩 ", "采用保费分配法计量的保险合同保险业绩", "subtotal"),
-            ("集团/业务条线-汇总（见附注）", None, "header"), ("保险服务收入  ", "保险服务收入合计", "data"), ("保险服务费用  ", "保险服务费用合计", "neg_data"), ("保险服务业绩（不含再保收支净额）", "FORMULA_TOTAL_KPI", "total"), ("CSM释放在保险服务业绩中占比", "FORMULA_CSM_RATIO", "percent"),
+            ("采用保费分配法的保险合同", None, "header"), 
+            ("保险服务收入 ", "采用保费分配法计量的保险合同保险服务收入", "data"), 
+            ("保险服务费用 ", "采用保费分配法计量的保险合同保险服务费用", "neg_data"), 
+            ("保险服务业绩 ", "采用保费分配法计量的保险合同保险业绩", "subtotal"),
+            ("集团/业务条线-汇总（见附注）", None, "header"), 
+            ("保险服务收入  ", "保险服务收入合计", "data"), 
+            ("保险服务费用  ", "保险服务费用合计", "neg_data"), 
+            ("保险服务业绩（不含再保收支净额）", "FORMULA_TOTAL_KPI", "total"), 
+            ("CSM释放在保险服务业绩中占比", "FORMULA_CSM_RATIO", "percent"),
         ]
 
         current_hl = str(highlight_co).strip()
@@ -1727,18 +1850,16 @@ def show_step_7_content():
         for co in cos:
             is_hl = (str(co).strip() == current_hl)
             if is_hl:
-                html += f"<th style='padding: 6px 4px; text-align: center; background-color: #002266; border-top: 1.5px solid #00338D; border-left: 1.5px solid #00338D; border-right: 1.5px solid #00338D; border-bottom: none;'>{co}</th>"
+                html += f"<th style='padding: 6px 4px; text-align: center; background-color: #001A4D; border-top: 1px solid #00338D; border-left: 1px solid #00338D; border-right: 1px solid #00338D; border-bottom: none;'>{co}</th>"
             else:
                 html += f"<th style='padding: 6px 4px; text-align: center; border: 1.5px solid white;'>{co}</th>"
         html += "</tr>"
 
-        # 2. 渲染数据行
         total_rows = len(rows_config)
         for row_idx, (row_name, field, r_type) in enumerate(rows_config):
             is_header, is_total = (r_type == "header"), (r_type in ["subtotal", "total"])
             row_bg = "#E8EDF4" if is_header else ("white" if row_idx % 2 == 0 else "#F8F9FA")
             
-            # 🌟 优化点 3：缩进从 15px 改为 10px，数据行 padding 从 10px 8px 极限压缩到 4px 4px
             n_weight, n_indent = ("bold" if (is_header or is_total) else "normal"), ("0px" if is_header else "10px")
             
             html += f"<tr><td style='padding: 4px 4px; padding-left: {n_indent}; text-align: left; font-weight: {n_weight}; background-color: {row_bg}; border: 1px solid #EAEAEA; color: #333333;'>{row_name}</td>"
@@ -1757,7 +1878,7 @@ def show_step_7_content():
                         denom = get_val(co, "未采用保费分配法计量的保险合同保险服务收入") - get_val(co, "未采用保费分配法计量的保险合同保险服务费用")
                         val = (get_val(co, "合同服务边际的摊销") / denom) if denom != 0 else 0
                     
-                    if pd.isna(val): val_str = "-"
+                    if pd.isna(val) or (val == 0 and r_type == "percent"): val_str = "-"
                     elif r_type == "percent": val_str = f"{val*100:.0f}%"
                     elif val < 0: val_str = f"({abs(val):,.0f})"
                     elif val == 0: val_str = "0"
@@ -1773,68 +1894,92 @@ def show_step_7_content():
                 else:
                     borders = "border: 1px solid #EAEAEA;"
                     
-                # 🌟 优化点 4：数据单元格同样压缩 padding 到 4px 4px
                 html += f"<td style='padding: 4px 4px; text-align: center; background-color: {c_bg}; {borders} color: {c_color}; font-weight: {c_weight};'>{val_str}</td>"
             html += "</tr>"
             
         return html + "</table>"
     
     # --- 29.新业务价值及增长分析表 ---
-    def create_nbv_summary_table(df, cos, div, unit_str, highlight_co="无"):
-        cy, py = latest_year, prev_year
-        cy_str, py_str = str(cy)[-2:], str(py)[-2:]
-        col_names, r1, r2, r3, r4, r5, r6 = [], [], [], [], [], [], []
-    
+    def create_nbv_summary_table(df, cos, div, unit_str, target_year, target_prev_year, highlight_co="无"):
+        cy = target_year
+        py = target_prev_year
+        cy_str = str(cy)[-2:]
+        py_str = str(py)[-2:]
+        
+        # 指标名称（精简了换行，更紧凑）
+        metrics = [
+            f"新业务盈利合同(CSM) ({unit_str})", 
+            f"新业务CSM增长率 ({cy_str}YE/{py_str}YE-1)", 
+            f"新业务亏损合同(LC) ({unit_str})", 
+            f"新业务未来现金流入现值 ({unit_str})", 
+            f"新业务IFRS利润率 ", 
+            f"新业务增长 (新业务CSM/CSM摊销)"
+        ]
+        
+        # 预先计算所有公司的数据列
+        col_data = {}
         for co in cos:
             df_co = df[df['公司'] == co]
-            get_val = lambda y, kw: df_co[(df_co['报告年份'].astype(str)==str(y)) & (df_co['字段名']==kw)].drop_duplicates(subset=['公司', '报告年份', '字段名'])['(百万)人民币'].sum()
             
-            nb_csm_cy, nb_csm_py = get_val(cy, '新业务CSM（集团口径）'), get_val(py, '新业务CSM（集团口径）')
-            lc_cy, pv_in_cy, amort_cy = get_val(cy, '新业务亏损合同（LC）——非PAA'), get_val(cy, '新业务未来现金流入现值'), get_val(cy, 'CSM摊销')
-
+            def get_val(y, kw):
+                res = df_co[(df_co['报告年份'].astype(str) == str(y)) & (df_co['字段名'] == kw)].drop_duplicates(subset=['公司', '报告年份', '字段名'])['(百万)人民币']
+                return res.sum() if not res.empty else 0
+                
+            nb_csm_cy = get_val(cy, '新业务CSM（集团口径）')
+            nb_csm_py = get_val(py, '新业务CSM（集团口径）')
+            lc_cy = get_val(cy, '新业务亏损合同（LC）——非PAA')
+            pv_in_cy = get_val(cy, '新业务未来现金流入现值')
+            amort_cy = get_val(cy, 'CSM摊销')
+            
             fmt_num = lambda x: "-" if pd.isna(x) or x == 0 else f"{x / div:.1f}"
             fmt_pct = lambda x: "-" if pd.isna(x) or x == 0 else f"{x:.0%}"
             
-            col_names.append(co)
-            r1.append(fmt_num(nb_csm_cy))
-            r2.append(fmt_pct((nb_csm_cy / nb_csm_py) - 1 if nb_csm_py != 0 else 0))
-            r3.append(fmt_num(lc_cy))
-            r4.append(fmt_num(pv_in_cy))
-            r5.append(fmt_pct((nb_csm_cy - lc_cy) / pv_in_cy if pv_in_cy != 0 else 0))
-            growth_ratio = nb_csm_cy / (-amort_cy) if amort_cy != 0 else 0
-            r6.append(f"{growth_ratio:.2f}" if growth_ratio != 0 else "-")
-        headers = [
-            "公司名称", 
-            f"新业务盈利合同(CSM)<br>({cy}年, {unit_str})", 
-            f"新业务CSM增长率<br>({cy_str}YE/{py_str}YE-1)", 
-            f"新业务亏损合同(LC)<br>({cy}年, {unit_str})", 
-            f"新业务未来现金流入现值<br>({cy}年, {unit_str})", 
-            f"新业务IFRS利润率<br>({cy}年)", 
-            f"新业务增长分析<br>(新业务CSM/CSM摊销)"
-        ]
-        
+            v1 = fmt_num(nb_csm_cy)
+            v2 = fmt_pct((nb_csm_cy / nb_csm_py) - 1) if nb_csm_py != 0 else "-"
+            v3 = fmt_num(lc_cy)
+            v4 = fmt_num(pv_in_cy)
+            v5 = fmt_pct((nb_csm_cy - lc_cy) / pv_in_cy) if pv_in_cy != 0 else "-"
+            
+            # 指标6改为百分比显示
+            gr = nb_csm_cy / (-amort_cy) if amort_cy != 0 else 0
+            v6 = fmt_pct(gr) if gr != 0 else "-"
+            
+            col_data[co] = [v1, v2, v3, v4, v5, v6]
+            
         current_hl = str(highlight_co).strip()
-        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px;'>"
-        html += "<tr style='background-color: #00338D; color: white; font-size: 13px; text-align: center; font-weight: bold;'>"
-        for idx, h in enumerate(headers):
-            is_col_hl = (idx > 0 and str(col_names[idx-1]).strip() == current_hl) if idx <= len(col_names) else False
-            b_bottom = "border-bottom: none;" if is_col_hl else "border-bottom: 1.5px solid white;"
-            html += f"<th style='padding: 12px 8px; { 'text-align: left;' if idx == 0 else 'text-align: center;' } border-left: 1.5px solid white; border-right: 1.5px solid white; border-top: 1.5px solid white; {b_bottom}'>{h}</th>"
+        # 调整了表格的字号 (12px) 和 单元格间距 (padding: 6px 4px)，使整体更加紧凑
+        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 12px; margin-bottom: 15px;'>"
+        
+        # 表头行 (第一行: 公司名称)
+        html += "<tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'>"
+        html += "<th style='padding: 6px 4px; border: 1px solid #EAEAEA; width: 22%; text-align: left;'>分析指标</th>"
+        for co in cos:
+            is_hl = (co == current_hl)
+            bg_c = "#001A4D" if is_hl else "#00338D" # 如果高亮列，表头颜色稍微加深
+            html += f"<th style='padding: 6px 4px; background-color: {bg_c}; border: 1px solid #EAEAEA;'>{co}</th>"
         html += "</tr>"
         
-        for i, co in enumerate(col_names):
-            row_vals = [r1[i], r2[i], r3[i], r4[i], r5[i], r6[i]]
-            is_hl = (str(co).strip() == current_hl)
-            bg = "rgba(0, 51, 141, 0.04)" if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
+        # 数据行 (指标行)
+        for i, metric in enumerate(metrics):
+            bg_row = "white" if i % 2 == 0 else "#F9F9F9"
+            html += f"<tr style='background-color: {bg_row};'>"
+            # 首列指标名
+            html += f"<td style='padding: 6px 4px; text-align: left; font-weight: bold; color: #333333; border: 1px solid #EAEAEA;'>{metric}</td>"
+            # 填入各公司该指标的数据
+            for co in cos:
+                val = col_data[co][i]
+                is_hl = (co == current_hl)
+                
+                # 整列高亮的视觉处理
+                cell_bg = "rgba(0, 51, 141, 0.08)" if is_hl else "transparent"
+                fw = "bold" if is_hl else "normal"
+                fc = "#00338D" if is_hl else "#444444"
+                
+                html += f"<td style='padding: 6px 4px; text-align: center; background-color: {cell_bg}; font-weight: {fw}; color: {fc}; border: 1px solid #EAEAEA;'>{val}</td>"
+            html += "</tr>"
             
-            base = f"background-color: {bg}; padding: 12px 8px; font-size: 14px; " + ("border-top: 2.5px solid #00338D; border-bottom: 1.5px solid #00338D; font-weight: bold; box-shadow: 0px 4px 8px rgba(0,51,141,0.08);" if is_hl else "border: 1.5px solid #EAEAEA;")
-            s_first = base + f"text-align: left; color: #333333; { 'border-left: 1.5px solid #00338D;' if is_hl else '' }"
-            s_mid = base + f"text-align: center; { 'color: #00338D; border-left: none; border-right: none;' if is_hl else 'color: #444444;' }"
-            s_last = base + f"text-align: center; { 'color: #00338D; border-right: 1.5px solid #00338D; border-left: none;' if is_hl else 'color: #444444;' }"
-            
-            html += f"<tr><td style='{s_first}'>{co}</td>" + "".join([f"<td style='{s_last if idx==len(row_vals)-1 else s_mid}'>{v}</td>" for idx, v in enumerate(row_vals)]) + "</tr>"
-            
-        return html + "</table>"
+        html += "</table>"
+        return html
     # ==========================================
     # 🚀 渲染展示区 (按大纲局部刷新渲染)
     # ==========================================
@@ -1844,12 +1989,13 @@ def show_step_7_content():
     def render_section_1_part1(print_mode):
         st.write("---")
         st.markdown("<h2 style='color:#00338D; border-bottom: 1.5px solid #00338D; padding-bottom: 8px;'>1. 关键年报数据</h2>", unsafe_allow_html=True) 
-        # 关键数据概览
-        st.markdown("<h3 style='color:#00338D; font-size:16px; margin-top:20px;'>关键数据概览</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color:#00338D; font-size:16px; margin-top:20px; margin-bottom:10px;'>关键数据概览</h3>", unsafe_allow_html=True)
         nt_tbl = "资料来源：各公司公开披露财务报表"
-        html_table_code = create_financial_summary_table(df_filtered, selected_cos)
+        current_hl = highlight_co if highlight_co else "无"
+        html_table_code = create_financial_summary_table(df_filtered, selected_cos, current_hl)
         if html_table_code:
             st.markdown(html_table_code, unsafe_allow_html=True)
+            
         display_bottom_note(nt_tbl)
         st.markdown("---")
         
@@ -1954,46 +2100,37 @@ def show_step_7_content():
         with c3: ui_prof_bw = st.slider("利润柱子宽度", 0.2, 0.8, 0.4, key="prof_bw")
         with c4: ui_prof_co = st.slider("利润公司字号", 10, 20, 14, key="prof_co")
 
+        # 🌟 强力抓取全局高亮
+        current_hl = highlight_co if highlight_co else "无"
+
         for year_val, mod_id in [(latest_year, "prof_2025"), (prev_year, "prof_2024")]:
             an, nt = display_notes(mod_id, df_filtered, "保险利润", False)
-            
-            # 🌟 强力修复1：直接捕捉全局 highlight_co
-            current_hl = highlight_co if highlight_co else "无"
-            
-            fig_p, contrib_p = create_profit_composition_chart(
-                df_filtered, selected_cos, year_val, ui_prof_lab, ui_prof_sz, ui_prof_bw, ui_prof_co, current_hl
-            )
+            fig_p, contrib_p = create_profit_composition_chart(df_filtered, selected_cos, year_val, ui_prof_lab, ui_prof_sz, ui_prof_bw, ui_prof_co, current_hl)
             
             if fig_p:
                 st.write(f"### 利润表现 - {year_val}年保险利润构成")
                 
-                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px;'>"
-                
-                # 表头
-                html += "<tr style='background-color: #00338D; color: white; font-size: 13px; text-align: center; font-weight: bold;'>"
-                html += "<th style='padding: 12px 8px; text-align: left; border: 1px solid white;'>项目</th>"
+                # 🌟 极致精巧的 HTML 小表格：font-size 降为 11px，padding 压到 4px
+                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 11px;'>"
+                html += "<tr style='background-color: #00338D; color: white; font-size: 12px; text-align: center; font-weight: bold;'>"
+                html += "<th style='padding: 6px 4px; text-align: left; border: 1px solid white;'>项目</th>"
                 for co in contrib_p.columns:
-                    html += f"<th style='padding: 12px 8px; text-align: center; border: 1px solid white;'>{co}</th>"
-                html += "</tr>"
-                
-                # 数据行
-                html += "<tr>"
-                html += "<td style='padding: 12px 8px; text-align: left; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>合同服务边际释放的贡献</td>"
+                    html += f"<th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>{co}</th>"
+                html += "</tr><tr>"
+                html += "<td style='padding: 4px 4px; text-align: left; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>合同服务边际释放的贡献</td>"
                 
                 for co in contrib_p.columns:
                     val = contrib_p.loc["合同服务边际释放的贡献", co]
                     val_str = f"{val:.0f}%" if pd.notna(val) else "-"
-                    
-                    # 🌟 强力修复2：加上 .strip() 彻底抹杀多余空格，确保绝对匹配！
                     is_hl = (str(co).strip() == str(current_hl).strip())
                     
+                    # 🌟 蓝框变细：线条改为 1.2px，移除沉重的阴影，整体感觉更轻盈
                     bg = "rgba(0, 51, 141, 0.05)" if is_hl else "white"
-                    border = "1.5px solid #00338D" if is_hl else "1px solid #EAEAEA"
+                    border = "1.2px solid #00338D" if is_hl else "1px solid #EAEAEA"
                     color = "#00338D" if is_hl else "#444444"
                     weight = "bold" if is_hl else "normal"
-                    shadow = "box-shadow: 0px 4px 8px rgba(0,51,141,0.15);" if is_hl else ""
                     
-                    html += f"<td style='padding: 12px 8px; text-align: center; background-color: {bg}; border: {border}; color: {color}; font-weight: {weight}; {shadow}'>{val_str}</td>"
+                    html += f"<td style='padding: 4px 4px; text-align: center; background-color: {bg}; border: {border}; color: {color}; font-weight: {weight};'>{val_str}</td>"
                 html += "</tr></table>"
                 
                 st.markdown(html, unsafe_allow_html=True)
@@ -2198,11 +2335,14 @@ def show_step_7_content():
         with ui_n2: psz_ast_t = st.slider("趋势图字号", 8, 24, 11, key="n_sz")
         with ui_n3: gap_ast_t = st.slider("趋势图柱距", 0.1, 0.8, 0.3, key="n_gap")
 
+        # 🌟 抓取全局高亮变量
+        current_hl = highlight_co if highlight_co else "无"
+
         df_asset_raw = df_filtered[df_filtered['字段名'].isin(['期末股东权益', '总资产']) & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
         df_asset_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
         for field, title, m_id in [('期末股东权益', '规模趋势分析 (1/2) - 净资产变动趋势', "equity_trend"), ('总资产', '规模趋势分析 (2/2) - 总资产变动趋势', "asset_trend")]:
             an, nt = display_notes(m_id, df_asset_raw, field, False)
-            fig_ast = create_asset_trend_chart(df_asset_raw, field, title, lab_ast_t, psz_ast_t, gap_ast_t)
+            fig_ast = create_asset_trend_chart(df_asset_raw, field, title, lab_ast_t, psz_ast_t, gap_ast_t, current_hl)
             if fig_ast:
                 show_chart(fig_ast, print_mode)
             display_bottom_note(nt)
@@ -2236,11 +2376,15 @@ def show_step_7_content():
         with ui_csm1: lab_csm_t = st.toggle("显示CSM标签", True, key="c_l")
         with ui_csm2: psz_csm_t = st.slider("CSM趋势字号", 8, 24, 12, key="c_s")
         with ui_csm3: gap_csm_t = st.slider("CSM趋势柱宽", 0.1, 0.8, 0.35, key="c_g")
+        
+        # 🌟 抓取全局高亮变量
+        current_hl = highlight_co if highlight_co else "无"
+        
         df_csm_raw = df_filtered[(df_filtered['字段名'] == 'CSM期末余额') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
         df_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)       
         an1, nt1 = display_notes("csm_bal", df_csm_raw, "CSM期末余额", False)
         
-        fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', '', lab_csm_t, psz_csm_t, gap_csm_t)
+        fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', '', lab_csm_t, psz_csm_t, gap_csm_t, current_hl)
         show_chart(fig_csm, print_mode)
         display_bottom_note(nt1)
 
@@ -2249,7 +2393,8 @@ def show_step_7_content():
         with ui_r1: lab_rat_t = st.toggle("显示占比百分比标签", True, key="r_lbl") 
         with ui_r2: gap_rat_t = st.slider("占比图柱距调节 (越小柱子越粗)", 0.1, 0.8, 0.3, key="r_g")    
         an2, nt2 = display_notes("csm_ratio")
-        fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, lab_rat_t, gap_rat_t)
+        
+        fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, lab_rat_t, gap_rat_t, current_hl)
         if fig_rat:
             show_chart(fig_rat, print_mode)
         display_bottom_note(nt2)
@@ -2306,11 +2451,16 @@ def show_step_7_content():
         with ui_ct1: lab_csm_trans = st.toggle("显示过渡期数据标签", True, key="ct_l")
         with ui_ct2: bw_csm_trans = st.slider("过渡期柱宽", 0.1, 0.8, 0.4, key="ct_w")
         an, nt = display_notes("csm_trans")
-        fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, lab_csm_trans, bw_csm_trans)
+        
+        # 🌟 强防断连提取
+        current_hl = highlight_co if highlight_co else "无"
+        
+        fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, lab_csm_trans, bw_csm_trans, current_hl)
         if fig_csm_trans:
             show_chart(fig_csm_trans, print_mode)
         display_bottom_note(nt)
 
+        # ----------------------------------------------------
         ui_cc1, ui_cc2, ui_cc3 = st.columns(3)
         with ui_cc1: lab_csm_c = st.toggle("摊销前占比标签", True, key="cc_l")
         with ui_cc2: bw_csm_c = st.slider("摊销前柱宽", 0.1, 1.0, 0.5, key="cc_w")
@@ -2318,10 +2468,13 @@ def show_step_7_content():
 
         for y, m_id in [(latest_year, "csm_comp_lat"), (prev_year, "csm_comp_pre")]:
             an, nt = display_notes(m_id)
-            fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, lab_csm_c, sz_csm_c, bw_csm_c)
+            current_hl = highlight_co if highlight_co else "无"
+            
+            fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, lab_csm_c, sz_csm_c, bw_csm_c, current_hl)
             if fig_csm_comp:
                 show_chart(fig_csm_comp, print_mode)
             display_bottom_note(nt)
+            
             
         ui_cr1, ui_cr2 = st.columns(2)
         with ui_cr1: lab_csm_r = st.toggle("比率折线显示数值", True, key="cr_l")
@@ -2349,6 +2502,7 @@ def show_step_7_content():
             show_chart(fig_r2, print_mode)
         display_bottom_note(nt)
 
+# (在 render_section_4 净资产对比部分)
         st.markdown("---")
         ui_ce1, ui_ce2, ui_ce3 = st.columns(3)
         with ui_ce1: lab_csm_e = st.toggle("净资产对比显示标签", True, key="ce_l")
@@ -2356,14 +2510,15 @@ def show_step_7_content():
         with ui_ce3: sz_csm_e = st.slider("净资产对比字号", 8, 20, 11, key="ce_s")
 
         an, nt = display_notes("csm_equity")
-        fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, lab_csm_e, sz_csm_e, bw_csm_e, 16, 20)
+        
+        # 🌟 获取全局高亮
+        current_hl = highlight_co if highlight_co else "无"
+        
+        fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, lab_csm_e, sz_csm_e, bw_csm_e, 16, 20, current_hl)
         if fig_csm_eq:
             show_chart(fig_csm_eq, print_mode)
         display_bottom_note(nt)
         # 📍 [预留位置：CSM补充图表]
-
-    if main_nav == "1. 关键年报数据" and sub_nav in ["全部", "CSM相关分析"]:
-        render_section_4(print_mode)
 
     # ---------------- Section 5 ----------------
     @st.fragment
@@ -2375,10 +2530,14 @@ def show_step_7_content():
         with ui_nb2: psz_nb_c = st.slider("盈利合同涨幅字号", 8, 24, 12, key="nbc_s")
         with ui_nb3: gap_nb_c = st.slider("盈利合同柱间距", 0.1, 0.8, 0.3, key="nbc_g")
 
+        # 🌟 获取全局高亮
+        current_hl = highlight_co if highlight_co else "无"
+
         df_nb_csm_raw = df_filtered[(df_filtered['字段名'] == '新业务CSM（集团口径）') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
         df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
         an, nt = display_notes("nb_csm", df_nb_csm_raw, "新业务CSM（集团口径）", False)
-        fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', '新业务价值分析 (1/5) - 盈利合同（CSM）对比', lab_nb_c, psz_nb_c, gap_nb_c)
+        
+        fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', '新业务价值分析 (1/5) - 盈利合同（CSM）对比', lab_nb_c, psz_nb_c, gap_nb_c, current_hl)
         show_chart(fig_nb_csm, print_mode)
         display_bottom_note(nt)
         
@@ -2388,7 +2547,7 @@ def show_step_7_content():
         with ui_ns3: sz_nb_s = st.slider("价值结构字号", 8, 20, 12, key="nbs_s")
 
         an, nt = display_notes("nb_struct")
-        fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, lab_nb_s, sz_nb_s, bw_nb_s, 14)
+        fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, lab_nb_s, sz_nb_s, bw_nb_s, 14, current_hl)
         if fig_csm_nb:
             show_chart(fig_csm_nb, print_mode)
             show_chart(fig_lc, print_mode)
@@ -2425,18 +2584,29 @@ def show_step_7_content():
         with ui_e3: sz_exp = st.slider("费用字号", 8, 20, 10, key="exp_s")        
         
         an, nt = display_notes("exp_struct")
-        fig_exp, stats = create_expense_breakdown_chart(df_filtered, selected_cos, lab_exp, sz_exp, bw_exp, 15)
+        
+        # 🌟 获取全局高亮
+        current_hl = highlight_co if highlight_co else "无"
+        
+        fig_exp, stats = create_expense_breakdown_chart(df_filtered, selected_cos, lab_exp, sz_exp, bw_exp, 15, current_hl)
         p_acq, p_maint, p_non = stats        
         
+        # 🌟 升级版的极简财务级平均表
         st.markdown(f"""
-        <div style="background-color: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 10px;">
-            <p style="margin: 0; font-size: 14px; color: #333;">
-                <strong>全行业平均占比：</strong> 
-                <span style='color:rgb(30,73,226)'> 获取费用 {p_acq:.0f}%</span> &nbsp;|&nbsp; 
-                <span style='color:rgb(118,210,255)'> 维持费用 {p_maint:.0f}%</span> &nbsp;|&nbsp; 
-                <span style='color:rgb(114,19,234)'> 非履约费用 {p_non:.0f}%</span>
-            </p>
-        </div>
+        <table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 15px; font-size: 11px;'>
+            <tr style='background-color: #00338D; color: white; font-size: 12px; text-align: center; font-weight: bold;'>
+                <th style='padding: 6px 4px; text-align: left; border: 1px solid white;'>项目</th>
+                <th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>获取费用均值</th>
+                <th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>维持费用均值</th>
+                <th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>非履约费用均值</th>
+            </tr>
+            <tr>
+                <td style='padding: 4px 4px; text-align: left; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>全行业占比</td>
+                <td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: rgb(30, 73, 226); font-weight: bold;'>{p_acq:.0f}%</td>
+                <td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: rgb(118, 210, 255); font-weight: bold;'>{p_maint:.0f}%</td>
+                <td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: rgb(114, 19, 234); font-weight: bold;'>{p_non:.0f}%</td>
+            </tr>
+        </table>
         """, unsafe_allow_html=True)        
         
         if fig_exp:
@@ -2517,24 +2687,29 @@ def show_step_7_content():
         render_confidence_level_section(print_mode)
 
 
+
     # ---------------- Section 7 ----------------
     @st.fragment
     def render_financial_report_section(print_mode):
         st.markdown("---")
         st.markdown("<h4 style='color:#00338D; margin-top:0px; margin-bottom:15px; text-align:left;'>业绩明细表相关分析</h4>", unsafe_allow_html=True)
         an, nt = display_notes("report_detail") 
-        
-        # 安全捕获全局高亮
         current_hl = highlight_co if highlight_co else "无"
-        
-        # 🌟 动态调用，传入除数、单位、高亮公司
-        html_code = create_financial_report_table(df_filtered, latest_year, selected_cos, divisor, unit_label, current_hl)
-        
-        if html_code:
-            st.markdown(html_code, unsafe_allow_html=True)
-            
+        # 动态计算两年的年份
+        try: cy_int = int(latest_year)
+        except: cy_int = 2024 
+        py_int = cy_int - 1
+        # --- 渲染：最新年度表 ---
+        st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度 分析表</div>", unsafe_allow_html=True)
+        html_cy = create_financial_report_table(df_filtered, cy_int, selected_cos, divisor, unit_label, current_hl)
+        if html_cy:
+            st.markdown(html_cy, unsafe_allow_html=True)
+        # --- 渲染：上一年度表 ---
+        st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-top: 15px; margin-bottom: 5px;'>▪ {py_int}年度 分析表</div>", unsafe_allow_html=True)
+        html_py = create_financial_report_table(df_filtered, py_int, selected_cos, divisor, unit_label, current_hl)
+        if html_py:
+            st.markdown(html_py, unsafe_allow_html=True)
         display_bottom_note(nt)
-
     if main_nav == "4. 附录" and sub_nav in ["全部", "业绩明细表"]:
         render_financial_report_section(print_mode)
 
@@ -2542,18 +2717,28 @@ def show_step_7_content():
     @st.fragment
     def render_nbv_summary_section(print_mode):
         st.markdown("---")
-        # 🌟 换成左上角、小一点、清爽的标题
         st.markdown("<h4 style='color:#00338D; margin-top:0px; margin-bottom:15px; text-align:left;'>新业务价值相关分析</h4>", unsafe_allow_html=True)
         
-        # 补充表下说明文本，动态注入 unit_label
         nt_nbv = f"资料来源：各公司公开披露财务报表；单位：{unit_label}人民币（各率值指标除外）。"
         current_hl = highlight_co if highlight_co else "无"
         
-        # 🌟 动态传入除数 divisor 和单位 unit_label
-        html_table_code = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, current_hl)
+        # 计算两年的时间点（容错处理，防止latest_year不是整数）
+        try: cy_int = int(latest_year)
+        except: cy_int = 2024 
+        py_int = cy_int - 1
+        ppy_int = cy_int - 2
         
-        if html_table_code:
-            st.markdown(html_table_code, unsafe_allow_html=True)
+        # --- 渲染：最新年度表 ---
+        st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度 分析表</div>", unsafe_allow_html=True)
+        html_cy = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, cy_int, py_int, current_hl)
+        if html_cy:
+            st.markdown(html_cy, unsafe_allow_html=True)
+            
+        # --- 渲染：上一年度表 ---
+        st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {py_int}年度 分析表</div>", unsafe_allow_html=True)
+        html_py = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, py_int, ppy_int, current_hl)
+        if html_py:
+            st.markdown(html_py, unsafe_allow_html=True)
             
         display_bottom_note(nt_nbv)
         # 移除底部的虚线以保持清爽 (如果最后不再需要隔断)
@@ -2596,9 +2781,12 @@ def show_step_7_content():
                 elif m_id == "summary_table":
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else '关键年报数据')
-                    html_table_code = create_financial_summary_table(df_filtered, selected_cos)
+                    
+                    current_hl = highlight_co if highlight_co else "无"
+                    
+                    html_table_code = create_financial_summary_table(df_filtered, selected_cos, current_hl)
                     if html_table_code:
-                        if highlight_co and highlight_co != "无":
+                        if current_hl != "无":
                             st.markdown('<div class="highlight-blue-box">', unsafe_allow_html=True)
                             st.markdown(html_table_code, unsafe_allow_html=True)
                             st.markdown('</div>', unsafe_allow_html=True)
@@ -2662,40 +2850,39 @@ def show_step_7_content():
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else f'利润表现 - {year_val}年保险利润构成')
                     current_hl = highlight_co if highlight_co else "无"
-                    fig_p, contrib_p = create_profit_composition_chart(
-                        df_filtered, selected_cos, year_val, False, 11, 0.4, 14, current_hl
-                    )
+                    fig_p, contrib_p = create_profit_composition_chart(df_filtered, selected_cos, year_val, False, 11, 0.4, 12, current_hl)
+                    
                     if fig_p:
-                        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px;'>"
-
-                        html += "<tr style='background-color: #00338D; color: white; font-size: 13px; text-align: center; font-weight: bold;'>"
-                        html += "<th style='padding: 12px 8px; text-align: left; border: 1px solid white;'>项目</th>"
+                        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 11px;'>"
+                        html += "<tr style='background-color: #00338D; color: white; font-size: 12px; text-align: center; font-weight: bold;'>"
+                        html += "<th style='padding: 6px 4px; text-align: left; border: 1px solid white;'>项目</th>"
                         for co in contrib_p.columns:
                             is_hl = (str(co).strip() == str(current_hl).strip())
                             if is_hl:
-                                html += f"<th style='padding: 12px 8px; text-align: center; background-color: #002266; border-top: 1.5px solid #00338D; border-left: 1.5px solid #00338D; border-right: 1.5px solid #00338D; border-bottom: none;'>{co}</th>"
+                                # 🌟 这里把 1.5px 改为 1.0px，蓝框会细很多
+                                html += f"<th style='padding: 6px 4px; text-align: center; background-color: #002266; border-top: 1.0px solid #00338D; border-left: 1.0px solid #00338D; border-right: 1.0px solid #00338D; border-bottom: none;'>{co}</th>"
                             else:
-                                html += f"<th style='padding: 12px 8px; text-align: center; border: 1px solid white;'>{co}</th>"
-                        html += "</tr>"
-                        html += "<tr>"
-                        html += "<td style='padding: 12px 8px; text-align: left; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>合同服务边际释放的贡献</td>"
+                                html += f"<th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>{co}</th>"
+                        html += "</tr><tr>"
+                        html += "<td style='padding: 4px 4px; text-align: left; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>合同服务边际释放的贡献</td>"
                         
                         for co in contrib_p.columns:
                             val = contrib_p.loc["合同服务边际释放的贡献", co]
                             val_str = f"{val:.0f}%" if pd.notna(val) else "-"
-                            
-                            # 同样严格 .strip() 匹配
                             is_hl = (str(co).strip() == str(current_hl).strip())
+                            
                             if is_hl:
-                                # 高亮数据格：浅蓝底色 + 下左右边框 + 字体加粗变蓝
-                                html += f"<td style='padding: 12px 8px; text-align: center; background-color: rgba(0, 51, 141, 0.05); border-left: 1.5px solid #00338D; border-right: 1.5px solid #00338D; border-bottom: 1.5px solid #00338D; border-top: none; color: #00338D; font-weight: bold;'>{val_str}</td>"
+                                bg = "rgba(0, 51, 141, 0.05)"
+                                # 🌟 核心：1.0px 边框比 1.5px 细得多，且去掉了阴影
+                                border = "border-left: 1.0px solid #00338D; border-right: 1.0px solid #00338D; border-bottom: 1.0px solid #00338D; border-top: none;"
+                                html += f"<td style='padding: 4px 4px; text-align: center; background-color: {bg}; {border} color: #00338D; font-weight: bold;'>{val_str}</td>"
                             else:
-                                html += f"<td style='padding: 12px 8px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: #444444;'>{val_str}</td>"
+                                html += f"<td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: #444444;'>{val_str}</td>"
                         html += "</tr></table>"
                         st.markdown(html, unsafe_allow_html=True)
                         show_chart(fig_p, print_mode)
-                        
                     display_bottom_note(nt)
+                    
 
                 elif m_id in ["inv_return", "uw_profit", "inv_profit"]:
                     field_map = {"inv_return": "净投资回报", "uw_profit": "承保财务净损益", "inv_profit": "投资利润"}
@@ -2790,7 +2977,6 @@ def show_step_7_content():
 
 
 
-
                 elif m_id in ["equity_trend", "asset_trend"]:
                     field_map = {"equity_trend": "期末股东权益", "asset_trend": "总资产"}
                     field = field_map[m_id]
@@ -2798,7 +2984,9 @@ def show_step_7_content():
                     df_asset_raw = df_filtered[df_filtered['字段名'].isin(['期末股东权益', '总资产']) & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
                     df_asset_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
                     an, nt = display_notes(m_id)
-                    fig_ast = create_asset_trend_chart(df_asset_raw, field, current_title if current_title else title_fallback, True, 11, 0.3)
+                    current_hl = highlight_co if highlight_co else "无"
+                    
+                    fig_ast = create_asset_trend_chart(df_asset_raw, field, current_title if current_title else title_fallback, True, 11, 0.3, current_hl)
                     if fig_ast: show_chart(fig_ast, print_mode)
                     display_bottom_note(nt)
 
@@ -2806,14 +2994,18 @@ def show_step_7_content():
                     df_csm_raw = df_filtered[(df_filtered['字段名'] == 'CSM期末余额') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
                     df_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)       
                     an1, nt1 = display_notes(m_id)
-                    fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', current_title if current_title else 'CSM核心分析 (1/7) - CSM余额变动趋势', True, 12, 0.35)
+                    current_hl = highlight_co if highlight_co else "无"
+                    
+                    fig_csm = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', current_title if current_title else 'CSM核心分析 (1/7) - CSM余额变动趋势', True, 12, 0.35, current_hl)
                     show_chart(fig_csm, print_mode)
                     display_bottom_note(nt1)
 
                 elif m_id == "csm_ratio":
                     an2, nt2 = display_notes(m_id)
                     st.subheader(current_title if current_title else 'CSM核心分析 (2/7) - CSM期初余额占比分析')
-                    fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, True, 0.3)
+                    current_hl = highlight_co if highlight_co else "无"
+                    
+                    fig_rat = create_csm_ratio_chart(df_filtered, selected_cos, True, 0.3, current_hl)
                     if fig_rat: show_chart(fig_rat, print_mode)
                     display_bottom_note(nt2)
 
@@ -2848,7 +3040,8 @@ def show_step_7_content():
                 elif m_id == "csm_trans":
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else 'CSM核心分析 (4/7) - 按过渡期计量方法拆分CSM')
-                    fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, True, 0.4)
+                    current_hl = highlight_co if highlight_co else "无"
+                    fig_csm_trans = create_csm_transition_chart(df_filtered, selected_cos, True, 0.4, current_hl)
                     if fig_csm_trans: show_chart(fig_csm_trans, print_mode)
                     display_bottom_note(nt)
 
@@ -2856,7 +3049,8 @@ def show_step_7_content():
                     y = latest_year if m_id == "csm_comp_lat" else prev_year
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else f'CSM核心分析 (5/7) - {y}年未到期责任负债中CSM占比')
-                    fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, True, 11, 0.5)
+                    current_hl = highlight_co if highlight_co else "无"
+                    fig_csm_comp = create_csm_composition_chart(df_filtered, selected_cos, y, True, 11, 0.5, current_hl)
                     if fig_csm_comp: show_chart(fig_csm_comp, print_mode)
                     display_bottom_note(nt)
 
@@ -2881,22 +3075,25 @@ def show_step_7_content():
                 elif m_id == "csm_equity":
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else 'CSM核心分析(7/7) - CSM与净资产综合对比')
-                    fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, True, 11, 0.53, 16, 20)
+                    current_hl = highlight_co if highlight_co else "无"
+                    fig_csm_eq = create_csm_equity_analysis(df_filtered, selected_cos, True, 11, 0.53, 12, 20, current_hl)
                     if fig_csm_eq: show_chart(fig_csm_eq, print_mode)
-                    display_bottom_note(nt)   
+                    display_bottom_note(nt)    
 
                 elif m_id == "nb_csm":
                     df_nb_csm_raw = df_filtered[(df_filtered['字段名'] == '新业务CSM（集团口径）') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
                     df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
                     an, nt = display_notes(m_id)
-                    fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', current_title if current_title else '新业务价值分析 (1/5) - 盈利合同（CSM）对比', True, 12, 0.3)
+                    current_hl = highlight_co if highlight_co else "无"
+                    fig_nb_csm = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', current_title if current_title else '新业务价值分析 (1/5) - 盈利合同（CSM）对比', True, 12, 0.3, current_hl)
                     show_chart(fig_nb_csm, print_mode)
                     display_bottom_note(nt)
                 
                 elif m_id == "nb_struct":
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else '新业务价值结构拆解')
-                    fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, True, 12, 0.6, 14)
+                    current_hl = highlight_co if highlight_co else "无"
+                    fig_csm_nb, fig_lc, fig_ra = create_new_business_metrics_charts(df_filtered, selected_cos, True, 12, 0.6, 12, current_hl)
                     if fig_csm_nb:
                         show_chart(fig_csm_nb, print_mode)
                         show_chart(fig_lc, print_mode)
@@ -2915,47 +3112,51 @@ def show_step_7_content():
                 elif m_id == "exp_struct":
                     an, nt = display_notes(m_id)
                     st.subheader(current_title if current_title else '业务及管理费（新准则分类） - 费用结构')
-                    fig_exp, stats = create_expense_breakdown_chart(df_filtered, selected_cos, True, 10, 0.5, 15)
-                    p_acq, p_maint, p_non = stats       
+                    current_hl = highlight_co if highlight_co else "无"
+                    fig_exp, stats = create_expense_breakdown_chart(df_filtered, selected_cos, True, 10, 0.5, 12, current_hl)
+                    p_acq, p_maint, p_non = stats      
                     st.markdown(f"""
-                    <div style="background-color: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 10px;">
-                        <p style="margin: 0; font-size: 14px; color: #333;">
-                            <strong>全行业平均占比：</strong> 
-                            <span style='color:rgb(30,73,226)'>、 获取费用 {p_acq:.0f}%</span> &nbsp;|&nbsp; 
-                            <span style='color:rgb(118,210,255)'> 维持费用 {p_maint:.0f}%</span> &nbsp;|&nbsp; 
-                            <span style='color:rgb(114,19,234)'> 非履约费用 {p_non:.0f}%</span>
-                        </p>
-                    </div>
+                    <table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 15px; font-size: 11px;'>
+                        <tr style='background-color: #00338D; color: white; font-size: 12px; text-align: center; font-weight: bold;'>
+                            <th style='padding: 6px 4px; text-align: left; border: 1px solid white;'>项目</th>
+                            <th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>获取费用均值</th>
+                            <th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>维持费用均值</th>
+                            <th style='padding: 6px 4px; text-align: center; border: 1px solid white;'>非履约费用均值</th>
+                        </tr>
+                        <tr>
+                            <td style='padding: 4px 4px; text-align: left; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>全行业占比</td>
+                            <td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: rgb(30, 73, 226); font-weight: bold;'>{p_acq:.0f}%</td>
+                            <td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: rgb(118, 210, 255); font-weight: bold;'>{p_maint:.0f}%</td>
+                            <td style='padding: 4px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA; color: rgb(114, 19, 234); font-weight: bold;'>{p_non:.0f}%</td>
+                        </tr>
+                    </table>
                     """, unsafe_allow_html=True)        
+                    
                     if fig_exp: show_chart(fig_exp, print_mode)
                     display_bottom_note(nt)
+                    
 
                 elif m_id == "discount_rate":  # 👈 确保这里和 Excel 里的 ID 对应上
                     an, nt = display_notes(m_id)
                     st.markdown(f"<h4 style='color:#00338D; margin-top:0px; margin-bottom:15px; text-align:left;'>{current_title if current_title else '关键披露信息 - 折现率假设'}</h4>", unsafe_allow_html=True)
                     
                     current_hl = highlight_co if highlight_co else "无"
-                    
-                    # ⚠️ 注意：折现率表格不需要 divisor (除数) 和 unit_label (单位)
                     html_code = create_discount_rate_table(df_filtered, latest_year, selected_cos, current_hl)
-                    
                     if html_code:
                         st.markdown(html_code, unsafe_allow_html=True)
-                        
                     display_bottom_note(nt)
+                    
 
                 elif m_id == "confidence_level":  # 👈 严格对齐缩进
                     an, nt = display_notes(m_id)
                     st.markdown(f"<h4 style='color:#00338D; margin-top:0px; margin-bottom:15px; text-align:left;'>{current_title if current_title else '关键披露信息 - 非金融风险调整置信水平'}</h4>", unsafe_allow_html=True)
                     
                     current_hl = highlight_co if highlight_co else "无"
-                    
                     html_code = create_confidence_level_table(df_filtered, latest_year, selected_cos, current_hl)
-                    
                     if html_code:
                         st.markdown(html_code, unsafe_allow_html=True)
-                        
                     display_bottom_note(nt)
+
 
 
                 elif m_id == "six_dim":
@@ -2973,24 +3174,47 @@ def show_step_7_content():
 
 
 
-                elif m_id == "report_detail":  # 👈 确保这里的 ID 跟你字典里的配置对得上
+                elif m_id == "report_detail":  
                     an, nt = display_notes(m_id)
                     st.markdown(f"<h4 style='color:#00338D; margin-top:0px; margin-bottom:15px; text-align:left;'>{current_title if current_title else '业绩明细表相关分析'}</h4>", unsafe_allow_html=True)
                     current_hl = highlight_co if highlight_co else "无"
-                    html_code = create_financial_report_table(df_filtered, latest_year, selected_cos, divisor, unit_label, current_hl)
-                    if html_code:
-                        st.markdown(html_code, unsafe_allow_html=True)
-                    display_bottom_note(nt)
                     
+                    # 动态计算年份
+                    try: cy_int = int(latest_year)
+                    except: cy_int = 2024 
+                    py_int = cy_int - 1
+                    
+                    # --- PDF 打印：最新年度表 ---
+                    st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度 分析表</div>", unsafe_allow_html=True)
+                    html_cy = create_financial_report_table(df_filtered, cy_int, selected_cos, divisor, unit_label, current_hl)
+                    if html_cy:
+                        st.markdown(html_cy, unsafe_allow_html=True)
+
+                    # --- PDF 打印：上一年度表 ---
+                    st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-top: 15px; margin-bottom: 5px;'>▪ {py_int}年度 分析表</div>", unsafe_allow_html=True)
+                    html_py = create_financial_report_table(df_filtered, py_int, selected_cos, divisor, unit_label, current_hl)
+                    if html_py:
+                        st.markdown(html_py, unsafe_allow_html=True)
+                    display_bottom_note(nt)
                     
                 elif m_id == "nbv_table":
                     an_nbv, nt_nbv = display_notes(m_id)
                     st.markdown(f"<h4 style='color:#00338D; margin-top:0px; margin-bottom:15px; text-align:left;'>{current_title if current_title else '新业务价值相关分析'}</h4>", unsafe_allow_html=True)
+                    
                     current_hl = highlight_co if highlight_co else "无"
-                    html_table_code = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, current_hl)
-                    if html_table_code:
-                        st.markdown(html_table_code, unsafe_allow_html=True)
-                    display_bottom_note(nt_nbv)                 
+                    try: cy_int = int(latest_year)
+                    except: cy_int = 2024 
+                    py_int = cy_int - 1
+                    ppy_int = cy_int - 2
+                    st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度 分析表</div>", unsafe_allow_html=True)
+                    html_cy = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, cy_int, py_int, current_hl)
+                    if html_cy:
+                        st.markdown(html_cy, unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {py_int}年度 分析表</div>", unsafe_allow_html=True)
+                    html_py = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, py_int, ppy_int, current_hl)
+                    if html_py:
+                        st.markdown(html_py, unsafe_allow_html=True)    
+                    display_bottom_note(nt_nbv)              
                     
                 else:
                     # 如果在 Excel 里写了一个代码里还没配置 elif 的 ID，给个柔和的提示，防止程序崩溃
