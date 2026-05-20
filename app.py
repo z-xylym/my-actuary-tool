@@ -78,35 +78,35 @@ def show_step_7_content():
         <div class="nav-floating-sign" id="custom-nav-trigger">展开导航栏</div>
     """, unsafe_allow_html=True)
 
-    # --- 2. 注入 JavaScript 实现点击联动 (只在Step 7生效) ---
+    # --- 2. 注入 JavaScript 实现点击联动 (终极防拦截版) ---
     components.html(
         """
         <script>
-        // 使用 setInterval 循环查找，确保在云端较慢的网络下也能绑定成功
         let attempts = 0;
         let timer = setInterval(function() {
+            // 穿透 iframe 找到主页面
             const parentDoc = window.parent.document;
-            // 寻找我们注入的蓝色悬浮条
             const myTrigger = parentDoc.getElementById('custom-nav-trigger');
             
             if (myTrigger) {
-                // 如果找到了，就给它绑定点击事件
+                // 绑定点击事件
                 myTrigger.onclick = function() {
-                    // 寻找系统原生的侧边栏展开箭头
-                    let expandBtnWrapper = parentDoc.querySelector('[data-testid="collapsedControl"]');
-                    if (expandBtnWrapper) {
-                        let svgIcon = expandBtnWrapper.querySelector('svg') || expandBtnWrapper;
-                        svgIcon.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                    // 精准定位 Streamlit 原生的那个 [>>] 按钮
+                    const expandBtn = parentDoc.querySelector('[data-testid="collapsedControl"]');
+                    
+                    if (expandBtn) {
+                        // 放弃复杂的模拟鼠标事件，直接调用最底层的原生 click() 方法
+                        expandBtn.click(); 
+                    } else {
+                        console.log("未找到原生展开按钮");
                     }
                 };
-                clearInterval(timer); // 绑定成功后停止循环
+                clearInterval(timer); // 绑定成功后，停止定时器
             }
             
             attempts++;
-            if (attempts > 20) { 
-                clearInterval(timer); // 超过10秒还没找到就放弃，防止浪费资源
-            }
-        }, 500); // 每0.5秒检查一次
+            if (attempts > 20) clearInterval(timer); // 防止死循环，10秒没找到就放弃
+        }, 500);
         </script>
         """,
         height=0,
