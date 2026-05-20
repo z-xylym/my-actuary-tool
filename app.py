@@ -25,10 +25,123 @@ import numpy as np
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from plotly.subplots import make_subplots
-
+import streamlit.components.v1 as components  # 确保引入 components
 
 def show_step_7_content():
-    
+    # --- 1. 样式与 HTML 悬浮按钮 (只在Step 7注入) ---
+    st.markdown("""
+        <style>
+        /* 让侧边栏更美观 */
+        [data-testid="stSidebar"] {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-right: 1px solid #EAEAEA !important;
+            box-shadow: 2px 0px 15px rgba(0,0,0,0.08) !important;
+        }
+        
+        /* 💡 核心：悬浮按钮样式 */
+        .nav-floating-sign {
+            position: fixed;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 51, 141, 0.85); /* 半透明企业蓝 */
+            color: white;
+            padding: 20px 8px;
+            border-radius: 0 12px 12px 0;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            
+            /* z-index设为99：保证它在图表上方，但侧边栏展开(999999)时会被完美遮挡 */
+            z-index: 99; 
+            cursor: pointer; /* 🌟 鼠标放上去变成小手，提示可点击 */
+            box-shadow: 3px 3px 12px rgba(0,0,0,0.25);
+            transition: all 0.2s ease-in-out; /* 增加平滑动画 */
+        }
+        
+        /* 🌟 鼠标悬停时的动效：微微向右弹出，并加深颜色 */
+        .nav-floating-sign:hover {
+            background-color: rgba(0, 51, 141, 1);
+            padding-left: 15px; 
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        /* 打印时隐藏该按钮 */
+        @media print {
+            .nav-floating-sign, [data-testid="collapsedControl"] { display: none !important; }
+        }
+        </style>
+        
+        <!-- 给这个标签加一个专属 ID，方便 JS 找到它 -->
+        <div class="nav-floating-sign" id="custom-nav-trigger">展开导航栏</div>
+    """, unsafe_allow_html=True)
+
+    # --- 2. 注入 JavaScript 实现点击联动 (只在Step 7生效) ---
+    components.html(
+        """
+        <script>
+        // 延迟加载，确保页面的按钮都已经渲染完毕
+        setTimeout(function() {
+            const parent = window.parent.document;
+            const myTrigger = parent.getElementById('custom-nav-trigger');
+            
+            if(myTrigger) {
+                myTrigger.addEventListener('click', function() {
+                    // 找到 Streamlit 位于左上角那个原生的小箭头按钮 (collapsedControl)
+                    let expandBtnWrapper = parent.querySelector('[data-testid="collapsedControl"]');
+                    
+                    if (expandBtnWrapper) {
+                        // 模拟人的鼠标点击动作
+                        let svgIcon = expandBtnWrapper.querySelector('svg') || expandBtnWrapper;
+                        svgIcon.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+                    }
+                });
+            }
+        }, 800);
+        </script>
+        """,
+        height=0,
+        width=0
+    )
+
+    # --- 3. 侧边栏导航内容 ---
+    with st.sidebar:
+        st.markdown("<h3 style='color: #00338D; font-size: 18px;'>导航栏</h3>", unsafe_allow_html=True)
+        
+        # 注意这里加了 key="step7_main"，防止和其他页面的组件起冲突
+        main_nav = st.radio(
+            "选择大类",
+            ["1. 关键年报数据", "2. 关键披露信息", "3. 关键业绩指标", "4. 附录", "🖨️ 一键显示全部 (打印/导出专用)"],
+            index=0,
+            key="step7_main" 
+        )
+        
+        st.markdown("---")
+        
+        sub_nav = "全部"
+        if main_nav == "1. 关键年报数据":
+            sub_nav = st.radio("子类选择", ["全部", "总体利润贡献", "保险业务收入、费用及业绩", "保险业务收入构成分析","保险利润", "投资收益、承保财务损益及投资利润", "保险利润、投资利润变动趋势", "税前利润及税率", "净利润、其他综合收益及综合收益变动趋势", "IFRS9及资产负债", "其他综合收益", "净资产和总资产", "新业务相关"], key="step7_sub1")
+        elif main_nav == "2. 关键披露信息":
+            sub_nav = st.radio("子类选择", ["全部", "业务及管理费","折现率假设","非金融风险调整置信水平","合同服务边际摊销"], key="step7_sub2")
+        elif main_nav == "3. 关键业绩指标":
+            sub_nav = st.radio("子类选择", ["全部", "KPI指标"], key="step7_sub3")
+        elif main_nav == "4. 附录":
+            sub_nav = st.radio("子类选择", ["全部", "业绩明细表","新业务价值相关分析"], key="step7_sub4")
+        elif main_nav == "🖨️ 一键显示全部 (打印/导出专用)":
+            st.info("💡 提示：点击下方按钮后，在弹出的打印窗口中，目标打印机选择“另存为 PDF”，并在“更多设置”中勾选“背景图形”。")
+            components.html(
+                """<button onclick="window.parent.print()" 
+                    style="width:100%; padding:12px; background:#00338D; color:white; 
+                           border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    立即导出 PDF 报告
+                </button>""",
+                height=60
+            )
+
+    # 逻辑判断变量
+    print_mode = (main_nav == "🖨️ 一键显示全部 (打印/导出专用)") 
 # ⭐⭐⭐ 统一的图表显示函数 ⭐⭐⭐
     def show_chart(fig, print_mode):
         """统一的图表显示函数，打印模式会缩小图表"""
@@ -210,38 +323,7 @@ def show_step_7_content():
     latest_year = int(all_years[-1]) if len(all_years) > 0 else 2025
     prev_year = int(all_years[-2]) if len(all_years) > 1 else 2024
     
-    # 动态年份提取后面...
-
-    # ==========================================
-    # 🧭 简单版悬浮导航（用 expander）
-    # ==========================================
-    with st.expander("📑 点击展开导航菜单", expanded=False):
-        main_nav = st.radio(
-            "大类",
-            ["1. 关键年报数据", "2. 关键披露信息", "3. 关键业绩指标", "4. 附录", "🖨️ 一键显示全部 (打印/导出专用)"],
-            label_visibility="collapsed"
-        )
-        
-        sub_nav = "全部"
-        if main_nav == "1. 关键年报数据":
-            sub_nav = st.radio("子类", ["全部", "总体利润贡献", "保险业务收入、费用及业绩", "保险业务收入构成分析","保险利润", "投资收益、承保财务损益及投资利润", "保险利润、投资利润变动趋势", "税前利润及税率", "净利润、其他综合收益及综合收益变动趋势", "IFRS9及资产负债", "其他综合收益", "净资产和总资产", "新业务相关"], label_visibility="collapsed")
-        elif main_nav == "2. 关键披露信息":
-            sub_nav = st.radio("子类", ["全部", "业务及管理费","折现率假设","非金融风险调整置信水平","合同服务边际摊销"], label_visibility="collapsed")
-        elif main_nav == "3. 关键业绩指标":
-            sub_nav = st.radio("子类", ["全部", "KPI指标"], label_visibility="collapsed")
-        elif main_nav == "4. 附录":
-            sub_nav = st.radio("子类", ["全部", "业绩明细表","新业务价值相关分析"], label_visibility="collapsed")
-        elif main_nav == "🖨️ 一键显示全部 (打印/导出专用)":
-            st.components.v1.html(
-                """<button onclick="window.parent.print()" 
-                    style="width:100%; padding:10px; background:#00338D; color:white; 
-                           border:none; border-radius:6px; cursor:pointer; font-weight:bold;">
-                    🖨️ 存为 PDF
-                </button>""",
-                height=45
-            )
-
-    print_mode = (main_nav == "🖨️ 一键显示全部 (打印/导出专用)")
+ 
     
 
     with st.expander("📥 全局内容分析与注释输入", expanded=False):
