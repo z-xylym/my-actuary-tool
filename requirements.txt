@@ -9,3 +9,4 @@ requests
 beautifulsoup4
 plotly
 python-pptx
+streamlit.components.v1
