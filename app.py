@@ -82,24 +82,31 @@ def show_step_7_content():
     components.html(
         """
         <script>
-        // 延迟加载，确保页面的按钮都已经渲染完毕
-        setTimeout(function() {
-            const parent = window.parent.document;
-            const myTrigger = parent.getElementById('custom-nav-trigger');
+        // 使用 setInterval 循环查找，确保在云端较慢的网络下也能绑定成功
+        let attempts = 0;
+        let timer = setInterval(function() {
+            const parentDoc = window.parent.document;
+            // 寻找我们注入的蓝色悬浮条
+            const myTrigger = parentDoc.getElementById('custom-nav-trigger');
             
-            if(myTrigger) {
-                myTrigger.addEventListener('click', function() {
-                    // 找到 Streamlit 位于左上角那个原生的小箭头按钮 (collapsedControl)
-                    let expandBtnWrapper = parent.querySelector('[data-testid="collapsedControl"]');
-                    
+            if (myTrigger) {
+                // 如果找到了，就给它绑定点击事件
+                myTrigger.onclick = function() {
+                    // 寻找系统原生的侧边栏展开箭头
+                    let expandBtnWrapper = parentDoc.querySelector('[data-testid="collapsedControl"]');
                     if (expandBtnWrapper) {
-                        // 模拟人的鼠标点击动作
                         let svgIcon = expandBtnWrapper.querySelector('svg') || expandBtnWrapper;
                         svgIcon.dispatchEvent(new MouseEvent('click', { bubbles: true }));
                     }
-                });
+                };
+                clearInterval(timer); // 绑定成功后停止循环
             }
-        }, 800);
+            
+            attempts++;
+            if (attempts > 20) { 
+                clearInterval(timer); // 超过10秒还没找到就放弃，防止浪费资源
+            }
+        }, 500); // 每0.5秒检查一次
         </script>
         """,
         height=0,
