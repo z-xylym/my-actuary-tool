@@ -3919,8 +3919,8 @@ if not st.session_state['logged_in']:
     with col2:
         st.markdown("<div style='text-align:center; margin-bottom:30px;'><h1 style='font-size:32px; margin:0;'><span class='title-glow'>寿研数智年报平台</span></h1><p style='color:#76D2FF; font-size:11px; letter-spacing:4px; margin-top:8px; font-weight:bold;'>ACTUARIAL INTELLIGENCE</p></div>", unsafe_allow_html=True)
         
-        u_type = st.radio("访问权限", ["普通用户", "KPMG成员"], label_visibility="collapsed", horizontal=True)
-        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") if u_type == "KPMG成员" else ""
+        u_type = st.radio("访问权限", ["普通用户", "项目组成员"], label_visibility="collapsed", horizontal=True)
+        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") if u_type == "项目组成员" else ""
         
         # 字典映射压缩代码体积
         ai_map = {"阿里云百炼 (通义千问)": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"), "DeepSeek (深度求索)": ("https://api.deepseek.com", "deepseek-chat"), "月之暗面 (Kimi)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"), "智谱AI (GLM-4)": ("https://open.bigmodel.cn/api/paas/v4", "glm-4"), "OpenAI (ChatGPT)": ("https://api.openai.com/v1", "gpt-4o")}
@@ -3942,7 +3942,7 @@ if not st.session_state['logged_in']:
 
         # 启动大按钮
         if st.button("启 动 系 统", type="primary", use_container_width=True):
-            if u_type == "KPMG成员" and sec_code != "KPMG666": st.error("❌ 拒绝访问：安全码效验失败")
+            if u_type == "项目组成员" and sec_code != "KPMG666": st.error("❌ 拒绝访问：安全码效验失败")
             else: 
                 st.session_state.update({'logged_in':True, 'user_role':u_type, 'api_key':api_input, 'base_url':d_url, 'model_name':d_mod})
                 st.rerun()
@@ -3960,7 +3960,7 @@ else:
     api_key = st.session_state.get('api_key', "")
     base_url = st.session_state.get('base_url', "https://api.deepseek.com")
     model_name = st.session_state.get('model_name', "deepseek-chat")
-    user_role = st.session_state.get('user_role', "普通用户")  # 👈 修正了这里，删掉了多余的 "KPMG成员"
+    user_role = st.session_state.get('user_role', "普通用户")  # 👈 修正了这里
 
     # 顶部状态栏与退出按钮
     top_col1, top_col2 = st.columns([8, 1])
@@ -3981,7 +3981,7 @@ else:
     st.title("寿研数智・年报处理平台")
 
     # ---------------- 核心权限控制 ----------------
-    if st.session_state['user_role'] == "KPMG成员":
+    if st.session_state['user_role'] == "项目组成员":
         # 如果是 KPMG 成员，完整显示 0 到 7 一共 8 个 Tab
         tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
             " 🌐 Step 0 ／ 官网年报监控 ",
