@@ -300,7 +300,7 @@ def show_step_7_content():
 
     def display_bottom_note(nt_text):
         if nt_text and str(nt_text).lower() != 'nan':
-            st.markdown(f'<div style="margin-top: 5px; margin-bottom: 25px; padding-left: 5px;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="margin-top: 5px;text-align: left; margin-bottom: 25px; padding-left: 5px;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
     def show_chart(fig, p_mode):
         if fig:
@@ -1851,29 +1851,41 @@ def show_step_7_content():
         # ====== 第 1 步：绘制标题 ======
         # ✨ 核心逻辑：如果是打印模式，且【不是第一个图表】，才在前面加一个强制分行换页！
         title_cls = "page-break-title" if (print_mode and not is_first) else ""
-        st.markdown(f"<h3 class='{title_cls}' style='color:#00338D; font-size:18px; margin-top:20px; margin-bottom:15px; border-bottom: 2px solid #00338D; padding-bottom: 8px;'>{full_title}</h3>", unsafe_allow_html=True)
+        # 👇【修改点1】：在 style 里面加上了 text-align: left; 强制标题靠左对齐！
+        st.markdown(f"<h3 class='{title_cls}' style='text-align: left; color:#00338D; font-size:18px; margin-top:20px; margin-bottom:15px; border-bottom: 2px solid #00338D; padding-bottom: 8px;'>{full_title}</h3>", unsafe_allow_html=True)
 
         # ====== 第 2 步：手动截图覆盖拦截 ======
         if 'manual_upload_images' in st.session_state and m_id in st.session_state.manual_upload_images:
-            st.image(st.session_state.manual_upload_images[m_id], use_column_width=True) # 🌟 顺手修复了上一步的自适应宽度参数
+            # 👇【修改点2】：用 st.columns 把图片夹在中间，强制居中！
+            img_col_left, img_col_center, img_col_right = st.columns([1, 8, 1])
+            with img_col_center:
+                # 顺手把过时的 use_column_width 改成官方推荐的 use_container_width
+                st.image(st.session_state.manual_upload_images[m_id], use_container_width=True) 
+            
             _, nt = display_notes(m_id) 
             display_bottom_note(nt)
             if print_mode: st.markdown("</div>", unsafe_allow_html=True)
             return
             
         # ====== 第 3 步：绘制 AI / 注释框 ======
+        # （这里调用了外部函数，靠左的修改看下方“第二步”）
         an, nt = display_notes(m_id, ai_df=df_filtered, ai_field=mod_data.get('title', m_id))
         
         # ====== 第 4 步：统一打印右对齐单位 ======
-        # 把原本的 if m_id != "summary_table": 改成一个排除列表
+        # 这个单位默认是 text-align:right 靠右对齐的，放在图表右上角很好看，保持不变
         if m_id not in ["csm_amortization", "discount_rate", "confidence_level"]:
             unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
             st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
 
         # ====== 第 5 步：呼叫实体渲染器 ======
-        render_pure_chart_entity(m_id, print_mode)
+        # 👇【修改点3】：同样用 st.columns 把自动生成的图表也夹在中间，强制居中！
+        # 这里的 [1, 10, 1] 代表左边留白1份，中间图表占10份，右边留白1份。如果你想图表窄一点居中，可以改成 [1, 6, 1]
+        chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
+        with chart_col_center:
+            render_pure_chart_entity(m_id, print_mode)
         
         # ====== 第 6 步：底部注释 ======
+        # （这里调用了外部函数，靠左的修改看下方“第二步”）
         display_bottom_note(nt)
 
         if print_mode: st.markdown("</div>", unsafe_allow_html=True)
