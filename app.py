@@ -131,24 +131,40 @@ def show_step_7_content():
             if notes_file: df_notes = pd.read_excel(notes_file)
 
         if df_notes is not None:
-            # 🌟 核心修复2：全表进行空值与 nan 字符串清洗，确保逻辑判断不踩坑
+            # 🧹 1. 彻底清除“幽灵行”：只要【一级分类】或【模块ID】是纯空值的，直接删掉整行
+            df_notes = df_notes.dropna(subset=['一级分类', '模块ID'])
+            
+            # 🧹 2. 进一步剔除被 pandas 读成字符串 'nan'、'NaN' 的垃圾行
+            df_notes = df_notes[~df_notes['一级分类'].astype(str).str.strip().str.lower().isin(['nan', 'none', ''])]
+            df_notes = df_notes[~df_notes['模块ID'].astype(str).str.strip().str.lower().isin(['nan', 'none', ''])]
+
+            # 🌟 3. 核心清洗：去掉多余空格，并把残余的文字版空值替换成真正的空字符串
             for col in ['一级分类', '二级分类', '对应图表名称', '模块ID']:
                 if col in df_notes.columns:
-                    df_notes[col] = df_notes[col].astype(str).str.strip().replace(['nan', 'NaN', 'NAN', 'None'], '')
+                    df_notes[col] = df_notes[col].astype(str).str.strip().replace(['nan', 'NaN', 'NAN', 'None', ''], '')
             
+            # 🧹 4. 经过上面清洗后，再次过滤掉【模块ID】或【对应图表名称】变成空字符串的无效行
+            df_notes = df_notes[df_notes['模块ID'] != '']
+            df_notes = df_notes[df_notes['对应图表名称'] != '']
+
             has_img = '图片文件名' in df_notes.columns
             for _, r in df_notes.iterrows():
                 m_id = str(r.get('模块ID', '')).strip()
-                if not m_id: continue
+                if not m_id: 
+                    continue # 双重保险，没ID绝对不往后走
+                
                 img_val = str(r.get('图片文件名', '')).strip() if has_img and pd.notna(r.get('图片文件名')) else ''
+                
                 notes_dict[m_id] = {
                     'title': str(r.get('对应图表名称', '')).strip(),
                     'analysis': str(r.get('分析内容', '')).strip() if pd.notna(r.get('分析内容')) else '',
                     'note': str(r.get('注释内容', '')).strip() if pd.notna(r.get('注释内容')) else '',
                     'image_file': img_val if img_val.lower() != 'nan' else ''
                 }
-                if m_id not in ordered_modules: ordered_modules.append(m_id)
-            # 存入全局缓存
+                if m_id not in ordered_modules: 
+                    ordered_modules.append(m_id)
+                    
+            # 存入全局缓存（现在存进去的是干干净净、绝对没有nan的表了！）
             st.session_state['df_notes'] = df_notes
 
     # ==========================================
