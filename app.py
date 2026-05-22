@@ -85,7 +85,9 @@ def show_step_7_content():
         @page { size: A4; margin: 10mm; }
         div[data-testid="stDataFrame"], div[data-testid="stTable"] { zoom: 0.65 !important; margin: 0 auto 30px auto !important; max-width: 100% !important; page-break-inside: auto !important; }
         div[data-testid="stTable"] tr { page-break-inside: avoid !important; }
-        .plotly-graph-div, .element-container { page-break-inside: avoid !important; display: flex !important; justify-content: center !important; }
+        /* 🌟 只保留图表的居中，把 .element-container 的全局居中去掉了！ */
+        .plotly-graph-div { page-break-inside: avoid !important; display: flex !important; justify-content: center !important; }
+        .element-container { page-break-inside: avoid !important; }
     }
     
     .stPlotlyChart, div[data-testid="stDataFrame"] { display: flex !important; justify-content: center !important; }
@@ -121,7 +123,7 @@ def show_step_7_content():
         df_notes = None
         if use_default:
             try:
-                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx")
+                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E6%96%B0.xlsx")
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
                 st.error(f"❌ 加载失败：{e}")
@@ -131,40 +133,24 @@ def show_step_7_content():
             if notes_file: df_notes = pd.read_excel(notes_file)
 
         if df_notes is not None:
-            # 🧹 1. 彻底清除“幽灵行”：只要【一级分类】或【模块ID】是纯空值的，直接删掉整行
-            df_notes = df_notes.dropna(subset=['一级分类', '模块ID'])
-            
-            # 🧹 2. 进一步剔除被 pandas 读成字符串 'nan'、'NaN' 的垃圾行
-            df_notes = df_notes[~df_notes['一级分类'].astype(str).str.strip().str.lower().isin(['nan', 'none', ''])]
-            df_notes = df_notes[~df_notes['模块ID'].astype(str).str.strip().str.lower().isin(['nan', 'none', ''])]
-
-            # 🌟 3. 核心清洗：去掉多余空格，并把残余的文字版空值替换成真正的空字符串
+            # 🌟 核心修复2：全表进行空值与 nan 字符串清洗，确保逻辑判断不踩坑
             for col in ['一级分类', '二级分类', '对应图表名称', '模块ID']:
                 if col in df_notes.columns:
-                    df_notes[col] = df_notes[col].astype(str).str.strip().replace(['nan', 'NaN', 'NAN', 'None', ''], '')
+                    df_notes[col] = df_notes[col].astype(str).str.strip().replace(['nan', 'NaN', 'NAN', 'None'], '')
             
-            # 🧹 4. 经过上面清洗后，再次过滤掉【模块ID】或【对应图表名称】变成空字符串的无效行
-            df_notes = df_notes[df_notes['模块ID'] != '']
-            df_notes = df_notes[df_notes['对应图表名称'] != '']
-
             has_img = '图片文件名' in df_notes.columns
             for _, r in df_notes.iterrows():
                 m_id = str(r.get('模块ID', '')).strip()
-                if not m_id: 
-                    continue # 双重保险，没ID绝对不往后走
-                
+                if not m_id: continue
                 img_val = str(r.get('图片文件名', '')).strip() if has_img and pd.notna(r.get('图片文件名')) else ''
-                
                 notes_dict[m_id] = {
                     'title': str(r.get('对应图表名称', '')).strip(),
                     'analysis': str(r.get('分析内容', '')).strip() if pd.notna(r.get('分析内容')) else '',
                     'note': str(r.get('注释内容', '')).strip() if pd.notna(r.get('注释内容')) else '',
                     'image_file': img_val if img_val.lower() != 'nan' else ''
                 }
-                if m_id not in ordered_modules: 
-                    ordered_modules.append(m_id)
-                    
-            # 存入全局缓存（现在存进去的是干干净净、绝对没有nan的表了！）
+                if m_id not in ordered_modules: ordered_modules.append(m_id)
+            # 存入全局缓存
             st.session_state['df_notes'] = df_notes
 
     # ==========================================
@@ -300,7 +286,7 @@ def show_step_7_content():
 
     def display_bottom_note(nt_text):
         if nt_text and str(nt_text).lower() != 'nan':
-            st.markdown(f'<div style="margin-top: 5px;text-align: left; margin-bottom: 25px; padding-left: 5px;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="margin-top: 5px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
     def show_chart(fig, p_mode):
         if fig:
@@ -1232,6 +1218,632 @@ def show_step_7_content():
             html += f"<tr style='background-color: {row_bg}; color: {text_color}; font-weight: {font_weight};'><td style='padding: 12px 10px; text-align: left; {borders} font-weight: bold;'>{co}</td><td style='padding: 12px 10px; text-align: center; {borders}'>{val_curr}</td><td style='padding: 12px 10px; text-align: center; {borders}'>{val_prev}</td></tr>"
         return html + "</table>"
 
+
+# --- 28. 合同服务边际期限分布表（转置版，纯HTML生成）---
+    def create_csm_maturity_table(df_raw, target_year, cos, highlight_co="无"):
+        import pandas as pd
+    
+        df = df_raw.copy()
+        df['报告年份'] = df['报告年份'].astype(str).str.replace('.0', '', regex=False)
+        curr_year_str = str(target_year)
+    
+        # 列顺序：展示名, 原字段名
+        item_mapping = [
+            ("1年及1年以内", "1年及1年以内合同服务边际"),
+            ("1-5年", "1-5年合同服务边际"),
+            ("5-10年", "5-10年合同服务边际"),
+            ("10-20年", "10-20年合同服务边际"),
+            ("20年", "20年合同服务边际"),
+        ]
+        raw_item_names = [x[1] for x in item_mapping]
+    
+        # 过滤目标数据
+        df_target = df[
+            (df['报告年份'] == curr_year_str) &
+            (df['公司'].isin(cos)) &
+            (df['字段名'].isin(raw_item_names))
+        ].copy()
+    
+        # 自动识别数值列
+        preferred_cols = ["(%)原币", "(%)", "百分比", "比例", "占比", "数值", "值", "(百万)原币"]
+        val_col = None
+        for col in preferred_cols:
+            if col in df_target.columns:
+                val_col = col
+                break
+    
+        if val_col is None:
+            non_dim_cols = [c for c in df_target.columns if c not in ['报告年份', '公司', '字段名']]
+            val_col = non_dim_cols[-1] if non_dim_cols else None
+    
+        if val_col is None:
+            return ""
+    
+        # 建映射：(公司, 字段名) -> 值
+        data_map = df_target.set_index(['公司', '字段名'])[val_col].to_dict()
+        current_hl = str(highlight_co).strip()
+    
+        # 百分比格式化：空值/0值都显示为 "-"
+        def format_pct(v):
+            if pd.isna(v):
+                return "-"
+    
+            s = str(v).strip()
+            if s == "" or s.lower() == "nan" or s == "-":
+                return "-"
+    
+            try:
+                # 已经带 % 的情况
+                if "%" in s:
+                    num = float(s.replace("%", "").replace(",", "").strip())
+                    if abs(num) < 1e-12:
+                        return "-"
+                    num = round(num, 1)
+                    return f"{int(num)}%" if float(num).is_integer() else f"{num}%"
+    
+                # 数字情况
+                num = float(s.replace(",", "").strip())
+    
+                # 若原值是小数（如 0.087），转成 8.7%
+                if abs(num) <= 1:
+                    num = num * 100
+    
+                if abs(num) < 1e-12:
+                    return "-"
+    
+                num = round(num, 1)
+                return f"{int(num)}%" if float(num).is_integer() else f"{num}%"
+            except:
+                return "-"
+    
+        # 为了和你示例表“同样宽度”一致：width:100%
+        # 因为现在总共 6 列，所以固定布局更稳
+        first_col_width = "18%"
+        other_col_width = "16.4%"   # 82% / 5
+    
+        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 13px; table-layout: fixed;'>"
+    
+        # 表头
+        html += "<tr style='background-color: #00338D; color: white; font-size: 14px; text-align: center; font-weight: bold;'>"
+        html += f"<th style='padding: 10px; text-align: left; border: 1px solid white; width: {first_col_width};'>公司名称</th>"
+        for display_name, _ in item_mapping:
+            html += f"<th style='padding: 10px; text-align: center; border: 1px solid white; width: {other_col_width};'>{display_name}</th>"
+        html += "</tr>"
+    
+        # 表体
+        for row_idx, co in enumerate(cos):
+            is_hl = (str(co).strip() == current_hl)
+            row_bg = "#F8F9FA" if row_idx % 2 == 0 else "white"
+            text_color = "#333"
+            font_weight = "normal"
+            borders = "border: 1px solid #EAEAEA;"
+    
+            if is_hl:
+                row_bg = "rgba(0, 51, 141, 0.08)"
+                text_color = "#00338D"
+                font_weight = "bold"
+                borders = "border-top: 2px solid #00338D; border-bottom: 2px solid #00338D; border-left: 1px solid #EAEAEA; border-right: 1px solid #EAEAEA;"
+    
+            html += f"<tr style='background-color: {row_bg}; color: {text_color}; font-weight: {font_weight};'>"
+    
+            # 第一列：公司名称
+            html += f"<td style='padding: 12px 10px; text-align: left; {borders} font-weight: bold; width: {first_col_width};'>{co}</td>"
+    
+            # 后面五列：各期限
+            for _, raw_name in item_mapping:
+                val = data_map.get((co, raw_name), "-")
+                val = format_pct(val)
+                html += f"<td style='padding: 12px 10px; text-align: center; {borders} width: {other_col_width};'>{val}</td>"
+    
+            html += "</tr>"
+    
+        html += "</table>"
+        return html
+
+
+
+    # --- 29. 净利润 vs 净利润增长率 散点图 ---
+    def create_six_dimensional_charts(
+        df_raw,
+        target_year,
+        cos,
+        divisor=1,
+        unit_label="百万元",
+        highlight_co="无",
+        label_size=11,
+        show_labels=False,
+        dot_size=11
+    ):
+        import pandas as pd
+        import numpy as np
+        import plotly.graph_objects as go
+        import plotly.express as px
+    
+        df = df_raw.copy()
+        df["字段名"] = df["字段名"].fillna("").astype(str).str.strip()
+        df["公司"] = df["公司"].astype(str).str.strip()
+        df["报告年份"] = df["报告年份"].astype(str).str.replace(".0", "", regex=False)
+    
+        curr_year_str = str(target_year)
+    
+        # 只保留目标年份 + 目标公司 + 需要字段
+        needed_fields = [
+            "净利润",
+            "期初股东权益",
+            "期末股东权益",
+            "CSM期初余额",
+            "CSM期末余额",
+            "总资产",
+            "投资收益率",
+            "综合偿付能力充足率"
+        ]
+    
+        df = df[
+            (df["报告年份"] == curr_year_str) &
+            (df["公司"].isin(cos)) &
+            (df["字段名"].isin(needed_fields))
+        ].copy()
+    
+        if df.empty:
+            return []
+    
+        # 去重：避免同一公司同一年同一字段重复
+        df = df.drop_duplicates(subset=["公司", "报告年份", "字段名"], keep="first").copy()
+    
+        # 字段分类
+        amount_fields = {
+            "净利润",
+            "期初股东权益",
+            "期末股东权益",
+            "CSM期初余额",
+            "CSM期末余额",
+            "总资产"
+        }
+    
+        ratio_fields = {
+            "投资收益率",
+            "综合偿付能力充足率"
+        }
+    
+        # 常见金额列
+        amount_cols = [
+            "(百万)人民币", "(亿元)人民币", "(百万)原币", "(亿元)原币",
+            "人民币", "原币", "数值", "值"
+        ]
+    
+        # 常见比例列
+        ratio_cols = [
+            "(%)原币", "(%)", "百分比", "比例", "占比", "比率"
+        ]
+    
+        def is_blank(v):
+            if pd.isna(v):
+                return True
+            s = str(v).strip().lower()
+            return s in ["", "nan", "none", "null", "-"]
+    
+        def to_float(v):
+            if is_blank(v):
+                return np.nan
+            s = str(v).strip().replace(",", "")
+            if s.endswith("%"):
+                s = s[:-1].strip()
+            try:
+                return float(s)
+            except:
+                return np.nan
+    
+        def parse_amount(v):
+            return to_float(v)
+    
+        def parse_ratio(v):
+            """
+            统一转成小数：
+            - 12%   -> 0.12
+            - 12    -> 0.12
+            - 0.12  -> 0.12
+            """
+            if is_blank(v):
+                return np.nan
+    
+            raw = str(v).strip()
+            num = to_float(v)
+            if pd.isna(num):
+                return np.nan
+    
+            if "%" in raw:
+                return num / 100.0
+    
+            # 经验判断：大于1通常表示“12=12%”
+            if abs(num) > 1:
+                return num / 100.0
+    
+            return num
+    
+        def extract_value(row, field):
+            # 比例型字段优先从比例列读取
+            if field in ratio_fields:
+                for col in ratio_cols:
+                    if col in row.index and not is_blank(row[col]):
+                        return parse_ratio(row[col])
+    
+                # 兜底：有些比例字段可能落在通用列里
+                for col in ["数值", "值", "原币", "人民币", "(百万)人民币", "(百万)原币"]:
+                    if col in row.index and not is_blank(row[col]):
+                        return parse_ratio(row[col])
+    
+                return np.nan
+    
+            # 金额型字段优先从金额列读取
+            if field in amount_fields:
+                for col in amount_cols:
+                    if col in row.index and not is_blank(row[col]):
+                        return parse_amount(row[col])
+    
+                # 兜底
+                for col in ratio_cols:
+                    if col in row.index and not is_blank(row[col]):
+                        return parse_amount(row[col])
+    
+                return np.nan
+    
+            return np.nan
+    
+        # 抽取数值
+        records = []
+        for _, row in df.iterrows():
+            field = row["字段名"]
+            val = extract_value(row, field)
+            records.append({
+                "公司": row["公司"],
+                "字段名": field,
+                "数值": val
+            })
+    
+        df_value = pd.DataFrame(records)
+        if df_value.empty:
+            return []
+    
+        df_value = df_value.dropna(subset=["数值"])
+        if df_value.empty:
+            return []
+    
+        df_pivot = df_value.pivot_table(
+            index="公司",
+            columns="字段名",
+            values="数值",
+            aggfunc="first"
+        )
+        
+        # 保持公司顺序
+        df_pivot = df_pivot.reindex(cos)
+        df_pivot.index.name = None
+    
+        def get_col(name):
+            if name in df_pivot.columns:
+                return pd.to_numeric(df_pivot[name], errors="coerce")
+            return pd.Series(np.nan, index=df_pivot.index)
+    
+        # 原始字段
+        net_profit = get_col("净利润")
+        equity_begin = get_col("期初股东权益")
+        equity_end = get_col("期末股东权益")
+        csm_begin = get_col("CSM期初余额")
+        csm_end = get_col("CSM期末余额")
+        total_assets = get_col("总资产")
+        invest_return = get_col("投资收益率")
+        solvency_ratio = get_col("综合偿付能力充足率")
+    
+        avg_equity = (equity_begin + equity_end) / 2
+    
+        # 六张图的数据
+        plot_data = pd.DataFrame(index=df_pivot.index)
+        plot_data["公司"] = plot_data.index
+    
+        # 1. 股东回报：Y=利润率，X=净利润
+        plot_data["利润率"] = np.where(
+            avg_equity.notna() & (avg_equity != 0),
+            net_profit / avg_equity,
+            np.nan
+        )
+        plot_data["净利润"] = net_profit
+    
+        # 2. 盈利潜力：Y=CSM增长率，X=CSM期末余额
+        plot_data["CSM增长率"] = np.where(
+            csm_begin.notna() & (csm_begin != 0),
+            (csm_end - csm_begin) / csm_begin,
+            np.nan
+        )
+        plot_data["CSM期末余额"] = csm_end
+    
+        # 3. 财务杠杆：Y=财务杠杆率，X=期末股东权益
+        plot_data["财务杠杆率"] = np.where(
+            total_assets.notna() & (total_assets != 0),
+            equity_end / total_assets,
+            np.nan
+        )
+    
+        # 4. 投资能力：Y=投资收益率，X=期末股东权益
+        plot_data["投资收益率"] = invest_return
+    
+        # 5. 财务稳定：Y=净资产增长率，X=期末股东权益
+        plot_data["净资产增长率"] = np.where(
+            equity_begin.notna() & (equity_begin != 0),
+            (equity_end - equity_begin) / equity_begin,
+            np.nan
+        )
+    
+        # 6. 偿付能力：Y=综合偿付能力充足率，X=期末股东权益
+        plot_data["综合偿付能力充足率"] = solvency_ratio
+        plot_data["期末股东权益"] = equity_end
+    
+        configs = [
+            {
+                "title": "股东回报",
+                "y_col": "利润率",
+                "x_col": "净利润",
+                "y_title": "利润率",
+                "subtitle": "Y轴=利润率，X轴=净利润",
+                "y_tickformat": ".1%"
+            },
+            {
+                "title": "盈利潜力",
+                "y_col": "CSM增长率",
+                "x_col": "CSM期末余额",
+                "y_title": "CSM增长率",
+                "subtitle": "Y轴=CSM增长率，X轴=CSM期末余额",
+                "y_tickformat": ".1%"
+            },
+            {
+                "title": "财务杠杆",
+                "y_col": "财务杠杆率",
+                "x_col": "期末股东权益",
+                "y_title": "财务杠杆率",
+                "subtitle": "Y轴=财务杠杆率，X轴=期末股东权益",
+                "y_tickformat": ".1%"
+            },
+            {
+                "title": "投资能力",
+                "y_col": "投资收益率",
+                "x_col": "期末股东权益",
+                "y_title": "投资收益率",
+                "subtitle": "Y轴=投资收益率，X轴=期末股东权益",
+                "y_tickformat": ".1%"
+            },
+            {
+                "title": "财务稳定",
+                "y_col": "净资产增长率",
+                "x_col": "期末股东权益",
+                "y_title": "净资产增长率",
+                "subtitle": "Y轴=净资产增长率，X轴=期末股东权益",
+                "y_tickformat": ".1%"
+            },
+            {
+                "title": "偿付能力",
+                "y_col": "综合偿付能力充足率",
+                "x_col": "期末股东权益",
+                "y_title": "综合偿付能力充足率",
+                "subtitle": "Y轴=综合偿付能力充足率，X轴=期末股东权益",
+                "y_tickformat": ".0%"
+            },
+        ]
+    
+        # 颜色：沿用你喜欢的那种清爽风格
+        base_colors = px.colors.qualitative.Plotly
+        color_map = {co: base_colors[i % len(base_colors)] for i, co in enumerate(cos)}
+    
+        current_hl = str(highlight_co).strip()
+        real_divisor = divisor if divisor not in [0, None] else 1
+    
+        def fmt_amt(v):
+            if pd.isna(v):
+                return "-"
+            try:
+                return f"{float(v):,.2f}"
+            except:
+                return "-"
+    
+        def fmt_pct(v, digits=1):
+            if pd.isna(v):
+                return "-"
+            try:
+                return f"{v:.{digits}%}"
+            except:
+                return "-"
+    
+        figs = []
+    
+        for fig_idx, conf in enumerate(configs):
+            y_col = conf["y_col"]
+            x_col = conf["x_col"]
+    
+            df_plot = plot_data[["公司", y_col, x_col]].copy()
+            df_plot["x_plot"] = pd.to_numeric(df_plot[x_col], errors="coerce") / real_divisor
+            df_plot["y_plot"] = pd.to_numeric(df_plot[y_col], errors="coerce")
+    
+            df_plot = df_plot.replace([np.inf, -np.inf], np.nan)
+            df_plot = df_plot.dropna(subset=["x_plot", "y_plot"])
+    
+            fig = go.Figure()
+    
+            if df_plot.empty:
+                fig.update_layout(
+                    title=dict(
+                        text=f"<b>{conf['title']}</b><br><span style='font-size:12px;color:#666'>{conf['subtitle']}（横轴单位：{unit_label}）</span>",
+                        x=0.02,
+                        xanchor="left"
+                    ),
+                    height=480,
+                    margin=dict(l=40, r=40, t=75, b=40),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)"
+                )
+                figs.append(fig)
+                continue
+    
+            df_plot["公司"] = pd.Categorical(df_plot["公司"], categories=cos, ordered=True)
+            df_plot = df_plot.sort_values("公司")
+    
+            df_plot["x_display"] = df_plot["x_plot"].apply(fmt_amt)
+            df_plot["x_raw_display"] = df_plot[x_col].apply(fmt_amt)
+            pct_digits = 0 if conf["y_tickformat"] == ".0%" else 1
+            df_plot["y_display"] = df_plot["y_plot"].apply(lambda v: fmt_pct(v, digits=pct_digits))
+    
+            for _, row in df_plot.iterrows():
+                co = str(row["公司"])
+                is_hl = (co.strip() == current_hl and current_hl not in ["", "无"])
+    
+                fig.add_trace(
+                    go.Scatter(
+                        x=[row["x_plot"]],
+                        y=[row["y_plot"]],
+                        mode="markers+text" if show_labels else "markers",
+                        name=co,
+                        legendgroup=co,
+                        showlegend=False,
+                        text=[co] if show_labels else None,
+                        textposition="top center",
+                        textfont=dict(
+                            size=label_size,
+                            color="#333"
+                        ),
+                        marker=dict(
+                            size=dot_size * 1.45 if is_hl else dot_size,
+                            color=color_map.get(co, "#1f77b4"),
+                            line=dict(
+                                color="white",
+                                width=1.8 if is_hl else 1.2
+                            ),
+                            opacity=0.95
+                        ),
+                        customdata=[[row["x_display"], row["y_display"], row["x_raw_display"]]],
+                        hovertemplate=(
+                            f"<b>{co}</b><br>"
+                            f"{x_col}（{unit_label}）: %{{customdata[0]}}<br>"
+                            f"{conf['y_title']}: %{{customdata[1]}}<br>"
+                            f"{x_col}（原值）: %{{customdata[2]}}"
+                            "<extra></extra>"
+                        )
+                    )
+                )
+    
+            fig.update_layout(
+                title=dict(
+                    text=f"<b>{conf['title']}</b><br><span style='font-size:12px;color:#666'>{conf['subtitle']}（横轴单位：{unit_label}）</span>",
+                    x=0.02,
+                    xanchor="left"
+                ),
+                height=480,
+                margin=dict(l=40, r=40, t=75, b=40),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                showlegend=False,
+                legend=dict(
+                    title="公司",
+                    orientation="v",
+                    yanchor="top",
+                    y=1,
+                    xanchor="left",
+                    x=1.02,
+                    bgcolor="rgba(0,0,0,0)"
+                ) if fig_idx == 0 else dict(),
+                hovermode="closest"
+            )
+    
+            fig.update_xaxes(
+                title=f"{x_col}（{unit_label}）",
+                showgrid=True,
+                gridcolor="rgba(180,180,180,0.20)",
+                zeroline=True,
+                zerolinecolor="rgba(150,150,150,0.30)"
+            )
+    
+            fig.update_yaxes(
+                title=conf["y_title"],
+                tickformat=conf["y_tickformat"],
+                showgrid=True,
+                gridcolor="rgba(180,180,180,0.20)",
+                zeroline=True,
+                zerolinecolor="rgba(150,150,150,0.30)"
+            )
+    
+            fig.add_hline(
+                y=0,
+                line_dash="dash",
+                line_color="rgba(120,120,120,0.7)",
+                line_width=1
+            )
+    
+            fig.add_vline(
+                x=0,
+                line_dash="dash",
+                line_color="rgba(120,120,120,0.7)",
+                line_width=1
+            )
+    
+            figs.append(fig)
+    
+        return figs
+
+    def create_six_dimensional_legend(cos, highlight_co="无"):
+        import plotly.graph_objects as go
+        import plotly.express as px
+    
+        base_colors = px.colors.qualitative.Plotly
+        color_map = {co: base_colors[i % len(base_colors)] for i, co in enumerate(cos)}
+        current_hl = str(highlight_co).strip()
+    
+        fig = go.Figure()
+    
+        for co in cos:
+            is_hl = (str(co).strip() == current_hl and current_hl not in ["", "无"])
+    
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers",
+                    name=co,
+                    marker=dict(
+                        size=12 if is_hl else 10,
+                        color=color_map.get(co, "#1f77b4"),
+                        line=dict(
+                            color="white",
+                            width=1.8 if is_hl else 1.2
+                        ),
+                        opacity=0.95
+                    ),
+                    showlegend=True
+                )
+            )
+    
+        fig.update_layout(
+            height=70,
+            margin=dict(l=0, r=0, t=0, b=0),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                x=0.5,
+                xanchor="center",
+                y=0.5,
+                yanchor="middle",
+                bgcolor="rgba(0,0,0,0)",
+                font=dict(size=11),
+                traceorder="normal"
+            ),
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False)
+        )
+    
+        return fig
+
+
+
+
+
+
     # --- 29. 业绩明细表 (纯HTML生成不变) ---
     def create_financial_report_table(df_raw, target_year, cos, div, unit_str, highlight_co="无"):
         df = df_raw.copy()
@@ -1766,7 +2378,7 @@ def show_step_7_content():
             """, unsafe_allow_html=True)        
             show_chart(fig, print_mode)
 
-        # 25. 关键披露：折现率假设与非金融风险置信水平表
+        # 25. 关键披露：折现率假设与非金融风险置信水平表与摊销比
         elif m_id == "discount_rate":
             html = create_discount_rate_table(df_filtered, latest_year, selected_cos, current_hl)
             if html: st.markdown(html, unsafe_allow_html=True)
@@ -1775,6 +2387,12 @@ def show_step_7_content():
             html = create_confidence_level_table(df_filtered, latest_year, selected_cos, current_hl)
             if html: st.markdown(html, unsafe_allow_html=True)
 
+
+        elif m_id == "csm_maturity_table":
+            html = create_csm_maturity_table(df_filtered, latest_year, selected_cos, current_hl)
+            if html:
+                st.markdown(html, unsafe_allow_html=True)
+                
         # 26. 附录：业绩明细表与新业务明细表 (双表同打)
         elif m_id == "report_detail":  
             try: cy_int = int(latest_year)
@@ -1798,28 +2416,49 @@ def show_step_7_content():
             html_py = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, py_int, ppy_int, current_hl)
             if html_py: st.markdown(html_py, unsafe_allow_html=True)
 
-        # 27. 六维雷达图兜底支持 (如果后续你加了这个函数)
-        elif m_id == "six_dim":
-            try:
-                if not print_mode:
-                    c1, c2, c3 = st.columns(3)
-                    with c1: lab = st.toggle("显示标签", True, key=f"lab_{m_id}")
-                    with c2: mk = st.slider("圆点大小", 5, 20, 13, key=f"mk_{m_id}")
-                    with c3: sz = st.slider("字号", 8, 20, 10, key=f"sz_{m_id}")
-                else:
-                    lab = st.session_state.get(f"lab_{m_id}", True)
-                    mk = st.session_state.get(f"mk_{m_id}", 13)
-                    sz = st.session_state.get(f"sz_{m_id}", 10)              
-                figs_6d = create_six_dimensional_charts(df_filtered, latest_year, mk, lab, sz)
-                if figs_6d:
-                    for row in range(2):
-                        cols = st.columns(3)
-                        for col_idx in range(3):
-                            idx = row * 3 + col_idx
-                            if idx < len(figs_6d):
-                                with cols[col_idx]: show_chart(figs_6d[idx], print_mode)
-            except:
-                st.info("💡 暂时没有六维图的代码数据传入，故跳过渲染。")
+
+
+        elif m_id == "six_dimensional_charts":
+            legend_fig = create_six_dimensional_legend(
+                cos=selected_cos,
+                highlight_co=current_hl
+            )
+        
+            figs = create_six_dimensional_charts(
+                df_raw=df_filtered,
+                target_year=latest_year,
+                cos=selected_cos,
+                divisor=divisor,
+                unit_label=unit_label,
+                highlight_co=current_hl,
+                label_size=11,
+                show_labels=False,
+                dot_size=11
+            )
+        
+            valid_figs = [fig for fig in figs if fig is not None]
+        
+            if valid_figs:
+                # 先显示统一图例（横向、居中、全宽）
+                st.plotly_chart(
+                    legend_fig,
+                    use_container_width=True,
+                    config={"displayModeBar": False}
+                )
+        
+                # 再显示六张图
+                col1, col2 = st.columns(2)
+        
+                for i, fig in enumerate(valid_figs):
+                    target_col = col1 if i % 2 == 0 else col2
+                    with target_col:
+                        st.plotly_chart(
+                            fig,
+                            use_container_width=True,
+                            config={"displayModeBar": False}
+                        )
+            else:
+                st.info("暂无可用于绘制六维图的数据。")
 
 
     # ==========================================
@@ -1848,7 +2487,7 @@ def show_step_7_content():
         # [打印模式强制断页保护壳]
         if print_mode: st.markdown("<div class='page-break-container'>", unsafe_allow_html=True)
 
-        # ====== 第 1 步：绘制标题 ======
+           # ====== 第 1 步：绘制标题 ======
         # ✨ 核心逻辑：如果是打印模式，且【不是第一个图表】，才在前面加一个强制分行换页！
         title_cls = "page-break-title" if (print_mode and not is_first) else ""
         # 👇【修改点1】：在 style 里面加上了 text-align: left; 强制标题靠左对齐！
@@ -1860,7 +2499,7 @@ def show_step_7_content():
             img_col_left, img_col_center, img_col_right = st.columns([1, 8, 1])
             with img_col_center:
                 # 顺手把过时的 use_column_width 改成官方推荐的 use_container_width
-                st.image(st.session_state.manual_upload_images[m_id], use_container_width=True) 
+                st.image(st.session_state.manual_upload_images[m_id], use_column_width=True) 
             
             _, nt = display_notes(m_id) 
             display_bottom_note(nt)
@@ -1871,19 +2510,18 @@ def show_step_7_content():
         # （这里调用了外部函数，靠左的修改看下方“第二步”）
         an, nt = display_notes(m_id, ai_df=df_filtered, ai_field=mod_data.get('title', m_id))
         
-        # ====== 第 4 步：统一打印右对齐单位 ======
-        # 这个单位默认是 text-align:right 靠右对齐的，放在图表右上角很好看，保持不变
-        if m_id not in ["csm_amortization", "discount_rate", "confidence_level"]:
-            unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
-            st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
-
-        # ====== 第 5 步：呼叫实体渲染器 ======
-        # 👇【修改点3】：同样用 st.columns 把自动生成的图表也夹在中间，强制居中！
-        # 这里的 [1, 10, 1] 代表左边留白1份，中间图表占10份，右边留白1份。如果你想图表窄一点居中，可以改成 [1, 6, 1]
         chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
-        with chart_col_center:
-            render_pure_chart_entity(m_id, print_mode)
         
+        with chart_col_center:
+            if m_id not in ["csm_amortization", "discount_rate", "confidence_level","csm_maturity_table"]:
+                unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
+                st.markdown(
+                    f"<p style='text-align:right; font-size:12px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>",
+                    unsafe_allow_html=True
+                )
+        
+            render_pure_chart_entity(m_id, print_mode)
+
         # ====== 第 6 步：底部注释 ======
         # （这里调用了外部函数，靠左的修改看下方“第二步”）
         display_bottom_note(nt)
