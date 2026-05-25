@@ -204,12 +204,9 @@ def show_step_7_content():
                 if col in df_notes.columns:
                     df_notes[col] = df_notes[col].astype(str).str.strip().replace(['nan', 'NaN', 'NAN', 'None'], '')
             
-            # 🌟 核心智能归类补丁：如果二级分类为空，但是一级分类和图表名不为空，自动归类到“通用模块”
-            if '二级分类' in df_notes.columns and '一级分类' in df_notes.columns:
-                df_notes['二级分类'] = df_notes.apply(
-                    lambda row: "通用模块" if (str(row['一级分类']).strip() != "" and str(row['二级分类']).strip() == "") else row['二级分类'], 
-                    axis=1
-                )
+            # 🌟 核心智能归类补丁：如果二级分类为空白，强制塞入“全部”
+            if '二级分类' in df_notes.columns:
+                df_notes['二级分类'] = df_notes['二级分类'].apply(lambda x: "全部" if str(x).strip() == "" else str(x).strip())
             
             has_img = '图片文件名' in df_notes.columns
             for _, r in df_notes.iterrows():
@@ -227,7 +224,7 @@ def show_step_7_content():
             st.session_state['df_notes'] = df_notes
 
     # ==========================================
-    # 4. 侧边栏：智能多级联动导航（终极防越界护盾版）
+    # 4. 侧边栏：智能多级联动导航（防越界护盾版）
     # ==========================================
     print_mode, active_m_id, active_level_context = False, None, ""
     with st.sidebar:
@@ -245,26 +242,30 @@ def show_step_7_content():
                 components.html("""<button onclick="window.parent.print()" style="width:100%; padding:12px; background:#00338D; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">立即导出 PDF 报告</button>""", height=60)
             else:
                 df_sub1 = df_n[df_n['一级分类'] == main_nav]
-                sec_levels = [x for x in df_sub1['二级分类'].unique() if str(x).strip() != ""]
-
-                # 🌟 终极安全垫：所有获取 active_m_id 的地方全部加上 matched.empty 检查，双重保险！
-                if len(sec_levels) == 0:
+                
+                # 🌟 获取真实的二级分类列表（去除“全部”这个名字，稍后我们手动加上去，保证“全部”永远在第一位）
+                raw_sec_levels = [x for x in df_sub1['二级分类'].unique() if x != "全部"]
+                
+                # 如果这个一级分类下，所有的图表都没有二级分类（即 raw_sec_levels 为空）
+                if len(raw_sec_levels) == 0:
                     charts = [x for x in df_sub1['对应图表名称'].unique() if x]
                     chart_nav = st.radio("具体图表", charts, key="s7_c")
                     matched = df_sub1[df_sub1['对应图表名称'] == chart_nav]
                     active_m_id = matched.iloc[0]['模块ID'] if not matched.empty else None
                 else:
-                    sub_nav = st.radio("📂 二级模块", ["全部"] + sec_levels, key="s7_s")
+                    # 如果有正常的二级分类，则强行加上“全部”作为第一选项
+                    sub_nav = st.radio("📂 二级模块", ["全部"] + raw_sec_levels, key="s7_s")
 
                     if sub_nav != "全部":
                         df_sub2 = df_sub1[df_sub1['二级分类'] == sub_nav]
                         charts = [x for x in df_sub2['对应图表名称'].unique() if x]
-                        chart_nav = st.radio("📊 具体图表", charts, key="s7_c")
+                        chart_nav = st.radio("具体图表", charts, key="s7_c")
                         matched = df_sub2[df_sub2['对应图表名称'] == chart_nav]
                         active_m_id = matched.iloc[0]['模块ID'] if not matched.empty else None
                     else:
+                        # 🌟 选择了“全部”，展示该一级分类下的所有图表（包括那些原本没有二级分类而被归入“全部”的图）
                         charts = [x for x in df_sub1['对应图表名称'].unique() if x]
-                        chart_nav = st.radio("📊 具体图表 (当前二级：全部)", charts, key="s7_c_all")
+                        chart_nav = st.radio("具体图表 (当前二级：全部)", charts, key="s7_c_all")
                         matched = df_sub1[df_sub1['对应图表名称'] == chart_nav]
                         active_m_id = matched.iloc[0]['模块ID'] if not matched.empty else None
         else:
