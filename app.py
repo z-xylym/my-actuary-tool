@@ -52,42 +52,108 @@ def show_step_7_content():
     .nav-floating-sign:hover { background: rgba(0, 51, 141, 1); padding-left: 15px; }
     
     @media print { 
-        /* 🌟 1. 基础 UI 隐藏 */
         .no-print, h1, .nav-floating-sign, [data-testid="collapsedControl"], header, footer, 
         [data-testid="stHeader"], [data-testid="stSidebar"], section[data-testid="stSidebar"], 
         [data-testid="stToolbar"], button[kind="secondary"], input, .stSlider, 
         [data-testid="stSelectbox"], [data-testid="stRadio"], [data-testid="stExpander"], 
         .stAlert { display: none !important; }
-
-        /* 🌟 2. 核心补丁：精准爆破所有 Tab 标签头和灰线（绝对不伤图表内容！） */
-        button[role="tab"],             /* 杀掉所有具体的标签按钮 */
-        div[role="tablist"],            /* 杀掉标签栏容器 */
-        [data-baseweb="tab-list"],      /* 杀掉底层框架的标签栏 */
-        hr {                            /* 杀掉 st.write("---") 产生的那条灰线 */
+    
+        button[role="tab"],
+        div[role="tablist"],
+        [data-baseweb="tab-list"],
+        hr {
             display: none !important; 
         }
-
-        /* 🌟 3. 干掉页面最顶部自带的巨大白边 */
+    
         .block-container { 
             padding-top: 0 !important; 
             margin-top: 0 !important; 
+            max-width: 100% !important;
+            width: 100% !important;
         }
-        
-        /* 🌟 4. 断页样式不变，由 Python 调度 */
+    
+        .stApp {
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+    
         .page-break-title { 
             page-break-before: always !important; 
             padding-top: 40px !important;  
             margin-top: 0px !important;
+            text-align: left !important;
         }
-        
-        h2 { display: block !important; color: #00338D !important; font-size: 20px !important; font-weight: bold !important; border-bottom: 2px solid #00338D !important; padding-bottom: 8px !important; margin: 20px 0 15px 0 !important; }
-        h3:not(.no-print) { display: block !important; color: #00338D !important; font-size: 16px !important; font-weight: bold !important; margin: 15px 0 10px 0 !important; page-break-after: avoid !important; }
-        @page { size: A4; margin: 10mm; }
-        div[data-testid="stDataFrame"], div[data-testid="stTable"] { zoom: 0.65 !important; margin: 0 auto 30px auto !important; max-width: 100% !important; page-break-inside: auto !important; }
-        div[data-testid="stTable"] tr { page-break-inside: avoid !important; }
-        /* 🌟 只保留图表的居中，把 .element-container 的全局居中去掉了！ */
-        .plotly-graph-div { page-break-inside: avoid !important; display: flex !important; justify-content: center !important; }
-        .element-container { page-break-inside: avoid !important; }
+    
+        /* 关键：不要强制 landscape，交给用户打印面板自己选 */
+        @page {
+            size: auto;
+            margin: 10mm;
+        }
+    
+        h2 {
+            display: block !important;
+            text-align: left !important;
+            color: #00338D !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
+            border-bottom: 2px solid #00338D !important;
+            padding-bottom: 8px !important;
+            margin: 20px 0 15px 0 !important;
+        }
+    
+        h3:not(.no-print) {
+            display: block !important;
+            text-align: left !important;
+            color: #00338D !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            margin: 15px 0 10px 0 !important;
+            page-break-after: avoid !important;
+        }
+    
+        div[data-testid="stDataFrame"],
+        div[data-testid="stTable"] {
+            zoom: 0.65 !important;
+            margin: 0 auto 30px auto !important;
+            max-width: 100% !important;
+            page-break-inside: auto !important;
+        }
+    
+        div[data-testid="stTable"] tr {
+            page-break-inside: avoid !important;
+        }
+    
+        .plotly-graph-div {
+            page-break-inside: avoid !important;
+            display: flex !important;
+            justify-content: center !important;
+            width: 100% !important;
+        }
+    
+        .stPlotlyChart {
+            width: 100% !important;
+            max-width: 100% !important;
+            break-inside: avoid !important;
+        }
+    
+        .element-container {
+            page-break-inside: avoid !important;
+            width: 100% !important;
+        }
+    }
+    
+    /* 纵向打印时的额外微调 */
+    @media print and (orientation: portrait) {
+        .stPlotlyChart {
+            margin-bottom: 10mm !important;
+        }
+    }
+    
+    /* 横向打印时的额外微调 */
+    @media print and (orientation: landscape) {
+        .stPlotlyChart {
+            margin-bottom: 6mm !important;
+        }
     }
     
     .stPlotlyChart, div[data-testid="stDataFrame"] { display: flex !important; justify-content: center !important; }
@@ -278,7 +344,7 @@ def show_step_7_content():
         md = notes_dict.get(module_id, {})
         an, nt, ai_txt = md.get('analysis', ""), md.get('note', ""), generate_ai_insight(ai_df, ai_field, is_pct)
         if an or ai_txt:
-            html = f'<div style="background: #F0F4FA; border-left: 4px solid #00338D; padding: 15px; margin-bottom: 10px; border-radius: 4px;">'
+            html = f'<div style="text-align: left;background: #F0F4FA; border-left: 4px solid #00338D; padding: 15px; margin-bottom: 10px; border-radius: 4px;">'
             if an: html += f'<p style="margin: 0 0 8px 0; color: #1E3A8A; font-size: 14px;"><b> </b> {an}</p>'
             if ai_txt: html += f'<p style="margin: 0; color: #D84315; font-size: 13px; border-top: 1px dashed #B0BEC5; padding-top: 8px;">{ai_txt}</p>'
             st.markdown(html + "</div>", unsafe_allow_html=True)
@@ -286,7 +352,7 @@ def show_step_7_content():
 
     def display_bottom_note(nt_text):
         if nt_text and str(nt_text).lower() != 'nan':
-            st.markdown(f'<div style="margin-top: 5px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="text-align: left;margin-top: 5px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
     def show_chart(fig, p_mode):
         if fig:
@@ -730,23 +796,86 @@ def show_step_7_content():
     
     # --- 14. 计算 OCI 分析表 ---
     def calculate_oci_analysis_table(df_raw, selected_cos):
-        f = ['AC', 'FVOCI', 'FVTPL', '指定FVOCI', 'FVOCI债券公允价值', '可转损益的负债OCI']
-        d = df_raw[df_raw['字段名'].isin(f)].copy()
-        curr_y, prev_y = str(latest_year), str(prev_year)
-        results = []
-        for co in selected_cos:
-            data = {}
-            for y in [curr_y, prev_y]:
-                for fn in f:
-                    val = d[(d['公司'] == co) & (d['报告年份'].astype(str) == y) & (d['字段名'] == fn)]['(百万)人民币']
-                    data[f"{fn}_{y}"] = val.iloc[0] if not val.empty else 0
-            def get_ratio(y):
-                denom = data[f"AC_{y}"] + data[f"FVOCI_{y}"] + data[f"FVTPL_{y}"] + data[f"指定FVOCI_{y}"]
-                return data[f"FVOCI_{y}"] / denom if denom != 0 else 0
-            ratio_fvoci = data[f"FVOCI债券公允价值_{curr_y}"] / data[f"FVOCI债券公允价值_{prev_y}"] if data.get(f"FVOCI债券公允价值_{prev_y}", 0) != 0 else 0
-            ratio_liab = data[f"可转损益的负债OCI_{curr_y}"] / data[f"可转损益的负债OCI_{prev_y}"] if data.get(f"可转损益的负债OCI_{prev_y}", 0) != 0 else 0
-            results.append({"公司": co, f"FVOCI占比_{prev_y}": get_ratio(prev_y), f"FVOCI占比_{curr_y}": get_ratio(curr_y), "FVOCI变动": ratio_fvoci, "负债OCI变动": ratio_liab, "两年资负OCI变动比率": ratio_fvoci / ratio_liab if ratio_liab != 0 else 0})
-        return pd.DataFrame(results), curr_y, prev_y
+            import numpy as np
+            f = ['AC', 'FVOCI', 'FVTPL', '指定FVOCI', 'FVOCI债券公允价值', '可转损益的负债OCI']
+            df = df_raw.copy()
+            
+            # 强力统一清洗年份和文本前后空格
+            df['报告年份'] = df['报告年份'].astype(str).str.replace('.0', '', regex=False).str.strip()
+            df['公司'] = df['公司'].astype(str).str.strip()
+            df['字段名'] = df['字段名'].astype(str).str.strip()
+            
+            # 自动智能识别数值列
+            preferred_cols = ["(百万)人民币", "(百万)原币", "数值", "值"]
+            val_col = next((c for c in preferred_cols if c in df.columns), df.columns[-1])
+            
+            curr_y, prev_y = str(latest_year), str(prev_year)
+            results = []
+            
+            for co in selected_cos:
+                data = {}
+                df_co = df[(df['公司'].str.contains(co, na=False)) | (df['公司'] == co)]
+                
+                for y in [curr_y, prev_y]:
+                    for fn in f:
+                        # 精准匹配 或 模糊匹配
+                        val_series = df_co[(df_co['报告年份'] == y) & (df_co['字段名'] == fn)][val_col]
+                        if val_series.empty:
+                            val_series = df_co[(df_co['报告年份'] == y) & (df_co['字段名'].str.contains(fn, na=False))][val_col]
+                        
+                        # 提取数值，如果是 NaN 则填 0
+                        extracted_val = val_series.iloc[0] if not val_series.empty else 0
+                        # 如果读出来是真 NaN (np.nan)，手动转成 0，防止污染后面的加法！
+                        if pd.isna(extracted_val): 
+                            extracted_val = 0
+                            
+                        data[f"{fn}_{y}"] = extracted_val
+    
+                        # 🚀 ============ Spyder 控制台 Debug 打印区 1 ============ 🚀
+                        if "友邦" in co and y == "2024":
+                            print(f"🕵️ [Debug] 正在抓取: 友邦 - 2024 - 【{fn}】")
+                            print(f"    --> 找到的数据行数: {len(val_series)}")
+                            print(f"    --> 提取的原始值: {val_series.values if not val_series.empty else '空 (Empty)'}")
+                            print(f"    --> 最终写入字典的值: {extracted_val}\n")
+                
+                def get_ratio(y):
+                    # 拿取四大类资产
+                    ac = data[f"AC_{y}"]
+                    fvoci = data[f"FVOCI_{y}"]
+                    fvtpl = data[f"FVTPL_{y}"]
+                    dfvoci = data[f"指定FVOCI_{y}"]
+                    
+                    denom = ac + fvoci + fvtpl + dfvoci
+                    
+                    # 🚀 ============ Spyder 控制台 Debug 打印区 2 ============ 🚀
+                    if "友邦" in co and y == "2024":
+                        print(f"🧮 [Debug Ratio] 开始计算友邦 2024 年 FVOCI 占比:")
+                        print(f"    --> AC: {ac}")
+                        print(f"    --> FVOCI: {fvoci}")
+                        print(f"    --> FVTPL: {fvtpl}")
+                        print(f"    --> 指定FVOCI: {dfvoci}")
+                        print(f"    --> 分母(四大类总和) = {denom}")
+                        print(f"    --> 分子(FVOCI) = {fvoci}")
+                        if denom == 0:
+                            print(f"    ❌ 警告：分母为0，将返回 0！\n")
+                        else:
+                            print(f"    ✅ 结果: {fvoci / denom}\n")
+    
+                    return fvoci / denom if denom != 0 else 0
+                    
+                ratio_fvoci = data[f"FVOCI债券公允价值_{curr_y}"] / data[f"FVOCI债券公允价值_{prev_y}"] if data.get(f"FVOCI债券公允价值_{prev_y}", 0) != 0 else 0
+                ratio_liab = data[f"可转损益的负债OCI_{curr_y}"] / data[f"可转损益的负债OCI_{prev_y}"] if data.get(f"可转损益的负债OCI_{prev_y}", 0) != 0 else 0
+                
+                results.append({
+                    "公司": co, 
+                    f"FVOCI占比_{prev_y}": get_ratio(prev_y), 
+                    f"FVOCI占比_{curr_y}": get_ratio(curr_y), 
+                    "FVOCI变动": ratio_fvoci, 
+                    "负债OCI变动": ratio_liab, 
+                    "两年资负OCI变动比率": ratio_fvoci / ratio_liab if ratio_liab != 0 else 0
+                })
+                
+            return pd.DataFrame(results), curr_y, prev_y
 
 
     # --- 15.净资产与总资产 ---
@@ -1220,125 +1349,131 @@ def show_step_7_content():
 
 
 # --- 28. 合同服务边际期限分布表（转置版，纯HTML生成）---
-    def create_csm_maturity_table(df_raw, target_year, cos, highlight_co="无"):
-        import pandas as pd
-    
+# --- 新增/替换：CSM 预期摊销速度折线图 ---
+    def create_csm_maturity_table(df_raw, target_year, selected_cos, color_map, show_labels, marker_size, highlight_co="无", title_text=""):
+        # 为了防报错，函数内兜底字体设定
+        COMMON_TITLE_FONT = dict(size=18, color="#00338D", family="Microsoft YaHei")
+        
         df = df_raw.copy()
         df['报告年份'] = df['报告年份'].astype(str).str.replace('.0', '', regex=False)
-        curr_year_str = str(target_year)
-    
-        # 列顺序：展示名, 原字段名
-        item_mapping = [
-            ("1年及1年以内", "1年及1年以内合同服务边际"),
-            ("1-5年", "1-5年合同服务边际"),
-            ("5-10年", "5-10年合同服务边际"),
-            ("10-20年", "10-20年合同服务边际"),
-            ("20年", "20年合同服务边际"),
+        curr_year_str = str(target_year).replace('.0', '')
+        
+        fields = [
+            "1年及1年以内合同服务边际", "1-5年合同服务边际", 
+            "5-10年合同服务边际", "10-20年合同服务边际", "20年合同服务边际"
         ]
-        raw_item_names = [x[1] for x in item_mapping]
-    
-        # 过滤目标数据
-        df_target = df[
-            (df['报告年份'] == curr_year_str) &
-            (df['公司'].isin(cos)) &
-            (df['字段名'].isin(raw_item_names))
-        ].copy()
-    
-        # 自动识别数值列
+        
+        df_target = df[(df['报告年份'] == curr_year_str) & (df['公司'].isin(selected_cos)) & (df['字段名'].isin(fields))].copy()
+        
         preferred_cols = ["(%)原币", "(%)", "百分比", "比例", "占比", "数值", "值", "(百万)原币"]
-        val_col = None
-        for col in preferred_cols:
-            if col in df_target.columns:
-                val_col = col
-                break
-    
-        if val_col is None:
+        val_col = next((c for c in preferred_cols if c in df_target.columns), None)
+        if not val_col:
             non_dim_cols = [c for c in df_target.columns if c not in ['报告年份', '公司', '字段名']]
             val_col = non_dim_cols[-1] if non_dim_cols else None
-    
-        if val_col is None:
-            return ""
-    
-        # 建映射：(公司, 字段名) -> 值
+            
+        if not val_col: return go.Figure()
+
         data_map = df_target.set_index(['公司', '字段名'])[val_col].to_dict()
-        current_hl = str(highlight_co).strip()
-    
-        # 百分比格式化：空值/0值都显示为 "-"
-        def format_pct(v):
-            if pd.isna(v):
-                return "-"
-    
+        
+        # 智能数据解析器：转成绝对百分比数字（如 8.7% -> 8.7）
+        def parse_pct(v):
+            if pd.isna(v): return None
             s = str(v).strip()
-            if s == "" or s.lower() == "nan" or s == "-":
-                return "-"
-    
+            if s in ["", "nan", "-"]: return None
             try:
-                # 已经带 % 的情况
-                if "%" in s:
-                    num = float(s.replace("%", "").replace(",", "").strip())
-                    if abs(num) < 1e-12:
-                        return "-"
-                    num = round(num, 1)
-                    return f"{int(num)}%" if float(num).is_integer() else f"{num}%"
-    
-                # 数字情况
-                num = float(s.replace(",", "").strip())
-    
-                # 若原值是小数（如 0.087），转成 8.7%
-                if abs(num) <= 1:
-                    num = num * 100
-    
-                if abs(num) < 1e-12:
-                    return "-"
-    
-                num = round(num, 1)
-                return f"{int(num)}%" if float(num).is_integer() else f"{num}%"
+                if "%" in s: return float(s.replace("%", "").replace(",", ""))
+                num = float(s.replace(",", ""))
+                if abs(num) <= 1.0: return num * 100
+                return num
             except:
-                return "-"
-    
-        # 为了和你示例表“同样宽度”一致：width:100%
-        # 因为现在总共 6 列，所以固定布局更稳
-        first_col_width = "18%"
-        other_col_width = "16.4%"   # 82% / 5
-    
-        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 13px; table-layout: fixed;'>"
-    
-        # 表头
-        html += "<tr style='background-color: #00338D; color: white; font-size: 14px; text-align: center; font-weight: bold;'>"
-        html += f"<th style='padding: 10px; text-align: left; border: 1px solid white; width: {first_col_width};'>公司名称</th>"
-        for display_name, _ in item_mapping:
-            html += f"<th style='padding: 10px; text-align: center; border: 1px solid white; width: {other_col_width};'>{display_name}</th>"
-        html += "</tr>"
-    
-        # 表体
-        for row_idx, co in enumerate(cos):
-            is_hl = (str(co).strip() == current_hl)
-            row_bg = "#F8F9FA" if row_idx % 2 == 0 else "white"
-            text_color = "#333"
-            font_weight = "normal"
-            borders = "border: 1px solid #EAEAEA;"
-    
-            if is_hl:
-                row_bg = "rgba(0, 51, 141, 0.08)"
-                text_color = "#00338D"
-                font_weight = "bold"
-                borders = "border-top: 2px solid #00338D; border-bottom: 2px solid #00338D; border-left: 1px solid #EAEAEA; border-right: 1px solid #EAEAEA;"
-    
-            html += f"<tr style='background-color: {row_bg}; color: {text_color}; font-weight: {font_weight};'>"
-    
-            # 第一列：公司名称
-            html += f"<td style='padding: 12px 10px; text-align: left; {borders} font-weight: bold; width: {first_col_width};'>{co}</td>"
-    
-            # 后面五列：各期限
-            for _, raw_name in item_mapping:
-                val = data_map.get((co, raw_name), "-")
-                val = format_pct(val)
-                html += f"<td style='padding: 12px 10px; text-align: center; {borders} width: {other_col_width};'>{val}</td>"
-    
-            html += "</tr>"
-    
-        html += "</table>"
-        return html
+                return None
+
+        fig = go.Figure()
+        hl_co = str(highlight_co).strip()
+
+        for co in selected_cos:
+            f1 = parse_pct(data_map.get((co, "1年及1年以内合同服务边际")))
+            f5 = parse_pct(data_map.get((co, "1-5年合同服务边际")))
+            f10 = parse_pct(data_map.get((co, "5-10年合同服务边际")))
+            f20 = parse_pct(data_map.get((co, "10-20年合同服务边际")))
+            f20p = parse_pct(data_map.get((co, "20年合同服务边际")))
+            
+            # 核心逻辑1：判断 0-5年 是否有值
+            has_0_5 = (f1 is not None) or (f5 is not None)
+            
+            v1 = f1 if f1 is not None else 0
+            v5 = f5 if f5 is not None else 0
+            v10 = f10 if f10 is not None else 0
+            v20 = f20 if f20 is not None else 0
+            v20p = f20p if f20p is not None else 0
+            
+            # X=5 时的累积值
+            y5 = v1 + v5
+            
+            # 核心逻辑2：X=10 处的累积值
+            # 如果没有 F10，按照要求：用 (F20+F20+)/2 代替
+            if f10 is None:
+                y10 = y5 + (v20 + v20p) / 2
+            else:
+                y10 = y5 + v10
+                
+            # 核心逻辑3：分段坐标组装
+            x_vals = [0]
+            y_vals = [0]
+            
+            if has_0_5:
+                # 正常两段摊销
+                x_vals.extend([5, 10])
+                y_vals.extend([y5, y10])
+            else:
+                # 如果没有1和5年，直接一根线从0贯穿到10
+                x_vals.append(10)
+                y_vals.append(y10)
+                
+            is_hl = (co == hl_co)
+            line_color = "#00338D" if is_hl else color_map.get(co, "#888888")
+            line_width = 4 if is_hl else 2
+            
+            # 画线
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=y_vals,
+                name=co,
+                mode='lines+markers+text' if show_labels else 'lines+markers',
+                text=[f"{y:.1f}%" if x > 0 else "" for x, y in zip(x_vals, y_vals)],
+                textposition="top center",
+                line=dict(color=line_color, width=line_width),
+                marker=dict(size=marker_size * 1.5 if is_hl else marker_size, color=line_color),
+                cliponaxis=False
+            ))
+            
+        layout_args = dict(
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            margin=dict(t=80 if title_text else 50, b=40, l=40, r=40), 
+            height=450,
+            # 🌟 满足要求：图例放在最上方，横向排列
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=12))
+        )
+        if title_text:
+            layout_args['title'] = dict(text=f"<b>{title_text}</b>", x=0.5, y=0.95, xanchor='center', font=COMMON_TITLE_FONT)
+            
+        fig.update_layout(**layout_args)
+        
+        # 强制 X 轴刻度只显示 0, 5, 10
+        fig.update_xaxes(
+            tickvals=[0, 5, 10], 
+            ticktext=["0", "5年", "10年"], 
+            showgrid=True, gridcolor="rgba(200,200,200,0.3)", zeroline=False
+        )
+        # 强制 Y 轴附带百分号
+        fig.update_yaxes(
+            showgrid=True, gridcolor="rgba(200,200,200,0.3)", 
+            zeroline=True, zerolinecolor="#E0E0E0", 
+            tickformat=".0f", ticksuffix="%"
+        )
+        
+        return fig
 
 
 
@@ -2388,10 +2523,24 @@ def show_step_7_content():
             if html: st.markdown(html, unsafe_allow_html=True)
 
 
-        elif m_id == "csm_maturity_table":
-            html = create_csm_maturity_table(df_filtered, latest_year, selected_cos, current_hl)
-            if html:
-                st.markdown(html, unsafe_allow_html=True)
+# XX. CSM 预期摊销速度
+        elif m_id == "csm_maturity_table":  # 请确保这个 ID 与你 Excel 注释表里的 ID 一致
+            if not print_mode:
+                c1, c2 = st.columns(2)
+                with c1: lab = st.toggle("显示摊销累积比例", True, key=f"lab_{m_id}")
+                with c2: mk = st.slider("数据点大小", 4, 15, 8, key=f"mk_{m_id}")
+            else:
+                lab, mk = True, 8
+                
+            # 🌟 传入统一的 company_color_map 保持公司颜色不乱
+            color_map = st.session_state.get('company_color_map', {})
+            
+            fig = create_csm_maturity_table(
+                df_filtered, latest_year, selected_cos, 
+                color_map, lab, mk, current_hl, title_text=""
+            )
+            if fig:
+                show_chart(fig, print_mode)
                 
         # 26. 附录：业绩明细表与新业务明细表 (双表同打)
         elif m_id == "report_detail":  
@@ -2561,10 +2710,240 @@ def show_step_7_content():
 
 #____________________________Step8_____________________________#
 def show_step_8_content():
+    COMMON_TITLE_FONT = dict(size=18, color="#00338D", family="Microsoft YaHei")
+
+    # ==========================================
+    # 1. 样式与前端注入 (防冲突版 CSS & JS)
+    # ==========================================
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] { background: rgba(255,255,255,0.95) !important; border-right: 1px solid #EAEAEA !important; box-shadow: 2px 0px 15px rgba(0,0,0,0.08) !important; }
+    .nav-floating-sign-8 { position: fixed; left: 0; top: 50%; transform: translateY(-50%); background: rgba(0, 133, 120, 0.85); /* 用墨绿色区分Step8 */ color: white; padding: 20px 8px; border-radius: 0 12px 12px 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 15px; font-weight: bold; letter-spacing: 3px; z-index: 9999; cursor: pointer; box-shadow: 3px 3px 12px rgba(0,0,0,0.25); transition: all 0.2s; }
+    .nav-floating-sign-8:hover { background: rgba(0, 133, 120, 1); padding-left: 15px; }
+    
+    @media print { 
+        .no-print, h1, .nav-floating-sign-8, [data-testid="collapsedControl"], header, footer, 
+        [data-testid="stHeader"], [data-testid="stSidebar"], section[data-testid="stSidebar"], 
+        [data-testid="stToolbar"], button[kind="secondary"], input, .stSlider, 
+        [data-testid="stSelectbox"], [data-testid="stRadio"], [data-testid="stExpander"], 
+        .stAlert { display: none !important; }
+
+        button[role="tab"], div[role="tablist"], [data-baseweb="tab-list"], hr { display: none !important; }
+        .block-container { padding-top: 0 !important; margin-top: 0 !important; max-width: 100% !important; width: 100% !important; }
+        .stApp { max-width: 100% !important; width: 100% !important; }
+        .page-break-title { page-break-before: always !important; padding-top: 40px !important; margin-top: 0px !important; text-align: left !important; }
+        @page { size: A4 landscape; margin: 10mm; }
+        h2 { display: block !important; text-align: left !important; color: #00338D !important; font-size: 20px !important; font-weight: bold !important; border-bottom: 2px solid #00338D !important; padding-bottom: 8px !important; margin: 20px 0 15px 0 !important; }
+        h3:not(.no-print) { display: block !important; text-align: left !important; color: #00338D !important; font-size: 16px !important; font-weight: bold !important; margin: 15px 0 10px 0 !important; page-break-after: avoid !important; }
+        div[data-testid="stDataFrame"], div[data-testid="stTable"] { zoom: 0.65 !important; margin: 0 auto 30px auto !important; max-width: 100% !important; page-break-inside: auto !important; }
+        div[data-testid="stTable"] tr { page-break-inside: avoid !important; }
+        .plotly-graph-div { page-break-inside: avoid !important; display: flex !important; justify-content: center !important; width: 100% !important; }
+        .stPlotlyChart { width: 100% !important; max-width: 100% !important; break-inside: avoid !important; }
+        .element-container { page-break-inside: avoid !important; width: 100% !important; }
+    }
+    .stPlotlyChart, div[data-testid="stDataFrame"] { display: flex !important; justify-content: center !important; }
+    /* Step 8 的特定高亮样式（可稍微修改颜色以示区分，这里保持 KPMG 蓝） */
+    .highlight-blue-box { border: 1.5px solid rgba(0,51,141,0.85) !important; border-radius: 12px !important; padding: 10px !important; background: rgba(0,51,141,0.02) !important; box-shadow: 0px 4px 12px rgba(0,51,141,0.12) !important; margin-bottom: 25px !important; }
+    </style>
+    <div class="nav-floating-sign-8" id="custom-nav-trigger-8">展开导航栏</div>
+    """, unsafe_allow_html=True)
+
+    components.html("""<script>let t8 = setInterval(() => { const d = window.parent.document; const b = d.getElementById("custom-nav-trigger-8"); const c = d.querySelector('[data-testid="collapsedControl"]') || d.querySelector('button[kind="header"]'); if(b && c) { b.onclick = () => c.click(); clearInterval(t8); } }, 500);</script>""", height=0, width=0)
+
+    # ==========================================
+    # 2. 数据检查与年份提取
+    # ==========================================
+    if 'integrated_data' not in st.session_state or st.session_state['integrated_data'] is None:
+        st.warning("⚠️ 请先在 Step 6 完成数据集成。")
+        st.stop()
+        
+    df_raw = st.session_state['integrated_data'].copy()
+    if '公司类型' not in df_raw.columns: df_raw['公司类型'] = "未分类"
+
+    valid_years = sorted([y for y in df_raw['报告年份'].dropna().astype(str).str.replace(".0", "", regex=False).unique() if y.isdigit()])
+    latest_year = int(valid_years[-1]) if len(valid_years) > 0 else 2025
+    prev_year = int(valid_years[-2]) if len(valid_years) > 1 else 2023
+
     st.markdown("### 📈 行业统计分析")
-    st.info("这里是 Step 8 的行业统计分析内容...")
 
+    # ==========================================
+    # 3. 加载 Step 8 专属配置表
+    # ==========================================
+    notes_dict_8, ordered_modules_8 = {}, []
+    with st.expander("📥 行业分析内容与注释输入", expanded=False):
+        use_default_8 = st.toggle("使用 Step 8 默认注释表", value=True, key="use_default_notes_8")
+        df_notes_8 = None
+        if use_default_8:
+            try:
+                # 🌟 使用你提供的默认地址
+                df_notes_8 = pd.read_excel("http://github/lym")
+                st.success("✅ Step 8 默认注释表加载成功")
+            except Exception as e:
+                st.error(f"❌ 加载失败，请检查网络或地址：{e}")
+        else:
+            st.info("💡 请上传 Step 8 专属的 Excel 注释表")
+            notes_file_8 = st.file_uploader("上传 Excel", type=['xlsx', 'xls'], key="upload_notes_8")
+            if notes_file_8: df_notes_8 = pd.read_excel(notes_file_8)
 
+        if df_notes_8 is not None:
+            for col in ['一级分类', '二级分类', '对应图表名称', '模块ID']:
+                if col in df_notes_8.columns:
+                    df_notes_8[col] = df_notes_8[col].astype(str).str.strip().replace(['nan', 'NaN', 'NAN', 'None'], '')
+            
+            has_img_8 = '图片文件名' in df_notes_8.columns
+            for _, r in df_notes_8.iterrows():
+                m_id = str(r.get('模块ID', '')).strip()
+                if not m_id: continue
+                img_val = str(r.get('图片文件名', '')).strip() if has_img_8 and pd.notna(r.get('图片文件名')) else ''
+                notes_dict_8[m_id] = {
+                    'title': str(r.get('对应图表名称', '')).strip(),
+                    'analysis': str(r.get('分析内容', '')).strip() if pd.notna(r.get('分析内容')) else '',
+                    'note': str(r.get('注释内容', '')).strip() if pd.notna(r.get('注释内容')) else '',
+                    'image_file': img_val if img_val.lower() != 'nan' else ''
+                }
+                if m_id not in ordered_modules_8: ordered_modules_8.append(m_id)
+            st.session_state['df_notes_8'] = df_notes_8
+
+    # ==========================================
+    # 4. 侧边栏：Step 8 专属级联导航
+    # ==========================================
+    print_mode, active_m_id, active_level_context = False, None, ""
+    with st.sidebar:
+        st.markdown("<h3 style='color: #008578; font-size: 18px;'>行业报告导航</h3>", unsafe_allow_html=True)
+        if 'df_notes_8' in st.session_state and st.session_state['df_notes_8'] is not None and not st.session_state['df_notes_8'].empty:
+            df_n_8 = st.session_state['df_notes_8']
+            first_levels = [x for x in df_n_8['一级分类'].unique() if x]
+            main_nav = st.radio("📁 行业大类", first_levels + ["🖨️ 一键显示全部 (行业打印)"], key="s8_m")
+
+            if main_nav == "🖨️ 一键显示全部 (行业打印)":
+                print_mode = True
+                st.info("💡 行业报告导出模式：打印目标选“另存为PDF”，勾选“背景图形”。")
+                components.html("""<button onclick="window.parent.print()" style="width:100%; padding:12px; background:#008578; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:14px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">导出 行业分析 PDF</button>""", height=60)
+            else:
+                df_sub1 = df_n_8[df_n_8['一级分类'] == main_nav]
+                sec_levels = [x for x in df_sub1['二级分类'].unique() if x]
+
+                if len(sec_levels) == 0:
+                    charts = [x for x in df_sub1['对应图表名称'].unique() if x]
+                    chart_nav = st.radio("具体图表", charts, key="s8_c")
+                    active_m_id = df_sub1[df_sub1['对应图表名称'] == chart_nav].iloc[0]['模块ID']
+                else:
+                    sub_nav = st.radio("📂 细分行业视角", ["全部"] + sec_levels, key="s8_s")
+                    if sub_nav != "全部":
+                        df_sub2 = df_sub1[df_sub1['二级分类'] == sub_nav]
+                        charts = [x for x in df_sub2['对应图表名称'].unique() if x]
+                        chart_nav = st.radio("📊 行业图表", charts, key="s8_c2")
+                        active_m_id = df_sub2[df_sub2['对应图表名称'] == chart_nav].iloc[0]['模块ID']
+                    else:
+                        charts = [x for x in df_sub1['对应图表名称'].unique() if x]
+                        chart_nav = st.radio("📊 行业图表 (全部)", charts, key="s8_c_all")
+                        active_m_id = df_sub1[df_sub1['对应图表名称'] == chart_nav].iloc[0]['模块ID']
+        else:
+            st.warning("⚠️ 请先加载 Step 8 行业注释表")
+
+    # ==========================================
+    # 5. 全局配置：公司类型主导 (UI极简)
+    # ==========================================
+    with st.expander("⚙️ 行业对比设置与图片覆盖", expanded=False):
+        c1, c2, c3, c4 = st.columns([2, 1, 1, 1])   
+        with c1: 
+            # 🌟 核心改变：展示的是“公司类型”而非具体公司
+            raw_ordered_types = list(dict.fromkeys(df_raw['公司类型'].dropna().tolist()))
+            selected_types = st.multiselect("对比的公司类型", options=raw_ordered_types, default=raw_ordered_types, key="s8_types")
+            # 数据底表过滤只保留选中的类型
+            df_filtered = df_raw[df_raw['公司类型'].isin(selected_types)].copy()
+        with c2: 
+            unit_label = st.selectbox("全局单位", ["十亿元", "亿元", "百万元", "十万元"], key="s8_unit")
+            divisor = {"十亿元": 1000, "亿元": 100, "百万元": 1, "十万元": 0.1}[unit_label]
+        with c3: 
+            # 🌟 核心改变：追踪/高亮的也是某一个“公司类型”
+            highlight_type = st.selectbox("高亮追踪类型", ["无"] + selected_types, key="s8_hl")
+        with c4: 
+            enable_ai_8 = st.toggle("启动行业AI洞察", value=False, key="s8_ai")
+        
+        HIGHLIGHT_COLOR, HL_BOX_LINE, HL_BOX_FILL = "#008578", "rgba(0,133,120,0.8)", "rgba(0,133,120,0.04)"
+        
+        st.markdown("---")
+        st.caption("📸 手动上传截图（覆盖 Step 8 专用模块）")
+        if 'manual_upload_images_8' not in st.session_state: st.session_state.manual_upload_images_8 = {}
+        uploaded_files_8 = st.file_uploader("拖入截图文件", type=['png', 'jpg'], accept_multiple_files=True, key="up_file_8")
+        
+        if uploaded_files_8 and ordered_modules_8:
+            # 你可以在这里指定 step8 中写了代码的模块黑名单
+            code_rendered_mids_8 = {"industry_summary", "type_compare_chart"} 
+            non_code_modules_8 = [m for m in ordered_modules_8 if m not in code_rendered_mids_8]
+            
+            cols = st.columns(2)
+            for i, file in enumerate(uploaded_files_8):
+                with cols[i % 2]:
+                    get_name_8 = lambda m: "不匹配/跳过" if m == "不匹配/跳过" else notes_dict_8.get(m, {}).get('title', m)
+                    sel_mid_8 = st.selectbox(
+                        f"图片 {file.name} 对应：", 
+                        options=["不匹配/跳过"] + non_code_modules_8, 
+                        format_func=get_name_8, 
+                        key=f"up_8_{i}"
+                    )
+                    if sel_mid_8 != "不匹配/跳过": 
+                        st.session_state.manual_upload_images_8[sel_mid_8] = file
+                    st.image(file, use_column_width=True)
+
+    # ==========================================
+    # 6. AI 引擎与辅助函数 (基于公司类型)
+    # ==========================================
+    @st.cache_data(show_spinner=False)
+    def _call_llm_api_cached_8(data_str, field_name, latest_year, unit_str, user_api_key, api_base, api_model):
+        try:
+            import openai
+            client = openai.OpenAI(api_key=user_api_key, base_url=api_base)
+            # 🌟 提示词侧重行业/类型
+            prompt = f"你是资深精算行业分析师。以下是{latest_year}年不同【公司类型】在【{field_name}】的汇总数据(单位:{unit_str}):{data_str}。请一句话点评(指出类型间的差距与行业分化趋势)，不超60字。"
+            res = client.chat.completions.create(model=api_model, messages=[{"role": "user", "content": prompt}], temperature=0.2)
+            return f"<b><span style='color:#008578'></span></b> {res.choices[0].message.content}"
+        except Exception as e: return f"<span style='color:#C00000; font-size:12px;'>⚠️ AI报错: {str(e)}</span>"
+
+    def generate_ai_insight_8(df, field_name, is_pct=False):
+        if not enable_ai_8 or df is None or df.empty or not field_name: return ""
+        try:
+            # 过滤当年数据
+            d_sub = df[(df.get('字段名', df.get('指标名称', pd.Series(''))).str.contains(field_name, na=False)) & (df['报告年份'].astype(str) == str(latest_year))]
+            if d_sub.empty: return ""
+            val_col = "(百万)人民币" if "(百万)人民币" in d_sub.columns else d_sub.columns[-1]
+            
+            # 🌟 核心改变：按公司类型进行汇总聚合 (此处以求和为例，如果是比率字段需另外处理)
+            d_agg = d_sub.groupby('公司类型')[val_col].sum().reset_index()
+            
+            ukey, ubase, umodel = st.session_state.get('api_key', "").strip(), st.session_state.get('base_url', "https://api.deepseek.com"), st.session_state.get('model_name', "deepseek-chat")
+            if ukey:
+                return _call_llm_api_cached_8(", ".join([f"{r['公司类型']}:{r[val_col]:.2f}" for _, r in d_agg.iterrows()]), field_name, latest_year, "百分比" if is_pct else unit_label, ukey, ubase, umodel)
+            
+            avg, max_r, min_r, fmt, mlt = d_agg[val_col].mean(), d_agg.loc[d_agg[val_col].idxmax()], d_agg.loc[d_agg[val_col].idxmin()], "{:.1f}%" if is_pct else "{:.1f}", 100 if is_pct else (1/divisor)
+            return f"<b> </b>{latest_year}年【{field_name}】各类型平均为 <b>{fmt.format(avg*mlt)}</b>。<b>{max_r['公司类型']}</b> 表现最高，<b>{min_r['公司类型']}</b> 表现最低。"
+        except Exception as e: return f"<span style='color:#C00000;'>⚠️ 数据报错: {e}</span>"
+
+    def display_notes_8(module_id, ai_df=None, ai_field=None, is_pct=False):
+        md = notes_dict_8.get(module_id, {})
+        an, nt, ai_txt = md.get('analysis', ""), md.get('note', ""), generate_ai_insight_8(ai_df, ai_field, is_pct)
+        if an or ai_txt:
+            html = f'<div style="text-align: left;background: #F4F9F8; border-left: 4px solid #008578; padding: 15px; margin-bottom: 10px; border-radius: 4px;">'
+            if an: html += f'<p style="margin: 0 0 8px 0; color: #004D45; font-size: 14px;"><b> </b> {an}</p>'
+            if ai_txt: html += f'<p style="margin: 0; color: #D84315; font-size: 13px; border-top: 1px dashed #B0BEC5; padding-top: 8px;">{ai_txt}</p>'
+            st.markdown(html + "</div>", unsafe_allow_html=True)
+        return an, nt
+
+    def display_bottom_note_8(nt_text):
+        if nt_text and str(nt_text).lower() != 'nan':
+            st.markdown(f'<div style="text-align: left;margin-top: 5px; margin-bottom: 25px; padding-left: 5px;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
+
+    def show_chart_8(fig, p_mode):
+        if fig:
+            if p_mode: fig.update_layout(width=850, autosize=False); st.plotly_chart(fig, use_container_width=False)
+            else: st.plotly_chart(fig, use_container_width=True)
+
+    # ==========================================
+    # 在此之下你可以像 Step 7 一样定义你的行业对比画图函数...
+    # 并定义 render_pure_chart_entity_8(m_id, print_mode)
+    # 以及最终的 render_report_module_8(m_id, print_mode, is_first)
+    # ==========================================
 
 
 
