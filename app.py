@@ -50,7 +50,13 @@ def show_step_7_content():
     [data-testid="stSidebar"] { background: rgba(255,255,255,0.95) !important; border-right: 1px solid #EAEAEA !important; box-shadow: 2px 0px 15px rgba(0,0,0,0.08) !important; }
     .nav-floating-sign { position: fixed; left: 0; top: 50%; transform: translateY(-50%); background: rgba(0, 51, 141, 0.85); color: white; padding: 20px 8px; border-radius: 0 12px 12px 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 15px; font-weight: bold; letter-spacing: 3px; z-index: 9999; cursor: pointer; box-shadow: 3px 3px 12px rgba(0,0,0,0.25); transition: all 0.2s; }
     .nav-floating-sign:hover { background: rgba(0, 51, 141, 1); padding-left: 15px; }
-
+   
+    /* 放在 @media print { } 块的外面 */
+    .stPlotlyChart {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    
     @media print {
         /* ===== 隐藏所有交互元素 ===== */
         .no-print, h1, .nav-floating-sign,
@@ -71,13 +77,24 @@ def show_step_7_content():
             break-inside: avoid !important;
             margin: 0 !important;              /* 清掉容器 margin，防溢出变空白页 */
             padding: 0 !important;
-            padding-bottom: 4mm !important;    /* 只留很小的底部间距 */
+            padding-bottom: 2mm !important;    /* 只留很小的底部间距 */
         }
         .stApp {
             max-width: 100% !important;
             width: 100% !important;
         }
-
+        
+        /* 保留两列并排布局的例外 */
+        .keep-columns [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+        }
+        .keep-columns [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {
+            width: 50% !important;
+            min-width: 50% !important;
+            max-width: 50% !important;
+            flex: 1 !important;
+            padding: 0 4px !important;
+        }
         /* ===== 核心：打印时拆掉三列居中布局，图表撑满纸张 ===== */
         [data-testid="stHorizontalBlock"] {
             display: block !important;
@@ -396,10 +413,23 @@ def show_step_7_content():
         if nt_text and str(nt_text).lower() != 'nan':
             st.markdown(f'<div style="text-align: left;margin-top: 5px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
-    def show_chart(fig, p_mode):
+    def show_chart(fig, p_mode, m_id=None):
         if fig:
-            if p_mode: fig.update_layout(width=850, autosize=False); st.plotly_chart(fig, use_container_width=False)
-            else: st.plotly_chart(fig, use_container_width=True)
+            if p_mode:
+                # 按图表类型定制打印高度
+                PRINT_HEIGHT_MAP = {
+                    # 宫格类图表，内容多，给足空间
+                    "csm_trans": 550,
+                    # 图表+表格组合，图要压矮给表格留空间
+                    "oci_deep":      300,
+                    "nb_struct":    320,
+                    # 默认
+                }
+                h = PRINT_HEIGHT_MAP.get(m_id, 420)
+                fig.update_layout(autosize=True, height=h, margin=dict(t=50, b=30, l=40, r=40))
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.plotly_chart(fig, use_container_width=True)
 
 
     # ==========================================
@@ -2140,7 +2170,7 @@ def show_step_7_content():
             else:
                 lab, gap = True,0.4 
             fig = create_profit_mixed_chart(df_filtered, selected_cos, "", lab, gap, divisor, unit_label, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 3. 单一指标趋势 (保险收入/费用/业绩)
         elif m_id in ["inc_total", "exp_total", "perf_total"]:
@@ -2153,7 +2183,7 @@ def show_step_7_content():
             else:
                 lab, psz, gap=True, 14, 0.3
             fig = create_kpmg_chart(df_filtered, field_map[m_id], "", lab, psz, gap)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 4. 收入结构分析 1/2
         elif m_id == "comp_1":
@@ -2171,7 +2201,7 @@ def show_step_7_content():
                 cfs = st.session_state.get(f"cfs_{m_id}", 12)
             comp_fields = ["采用保费分配法计量的保险合同保险服务收入", "未采用保费分配法计量的保险合同保险服务收入"]
             fig = create_kpmg_composition_chart(df_filtered, comp_fields, "", lab, lsz, wid, cfs, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 5. 收入结构分析 2/2 (多组成带表格)
         elif m_id == "comp_2":
@@ -2200,7 +2230,7 @@ def show_step_7_content():
                     html += "</tr>"
                 html += "</table>"
                 st.markdown(html, unsafe_allow_html=True)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 6. 利润构成拆解
         elif m_id in ["prof_2025", "prof_2024"]:
@@ -2228,7 +2258,7 @@ def show_step_7_content():
                     html += f"<td style='padding: 4px 4px; text-align: center; background-color: {'rgba(0,51,141,0.05)' if is_hl else 'white'}; border: {'1px solid #00338D' if is_hl else '1px solid #EAEAEA'}; color: {'#00338D' if is_hl else '#444'}; font-weight: {'bold' if is_hl else 'normal'};'>{v_str}</td>"
                 html += "</tr></table>"
                 st.markdown(html, unsafe_allow_html=True)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 7. 投资相关简单柱图
         elif m_id in ["inv_return", "uw_profit", "inv_profit"]:
@@ -2243,7 +2273,7 @@ def show_step_7_content():
                 psz = st.session_state.get(f"psz_{m_id}", 12)
                 gap = st.session_state.get(f"gap_{m_id}", 0.3)
             fig = create_simple_kpmg_chart(df_plot_final, field_map[m_id], "", lab, psz, gap, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 8. 税前利润
         elif m_id == "tax_profit":
@@ -2261,7 +2291,7 @@ def show_step_7_content():
                 cfs = st.session_state.get(f"cfs_{m_id}", 13)
                 hoy = st.session_state.get(f"hoy_{m_id}", 1.02)
             fig = create_tax_subplot_chart(df_tax_pivot, selected_cos, lab, wid, f_sz, cfs, hoy, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 9. 综合收益变动趋势
         elif m_id in ["net_profit", "oci_profit", "total_profit"]:
@@ -2276,7 +2306,7 @@ def show_step_7_content():
                 psz = st.session_state.get(f"psz_{m_id}", 12)
                 gap = st.session_state.get(f"gap_{m_id}", 0.3)
             fig = create_financial_trend_chart_v5(df_fin_raw, field_map[m_id], "", lab, psz, gap, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 10. 资产端分类
         elif m_id == "asset_struct":
@@ -2292,7 +2322,7 @@ def show_step_7_content():
             f_map = {"AC": "债权投资", "FVOCI": "其他债权投资", "FVTPL": "交易性金融资产", "指定FVOCI": "其他权益工具投资"}
             c_map = {"AC": "rgb(0, 184, 245)", "FVOCI": "rgb(114, 19, 234)", "FVTPL": "rgb(253, 52, 156)", "指定FVOCI": "rgb(181, 2, 95)"}
             fig = create_asset_composition_chart(df_filtered, selected_cos, f_map, c_map, "", lab, sz, wid, 12, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 11. 两年的 OCI 变动分析
         elif m_id in ["oci_year_lat", "oci_year_pre"]:
@@ -2307,7 +2337,7 @@ def show_step_7_content():
                 gap = st.session_state.get(f"gap_{m_id}", 0.15)
                 sz = st.session_state.get(f"sz_{m_id}", 12)
             fig = create_oci_chart(df_filtered, y, "", lab, sz, gap, selected_cos, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 12. 资负 OCI
         elif m_id == "oci_deep":
@@ -2321,7 +2351,7 @@ def show_step_7_content():
                 gap = st.session_state.get(f"gap_{m_id}", 0.15)
                 sz = st.session_state.get(f"sz_{m_id}", 12)
             fig = create_asset_liab_oci_chart(df_filtered, selected_cos, gap, sz, lab, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             df_a, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos)
             if not df_a.empty:
                 st.write(f"##### 资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)")
@@ -2354,7 +2384,7 @@ def show_step_7_content():
                 gap = st.session_state.get(f"gap_{m_id}", 0.3)
                 sz = st.session_state.get(f"sz_{m_id}", 12)
             fig = create_asset_trend_chart(df_asset_raw, field_map[m_id], "", lab, sz, gap, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
             
         # 14. CSM余额变动趋势
         elif m_id == "csm_bal":
@@ -2370,7 +2400,7 @@ def show_step_7_content():
                 gap = st.session_state.get(f"gap_{m_id}", 0.35)
                 sz = st.session_state.get(f"sz_{m_id}", 12)
             fig = create_csm_trend_chart(df_csm_raw, 'CSM期末余额', "", lab, sz, gap, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
         # 15. CSM期初余额占比分析
         elif m_id == "csm_ratio":
@@ -2382,7 +2412,7 @@ def show_step_7_content():
                 lab = st.session_state.get(f"lab_{m_id}", True)
                 gap = st.session_state.get(f"gap_{m_id}", 0.3)
             fig = create_csm_ratio_chart(df_filtered, selected_cos, lab, gap, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
         # 16. CSM 概览明细表
         elif m_id == "csm_table":
@@ -2421,7 +2451,7 @@ def show_step_7_content():
                 lab = st.session_state.get(f"lab_{m_id}", True)
                 wid = st.session_state.get(f"wid_{m_id}", 0.4)
             fig = create_csm_transition_chart(df_filtered, selected_cos, lab, wid, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
         # 18. 两年的摊销前CSM占比
         elif m_id in ["csm_comp_lat", "csm_comp_pre"]:
@@ -2436,7 +2466,7 @@ def show_step_7_content():
                 wid = st.session_state.get(f"wid_{m_id}", 0.5)
                 sz = st.session_state.get(f"sz_{m_id}", 11)
             fig = create_csm_composition_chart(df_filtered, selected_cos, y, lab, sz, wid, current_hl, title_text="")
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
 # 19. CSM比率折线图 (摊销比率 + 持续率双图并行)
         elif m_id == "csm_ratio_trend":
@@ -2445,25 +2475,26 @@ def show_step_7_content():
                 with c1: lab = st.toggle("显示数值", True, key=f"lab_{m_id}")
                 with c2: sz = st.slider("点大小", 4, 15, 6, key=f"sz_{m_id}")
             else:
-                # 【修改点 1】让系统去缓存里拿用户调好的数值
                 lab = st.session_state.get(f"lab_{m_id}", True)
                 sz = st.session_state.get(f"sz_{m_id}", 6)
-                
-            color_map = get_color_map(selected_cos) 
+        
+            color_map = get_color_map(selected_cos)
             df_c_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
             df_c_sub['摊销比率'] = -df_c_sub['CSM摊销'] / (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销'])
             df_c_sub['持续率'] = -df_c_sub['新业务CSM（集团口径）'] / df_c_sub['CSM摊销']
             df_c_sub.replace([np.inf, -np.inf], np.nan, inplace=True)
             df_c_sub['报告年份'] = df_c_sub['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
+        
+            # 👇 加保护壳
+            st.markdown("<div class='keep-columns'>", unsafe_allow_html=True)
             col_l, col_r = st.columns(2)
             with col_l:
-                # 【修改点 2】传入 selected_cos 和 current_hl 给画图函数
                 fig1 = create_ratio_line_chart_v3(df_c_sub[['公司', '报告年份', '摊销比率']].rename(columns={'摊销比率': 'value'}), "摊销比率趋势", color_map, lab, sz, 11, ".1%", selected_cos, current_hl)
-                show_chart(fig1, print_mode)
+                show_chart(fig1, print_mode, m_id=m_id)
             with col_r:
-                # 【修改点 2】同理传入参数
                 fig2 = create_ratio_line_chart_v3(df_c_sub[['公司', '报告年份', '持续率']].rename(columns={'持续率': 'value'}), "持续率趋势", color_map, lab, sz, 11, ".1%", selected_cos, current_hl)
-                show_chart(fig2, print_mode)
+                show_chart(fig2, print_mode, m_id=m_id)
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # 20. 综合净资产指标
         elif m_id == "csm_equity":
@@ -2477,7 +2508,7 @@ def show_step_7_content():
                 wid = st.session_state.get(f"wid_{m_id}", 0.5)
                 sz = st.session_state.get(f"sz_{m_id}", 12)
             fig = create_csm_equity_analysis(df_filtered, selected_cos, lab, sz, wid, 12, 20, current_hl, title_text="")
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
         # 21. 新业务盈利合同(CSM)
         elif m_id == "nb_csm":
@@ -2493,7 +2524,7 @@ def show_step_7_content():
                 gap = st.session_state.get(f"gap_{m_id}", 0.3)
                 sz = st.session_state.get(f"sz_{m_id}", 12)
             fig = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', "", lab, sz, gap, current_hl)
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
         # 22. 新业务指标拆解三图
         elif m_id == "nb_struct":
@@ -2512,9 +2543,9 @@ def show_step_7_content():
             )
             
             if f1:
-                show_chart(f1, print_mode)
-                show_chart(f2, print_mode)
-                show_chart(f3, print_mode)
+                show_chart(f1, print_mode,m_id=m_id)
+                show_chart(f2, print_mode,m_id=m_id)
+                show_chart(f3, print_mode,m_id=m_id)
 
         # 23. 新业务IFRS利润率趋势
         elif m_id == "nb_margin_trend":
@@ -2532,7 +2563,7 @@ def show_step_7_content():
             if fig:
                 col_l, col_r = st.columns([1.1, 1]) 
                 with col_l: 
-                    show_chart(fig, print_mode)
+                    show_chart(fig, print_mode,m_id=m_id)
 
         # 24. 费用结构及HTML统计表
         elif m_id == "exp_struct":
@@ -2563,7 +2594,7 @@ def show_step_7_content():
                 </tr>
             </table>
             """, unsafe_allow_html=True)        
-            show_chart(fig, print_mode)
+            show_chart(fig, print_mode,m_id=m_id)
 
         # 25. 关键披露：折现率假设与非金融风险置信水平表与摊销比
         elif m_id == "discount_rate":
@@ -2605,7 +2636,7 @@ def show_step_7_content():
                 color_map, lab, mk, current_hl, title_text=""
             )
             if fig:
-                show_chart(fig, print_mode)
+                show_chart(fig, print_mode,m_id=m_id)
                 
         # 26. 附录：业绩明细表与新业务明细表 (双表同打)
         elif m_id == "report_detail":  
@@ -2633,44 +2664,25 @@ def show_step_7_content():
 
 
         elif m_id == "six_dimensional_charts":
-            legend_fig = create_six_dimensional_legend(
-                cos=selected_cos,
-                highlight_co=current_hl
-            )
-        
+            legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
             figs = create_six_dimensional_charts(
-                df_raw=df_filtered,
-                target_year=latest_year,
-                cos=selected_cos,
-                divisor=divisor,
-                unit_label=unit_label,
-                highlight_co=current_hl,
-                label_size=11,
-                show_labels=False,
-                dot_size=11
+                df_raw=df_filtered, target_year=latest_year, cos=selected_cos,
+                divisor=divisor, unit_label=unit_label, highlight_co=current_hl,
+                label_size=11, show_labels=False, dot_size=11
             )
-        
             valid_figs = [fig for fig in figs if fig is not None]
         
             if valid_figs:
-                # 先显示统一图例（横向、居中、全宽）
-                st.plotly_chart(
-                    legend_fig,
-                    use_container_width=True,
-                    config={"displayModeBar": False}
-                )
+                st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False})
         
-                # 再显示六张图
+                # 👇 加保护壳
+                st.markdown("<div class='keep-columns'>", unsafe_allow_html=True)
                 col1, col2 = st.columns(2)
-        
                 for i, fig in enumerate(valid_figs):
                     target_col = col1 if i % 2 == 0 else col2
                     with target_col:
-                        st.plotly_chart(
-                            fig,
-                            use_container_width=True,
-                            config={"displayModeBar": False}
-                        )
+                        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                st.markdown("</div>", unsafe_allow_html=True)
             else:
                 st.info("暂无可用于绘制六维图的数据。")
 
