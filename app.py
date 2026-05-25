@@ -982,13 +982,17 @@ def show_step_7_content():
         return fig
 
     # --- 18. CSM概览表 ---
-    def show_csm_summary_table(df, target_year):
+    def show_csm_summary_table(df, target_year, selected_cos):
         field_map = {"CSM期初余额": "CSM余额", "新业务CSM（集团口径）": "新业务CSM", "CSM计息": "CSM计息", "CSM调整": "CSM调整", "CSM摊销": "CSM摊销", "CSM其他": "其他变动", "CSM期末余额": "CSM期末余额"}
         year_str = str(target_year).replace(".0", "")
         d_sub = df[(df['报告年份'].astype(str).str.contains(year_str)) & (df['字段名'].isin(field_map.keys()))].copy()
         if d_sub.empty: return None
+        # 透视并重排列表头
         d_pivot = d_sub.pivot(index='公司', columns='字段名', values='(百万)人民币').rename(columns=field_map).reindex(columns=list(field_map.values())).fillna(0) / divisor
-        for col in d_pivot.columns: d_pivot[col] = d_pivot[col].apply(lambda x: "-" if pd.isna(x) or abs(x)<0.05 else (f"({abs(x):.1f})" if x<0 else f"{x:.1f}"))
+        d_pivot = d_pivot.reindex(selected_cos).fillna(0)
+        
+        for col in d_pivot.columns: 
+            d_pivot[col] = d_pivot[col].apply(lambda x: "-" if pd.isna(x) or abs(x)<0.05 else (f"({abs(x):.1f})" if x<0 else f"{x:.1f}"))
         return d_pivot
 
     # --- 19. CSM过渡期拆分 ---
@@ -2342,7 +2346,9 @@ def show_step_7_content():
 
         # 16. CSM 概览明细表
         elif m_id == "csm_table":
-            table_df_2025 = show_csm_summary_table(df_filtered, latest_year)
+            # 🌟 核心修改：把 selected_cos 传进去
+            table_df_2025 = show_csm_summary_table(df_filtered, latest_year, selected_cos)
+            
             if table_df_2025 is not None:
                 html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px;'><tr style='background-color: #00338D; color: white; font-size: 13px; text-align: center; font-weight: bold;'><th style='padding: 12px 8px; text-align: left; border: 1px solid white;'>公司名称</th>"
                 for col in table_df_2025.columns: html += f"<th style='padding: 12px 8px; text-align: center; border: 1px solid white;'>{col}</th>"
