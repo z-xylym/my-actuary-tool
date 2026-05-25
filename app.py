@@ -1027,7 +1027,7 @@ def show_step_7_content():
         fig.update_annotations(yshift=15)
         return fig
 
-# --- 20.摊销前 CSM ---
+    # --- 20.摊销前 CSM ---
     def create_csm_composition_chart(df, selected_cos, target_year, show_labels, label_size, bar_width, highlight_co="无", title_text=""):
         field_map = {"新业务CSM（集团口径）": "新业务 CSM", "CSM计息": "CSM 计息", "CSM调整": "CSM 调整"}
         color_map = {"新业务CSM（集团口径）": "rgb(0, 51, 140)", "CSM计息": "rgb(147, 157, 253)", "CSM调整": "rgb(253, 52, 156)"}
@@ -1361,7 +1361,6 @@ def show_step_7_content():
 # --- 28. 合同服务边际期限分布表（转置版，纯HTML生成）---
 # --- 新增/替换：CSM 预期摊销速度折线图 ---
     def create_csm_maturity_table(df_raw, target_year, selected_cos, color_map, show_labels, marker_size, highlight_co="无", title_text=""):
-        # 为了防报错，函数内兜底字体设定
         COMMON_TITLE_FONT = dict(size=18, color="#00338D", family="Microsoft YaHei")
         
         df = df_raw.copy()
@@ -1385,7 +1384,6 @@ def show_step_7_content():
 
         data_map = df_target.set_index(['公司', '字段名'])[val_col].to_dict()
         
-        # 智能数据解析器：转成绝对百分比数字（如 8.7% -> 8.7）
         def parse_pct(v):
             if pd.isna(v): return None
             s = str(v).strip()
@@ -1408,49 +1406,43 @@ def show_step_7_content():
             f20 = parse_pct(data_map.get((co, "10-20年合同服务边际")))
             f20p = parse_pct(data_map.get((co, "20年合同服务边际")))
             
-            # 核心逻辑1：判断 0-5年 是否有值
-            has_0_5 = (f1 is not None) or (f5 is not None)
+# ✅ 新：只有真正大于 0 才算"有意义"
+            has_0_5 = (f1 is not None and f1 > 0) or (f5 is not None and f5 > 0)
             
-            v1 = f1 if f1 is not None else 0
-            v5 = f5 if f5 is not None else 0
+            v1  = f1  if f1  is not None else 0
+            v5  = f5  if f5  is not None else 0
             v10 = f10 if f10 is not None else 0
             v20 = f20 if f20 is not None else 0
             v20p = f20p if f20p is not None else 0
             
-            # X=5 时的累积值
-            y5 = v1 + v5
+            actual_v10 = ((v20 + v20p) / 2) if (f10 is None or v10 == 0) else v10
             
-            # 核心逻辑2：X=10 处的累积值
-            # 如果没有 F10，按照要求：用 (F20+F20+)/2 代替
-            if f10 is None:
-                y10 = y5 + (v20 + v20p) / 2
-            else:
-                y10 = y5 + v10
-                
-            # 核心逻辑3：分段坐标组装
-            x_vals = [0]
-            y_vals = [0]
+            x_vals = [0, 5, 10]
             
             if has_0_5:
-                # 正常两段摊销
-                x_vals.extend([5, 10])
-                y_vals.extend([y5, y10])
+                # 正常：0-5 年有实质摊销
+                y5  = v1 + v5
+                y10 = y5 + actual_v10
             else:
-                # 如果没有1和5年，直接一根线从0贯穿到10
-                x_vals.append(10)
-                y_vals.append(y10)
+                # 只有 5-10 年有值（0-5 年均为 0 或缺失）
+                # → 将 actual_v10 线性铺展在 0→10 年，X=5 时摊销一半
+                y10 = actual_v10
+                y5  = y10 / 2.0
+            
+            y_vals = [0, y5, y10]
                 
             is_hl = (co == hl_co)
-            line_color = "#00338D" if is_hl else color_map.get(co, "#888888")
+            # 🌟 修复：如果 color_map 里找不到，给一个随机生成的颜色，而不是死板的灰色
+            default_color = f"hsl({hash(co) % 360}, 70%, 50%)" 
+            line_color = "#00338D" if is_hl else color_map.get(co, default_color)
             line_width = 4 if is_hl else 2
             
-            # 画线
             fig.add_trace(go.Scatter(
                 x=x_vals,
                 y=y_vals,
                 name=co,
                 mode='lines+markers+text' if show_labels else 'lines+markers',
-                text=[f"{y:.1f}%" if x > 0 else "" for x, y in zip(x_vals, y_vals)],
+                text=["", f"{y5:.1f}%", f"{y10:.1f}%"], # 起点 0 不显示文字，显得干净
                 textposition="top center",
                 line=dict(color=line_color, width=line_width),
                 marker=dict(size=marker_size * 1.5 if is_hl else marker_size, color=line_color),
@@ -1462,21 +1454,19 @@ def show_step_7_content():
             plot_bgcolor='rgba(0,0,0,0)', 
             margin=dict(t=80 if title_text else 50, b=40, l=40, r=40), 
             height=450,
-            # 🌟 满足要求：图例放在最上方，横向排列
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=12))
+            # 将图例移到顶部并换行展示，防止重叠
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=11), itemwidth=30)
         )
         if title_text:
             layout_args['title'] = dict(text=f"<b>{title_text}</b>", x=0.5, y=0.95, xanchor='center', font=COMMON_TITLE_FONT)
             
         fig.update_layout(**layout_args)
         
-        # 强制 X 轴刻度只显示 0, 5, 10
         fig.update_xaxes(
             tickvals=[0, 5, 10], 
             ticktext=["0", "5年", "10年"], 
             showgrid=True, gridcolor="rgba(200,200,200,0.3)", zeroline=False
         )
-        # 强制 Y 轴附带百分号
         fig.update_yaxes(
             showgrid=True, gridcolor="rgba(200,200,200,0.3)", 
             zeroline=True, zerolinecolor="#E0E0E0", 
@@ -2535,20 +2525,33 @@ def show_step_7_content():
             if html: st.markdown(html, unsafe_allow_html=True)
 
 
-# XX. CSM 预期摊销速度
-        elif m_id == "csm_maturity_table":  # 请确保这个 ID 与你 Excel 注释表里的 ID 一致
+        elif m_id == "csm_maturity_table":
             if not print_mode:
                 c1, c2 = st.columns(2)
                 with c1: lab = st.toggle("显示摊销累积比例", True, key=f"lab_{m_id}")
-                with c2: mk = st.slider("数据点大小", 4, 15, 8, key=f"mk_{m_id}")
+                with c2: mk  = st.slider("数据点大小", 4, 15, 8, key=f"mk_{m_id}")
             else:
                 lab, mk = True, 8
-                
-            # 🌟 传入统一的 company_color_map 保持公司颜色不乱
-            color_map = st.session_state.get('company_color_map', {})
-            
+        
+            PRESET_COLORS = [
+                "#C00000", "#0865EE", "#FEAED7", "#92D050", "#7030A0",
+                "#EF9867", "#61CBF4", "#C7A0F7", "#FF4500", "#008B8B",
+                "#FFD700", "#8B008B"
+            ]
+        
+            # ✅ 每次都根据当前 selected_cos 重建 color_map，避免缓存旧状态导致撞色
+            color_map_key = tuple(selected_cos)  # 用公司列表作为缓存 key
+            if st.session_state.get('_color_map_key') != color_map_key:
+                st.session_state['company_color_map'] = {
+                    co: PRESET_COLORS[i % len(PRESET_COLORS)]
+                    for i, co in enumerate(selected_cos)
+                }
+                st.session_state['_color_map_key'] = color_map_key
+        
+            color_map = st.session_state['company_color_map']
+        
             fig = create_csm_maturity_table(
-                df_filtered, latest_year, selected_cos, 
+                df_filtered, latest_year, selected_cos,
                 color_map, lab, mk, current_hl, title_text=""
             )
             if fig:
