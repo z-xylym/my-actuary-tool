@@ -1235,7 +1235,7 @@ def show_step_7_content():
             xref_d, yref_d = f"x{col_idx} domain" if col_idx > 1 else "x domain", f"y{col_idx} domain" if col_idx > 1 else "y domain"
             bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else ("rgba(200, 200, 200, 0.12)" if i % 2 == 1 else "rgba(255,255,255,0)")
             border_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="#EAEAEA", width=1)
-            fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=-0.04, x1=1.04, y0=-0.12, y1=1.08, line=border_dict, fillcolor=bg_fill, layer="above" if is_hl else "below", row=1, col=col_idx)
+            fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=-0.04, x1=1.04, y0=-0.12, y1=1.1, line=border_dict, fillcolor=bg_fill, layer="above" if is_hl else "below", row=1, col=col_idx)
 
         fig.update_layout(barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=100, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, font=dict(size=12), itemsizing="constant"))               
         
@@ -1280,6 +1280,42 @@ def show_step_7_content():
         fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
         return fig
 
+
+
+    # --- 24.新业务亏损 ---   
+    def create_new_lost_csm_chart(df_source, field_name, title, show_labels, p_size, g_gap, highlight_co="无"):
+        d = df_source[df_source['指标名称'] == field_name].copy()
+        d['报告年份'], d['value'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False), d['value'] / divisor 
+        y_old, y_new, hl_co = str(prev_year), str(latest_year), str(highlight_co).strip()
+        fig, x_idx = go.Figure(), list(range(len(selected_cos)))
+        
+        for yr, col in zip([y_old, y_new], ["rgb(15, 101, 253)", "rgb(0, 51, 141)"]):
+            df_yr = d[d['报告年份'] == yr].set_index('公司').reindex(selected_cos).reset_index()
+            fig.add_trace(go.Bar(name=f"{yr}年新业务亏损（CSM）", x=x_idx, y=df_yr['value'], marker_color=col, text=[f"{v:.1f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=12), textangle=0, cliponaxis=False))
+            
+        if hl_co in [str(c).strip() for c in selected_cos]:
+            idx = [str(c).strip() for c in selected_cos].index(hl_co)
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+
+        all_vals = d['value'].dropna()
+        y_max, y_min = (all_vals.max(), all_vals.min()) if not all_vals.empty else (100, 0)
+        off = (y_max - y_min) * 0.15 if not all_vals.empty else 12
+        df_old, df_new = d[d['报告年份'] == y_old].set_index('公司'), d[d['报告年份'] == y_new].set_index('公司')
+        for i, co in enumerate(selected_cos):
+            if co in df_old.index and co in df_new.index:
+                v0, v1 = df_old.loc[co, 'value'], df_new.loc[co, 'value']
+                if pd.notna(v0) and v0 != 0:
+                    pct = (v1 - v0) / abs(v0)
+                    arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
+                    y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
+                    fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
+                    
+        fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
+        r_top, r_bot = y_max + (y_max - y_min) * 0.18, y_min - (y_max - y_min) * 0.15 if y_min < 0 else 0
+        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02, range=[r_bot, r_top])
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
+        return fig
+    
     #24.新业务占比
     def create_new_business_metrics_charts(df_raw, selected_cos, show_lab, lab_sz, bar_width, co_sz, highlight_co="无", is_print_mode=False):
         df_clean = df_raw.copy()
@@ -2371,17 +2407,6 @@ def show_step_7_content():
                 wid = st.session_state.get(f"wid_{m_id}", 0.5)
                 cfs = st.session_state.get(f"cfs_{m_id}", 11)
             fig, df_p = create_profit_composition_chart(df_filtered, selected_cos, y_val, lab, psz, wid, cfs, current_hl)
-            if fig and not df_p.empty:
-                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 11px;'><tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'><th style='padding: 6px 4px; text-align: left; border: 1px solid white;'>项目</th>"
-                for co in df_p.columns:
-                    html += f"<th style='padding: 6px 4px; text-align: center; background-color: {'#002266' if str(co).strip()==current_hl else '#00338D'}; border: 1px solid white;'>{co}</th>"
-                html += "</tr><tr><td style='padding: 4px 4px; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>合同服务边际释放的贡献</td>"
-                for co in df_p.columns:
-                    v_str = f"{df_p.loc['合同服务边际释放的贡献', co]:.0f}%" if pd.notna(df_p.loc["合同服务边际释放的贡献", co]) else "-"
-                    is_hl = (str(co).strip() == current_hl)
-                    html += f"<td style='padding: 4px 4px; text-align: center; background-color: {'rgba(0,51,141,0.05)' if is_hl else 'white'}; border: {'1px solid #00338D' if is_hl else '1px solid #EAEAEA'}; color: {'#00338D' if is_hl else '#444'}; font-weight: {'bold' if is_hl else 'normal'};'>{v_str}</td>"
-                html += "</tr></table>"
-                st.markdown(html, unsafe_allow_html=True)
             show_chart(fig, print_mode,m_id=m_id)
             
         # 7. 投资相关简单柱图
@@ -2650,6 +2675,25 @@ def show_step_7_content():
             fig = create_new_biz_csm_chart(df_nb_csm_raw, '新业务CSM（集团口径）', "", lab, sz, gap, current_hl)
             show_chart(fig, print_mode,m_id=m_id)
 
+
+        # 22. 新业务亏损(CSM-非PAA)
+        elif m_id == "nb_lost":
+            df_nb_csm_raw = df_filtered[(df_filtered['字段名'] == '新业务亏损合同（LC）——非PAA') & df_filtered['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名']).copy()
+            df_nb_csm_raw.rename(columns={'字段名': '指标名称', '(百万)人民币': 'value'}, inplace=True)
+            # ✅ 取负数
+            df_nb_csm_raw['value'] = -df_nb_csm_raw['value']
+            if not print_mode:
+                c1, c2, c3 = st.columns(3)
+                with c1: lab = st.toggle("显示标签", True, key=f"lab_{m_id}")
+                with c2: sz = st.slider("字号", 8, 24, 12, key=f"sz_{m_id}")
+                with c3: gap = st.slider("间距", 0.1, 0.8, 0.3, key=f"gap_{m_id}")
+            else:
+                lab = st.session_state.get(f"lab_{m_id}", True)
+                gap = st.session_state.get(f"gap_{m_id}", 0.3)
+                sz = st.session_state.get(f"sz_{m_id}", 12)
+            fig = create_new_lost_csm_chart(df_nb_csm_raw, '新业务亏损合同（LC）——非PAA', "", lab, sz, gap, current_hl)
+            show_chart(fig, print_mode, m_id=m_id)
+            
         # 22. 新业务指标拆解三图
         elif m_id == "nb_struct":
             if not print_mode:
@@ -2855,7 +2899,7 @@ def show_step_7_content():
             # ====== 第 2 步：手动截图覆盖 ======
             if 'manual_upload_images' in st.session_state and m_id in st.session_state.manual_upload_images:
                 if print_mode:
-                    st.image(st.session_state.manual_upload_images[m_id], use_container_width=True)
+                    st.image(st.session_state.manual_upload_images[m_id], use_column_width=True)
                 else:
                     img_col_left, img_col_center, img_col_right = st.columns([1, 8, 1])
                     with img_col_center:
@@ -5129,7 +5173,7 @@ else:
             
     else:
         # 如果是 普通用户，只开放 6 和 7 两个 Tab
-        st.warning("🔒 游客模式：您当前仅拥有数据可视化与报告生成模块的访问权限。")
+        st.warning("🔒 您当前仅拥有数据可视化与报告生成模块的访问权限。")
         tab6, tab7, tab8 = st.tabs([
             " 📊 Step 6 ／ 自定义对标分析 ",
             " 🖼️ Step 7 ／ 公司级对标报告 ",
