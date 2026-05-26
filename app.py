@@ -1291,7 +1291,7 @@ def show_step_7_content():
         
         for yr, col in zip([y_old, y_new], ["rgb(15, 101, 253)", "rgb(0, 51, 141)"]):
             df_yr = d[d['报告年份'] == yr].set_index('公司').reindex(selected_cos).reset_index()
-            fig.add_trace(go.Bar(name=f"{yr}年新业务亏损（CSM）", x=x_idx, y=df_yr['value'], marker_color=col, text=[f"{v:.1f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=12), textangle=0, cliponaxis=False))
+            fig.add_trace(go.Bar(name=f"{yr}年新业务亏损（LC）", x=x_idx, y=df_yr['value'], marker_color=col, text=[f"{v:.1f}" if pd.notna(v) and v != 0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=12), textangle=0, cliponaxis=False))
             
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
