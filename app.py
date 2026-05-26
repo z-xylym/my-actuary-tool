@@ -206,7 +206,7 @@ def show_step_7_content():
         df_notes = None
         if use_default:
             try:
-                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E5%85%AC%E5%8F%B8-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx")
+                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E6%96%B0.xlsx")
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
                 st.error(f"❌ 加载失败：{e}")
@@ -883,7 +883,6 @@ def show_step_7_content():
     
     # --- 14. 计算 OCI 分析表 ---
     def calculate_oci_analysis_table(df_raw, selected_cos):
-            import numpy as np
             f = ['AC', 'FVOCI', 'FVTPL', '指定FVOCI', 'FVOCI债券公允价值', '可转损益的负债OCI']
             df = df_raw.copy()
             
@@ -2503,7 +2502,7 @@ def show_step_7_content():
             show_chart(fig, print_mode,m_id=m_id)
             df_a, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos)
             if not df_a.empty:
-                st.write(f"##### 资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)")
+                st.markdown(f"<p style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom:6px;'>资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)</p>", unsafe_allow_html=True)
                 df_t = df_a.set_index("公司").T.rename(index={f"FVOCI占比_{p_y}": f"FVOCI占比({p_y})", f"FVOCI占比_{c_y}": f"FVOCI占比({c_y})", "FVOCI变动": "FVOCI变动", "负债OCI变动": "负债OCI变动", "两年资负OCI变动比率": "资负匹配率"})
                 html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 20px;'><tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'><th style='padding: 6px 4px; border: 1px solid white;'>项目</th>"
                 for co in df_t.columns: html += f"<th style='padding: 6px 4px; text-align: center; background-color: {'#002266' if str(co).strip()==current_hl else '#00338D'}; border: 1px solid white;'>{co}</th>"
@@ -3471,8 +3470,8 @@ if not st.session_state['logged_in']:
     with col2:
         st.markdown("<div style='text-align:center; margin-bottom:30px;'><h1 style='font-size:32px; margin:0;'><span class='title-glow'>寿研数智年报平台</span></h1><p style='color:#76D2FF; font-size:11px; letter-spacing:4px; margin-top:8px; font-weight:bold;'>ACTUARIAL INTELLIGENCE</p></div>", unsafe_allow_html=True)
         
-        u_type = st.radio("访问权限", ["普通用户", "KPMG成员"], label_visibility="collapsed", horizontal=True)
-        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") if u_type == "KPMG成员" else ""
+        u_type = st.radio("访问权限", ["普通用户", "项目组成员"], label_visibility="collapsed", horizontal=True)
+        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") if u_type == "项目组成员" else ""
         
         # 字典映射压缩代码体积
         ai_map = {"阿里云百炼 (通义千问)": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"), "DeepSeek (深度求索)": ("https://api.deepseek.com", "deepseek-chat"), "月之暗面 (Kimi)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"), "智谱AI (GLM-4)": ("https://open.bigmodel.cn/api/paas/v4", "glm-4"), "OpenAI (ChatGPT)": ("https://api.openai.com/v1", "gpt-4o")}
@@ -3494,7 +3493,7 @@ if not st.session_state['logged_in']:
 
         # 启动大按钮
         if st.button("启 动 系 统", type="primary", use_container_width=True):
-            if u_type == "KPMG成员" and sec_code != "KPMG666": st.error("❌ 拒绝访问：安全码错误")
+            if u_type == "项目组成员" and sec_code != "KPMG666": st.error("❌ 拒绝访问：安全码错误")
             else: 
                 st.session_state.update({'logged_in':True, 'user_role':u_type, 'api_key':api_input, 'base_url':d_url, 'model_name':d_mod})
                 st.rerun()
@@ -3512,7 +3511,7 @@ else:
     api_key = st.session_state.get('api_key', "")
     base_url = st.session_state.get('base_url', "https://api.deepseek.com")
     model_name = st.session_state.get('model_name', "deepseek-chat")
-    user_role = st.session_state.get('user_role', "普通用户")  # 👈 修正了这里，删掉了多余的 "KPMG成员"
+    user_role = st.session_state.get('user_role', "普通用户")  # 👈 修正了这里，删掉了多余
 
     # 顶部状态栏与退出按钮
     top_col1, top_col2 = st.columns([8, 1])
@@ -3533,7 +3532,7 @@ else:
     st.markdown("<h1 class='no-print' style='font-weight:700; padding-top:10px;'>寿研数智・年报处理平台</h1>", unsafe_allow_html=True)
 
     # ---------------- 核心权限控制 ----------------
-    if st.session_state['user_role'] == "KPMG成员":
+    if st.session_state['user_role'] == "项目组成员":
         # 如果是 KPMG 成员，完整显示 0 到 7 一共 8 个 Tab
         tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
             " 🌐 Step 0 ／ 官网年报监控 ",
