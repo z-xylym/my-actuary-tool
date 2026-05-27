@@ -56,12 +56,16 @@ def show_step_7_content():
         width: 100% !important;
         min-width: 0 !important;
     }
-    
+    .print-only { display: none !important; }
     @media print {
+        .print-only { display: block !important; }
         @page{
             size:A4 landscape;
             margin:8mm 8mm 8mm 8mm;
         }
+        @page :first {
+            margin-top: 5mm !important; /* 数字越小，第一页整体越靠上，甚至可以写 0mm */
+        }        
         html,body{
             width:297mm!important;
             height:210mm!important;
@@ -72,7 +76,10 @@ def show_step_7_content():
             max-width:100%!important;
             padding-top:0!important;
             padding-bottom:0!important;
-        }       
+        }   
+        .block-container {
+            padding-top: 0rem !important;
+        }
         /* ===== 隐藏所有交互元素 ===== */
         .no-print, h1, .nav-floating-sign,
         [data-testid="collapsedControl"], header, footer,
@@ -92,7 +99,7 @@ def show_step_7_content():
             break-inside: avoid !important;
             margin: 0 !important;              /* 清掉容器 margin，防溢出变空白页 */
             padding: 0 !important;
-            padding-bottom: 2mm !important;    /* 只留很小的底部间距 */
+            padding-bottom: 0mm !important;    /* 只留很小的底部间距 */
         }
         .stApp {
             max-width: 100% !important;
@@ -176,6 +183,28 @@ def show_step_7_content():
             page-break-inside: avoid !important;
             width: 100% !important;
         }
+        .pdf-page-break {
+                break-before: page !important;
+                page-break-before: always !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        
+            table {
+                page-break-inside: auto !important;
+            }
+            tr {
+                page-break-inside: avoid !important;
+                page-break-after: auto !important;
+            }
+            td, th {
+                page-break-inside: avoid !important;
+            }
+            thead {
+                display: table-header-group !important;
+            }
+        }
     }
 
     /* 纵向打印微调 */
@@ -209,12 +238,13 @@ def show_step_7_content():
     latest_year = int(valid_years[-1]) if len(valid_years) > 0 else 2025
     prev_year = int(valid_years[-2]) if len(valid_years) > 1 else 2023
 
-    st.markdown("### 🖼️ 公司级对标报告")
+    st.markdown("<h3 class='no-print' style='font-weight:700;'>🖼️ 公司级对标报告</h3>", unsafe_allow_html=True)
 
 # ==========================================
     # 3. 必须先加载配置表（从而驱动后续侧边栏）
     # ==========================================
     notes_dict, ordered_modules = {}, []
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     with st.expander("📥 全局内容分析与注释输入", expanded=False):
         use_default = st.toggle("使用默认注释表", value=True, key="use_default_notes")
         df_notes = None
@@ -255,7 +285,7 @@ def show_step_7_content():
                 if m_id not in ordered_modules: ordered_modules.append(m_id)
             # 存入全局缓存
             st.session_state['df_notes'] = df_notes
-
+    st.markdown("</div>", unsafe_allow_html=True)
     # ==========================================
     # 4. 侧边栏：智能多级联动导航（防越界护盾版）
     # ==========================================
@@ -343,6 +373,7 @@ def show_step_7_content():
     # ==========================================
     # 5. 全局配置与图片上传 (UI极致压缩)
     # ==========================================
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     with st.expander("⚙️ 全局图表设置与图片覆盖", expanded=False):
         c0, c1, c2, c3, c4 = st.columns([1, 2, 1, 1, 1])   
         with c0:
@@ -387,7 +418,7 @@ def show_step_7_content():
                     if sel_mid != "不匹配/跳过": 
                         st.session_state.manual_upload_images[sel_mid] = file
                     st.image(file, use_column_width=True)
-
+    st.markdown("</div>", unsafe_allow_html=True)
     # ==========================================
     # 6. AI 引擎与辅助显示函数 (去重并压缩逻辑)
     # ==========================================
@@ -443,11 +474,11 @@ def show_step_7_content():
     def show_chart(fig,p_mode,m_id=None):
         if not fig:return
         if p_mode:
-            H={"csm_trans":520,"oci_deep":280,"nb_struct":300,"csm_ratio_trend":300,"six_dimensional_charts":180}
+            H={"csm_trans":520,"oci_deep":280,"nb_struct":150,"csm_ratio_trend":450,"six_dimensional_charts":180,"nb_margin_trend":450,"csm_maturity_table":500}
             h=H.get(m_id,380)
             fig.update_layout(
                 autosize=False,
-                width=1100,
+                width=1200,
                 height=h,
                 margin=dict(t=35,b=15,l=15,r=15)
             )
@@ -492,7 +523,7 @@ def show_step_7_content():
             # 🌟 核心修改：c8 加入 PAA期末余额合计 的加总
             c8.append(calc(liab_cy + paa_cy, liab_py + paa_py, True))
     
-        headers = ["公司名称", f"净资产<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"净利润<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"{cy}年12月31日<br>%CSM增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"%NB CSM<br>增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)", f"CSM持续率<br>(新业务CSM/<br>CSM摊销)", f"保险服务收入<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"保险合同负债<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1"]
+        headers = ["公司名称", f"净资产<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"净利润<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"{cy}年12月31日<br>%CSM增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"%NB CSM<br>增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)", f"CSM持续率<br>(新业务CSM/<br>CSM摊销)", f"保险服务收入<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"保险合同净负债余额<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1"]
         current_hl = str(highlight_co).strip()
         
         html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 15px;'>"
@@ -766,7 +797,7 @@ def show_step_7_content():
             for _, r in d_co.iterrows():
                 fig.add_annotation(x=r['报告年份'], y=lbl_y, text=f"<b>{r['有效税率']:.0%}</b>", showarrow=False, font=dict(size=label_size+2, color="#97014F" if r['有效税率']>=0 else "#269924"), xref=f"x{col_idx}" if col_idx>1 else "x", yref="y1")
             is_hl = (str(co).strip() == hl_co)
-            fig.add_shape(type="rect", xref=f"x{col_idx} domain" if col_idx>1 else "x domain", yref="paper", x0=-0.05, x1=1.05, y0=-0.12, y1=1.08, line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(200, 200, 200, 0.3)", width=1), fillcolor="rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)", layer="above")
+            fig.add_shape(type="rect", xref=f"x{col_idx} domain" if col_idx>1 else "x domain", yref="paper", x0=-0.05, x1=1.05, y0=-0.12, y1=1.1, line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(200, 200, 200, 0.3)", width=1), fillcolor="rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)", layer="above")
     
         fig.update_layout(height=550, margin=dict(t=40, b=100, l=20, r=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=True, legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5))
         for i in range(1, len(av_cos) + 1):
@@ -1157,7 +1188,7 @@ def show_step_7_content():
         fig.update_layout(barmode='stack', height=300 * rows, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=80, l=50, r=20), legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08))
         fig.update_yaxes(showgrid=False, ticks="", ticklen=0, tickcolor="rgba(0,0,0,0)") 
         fig.update_xaxes(range=[0, 100], tickvals=[0, 20, 40, 60, 80, 100], ticksuffix="%", showgrid=False)
-        fig.update_annotations(yshift=15)
+        fig.update_annotations(yshift=15, font_size=12)
         return fig
 
     # --- 20.摊销前 CSM ---
@@ -1431,31 +1462,52 @@ def show_step_7_content():
                     layer="above"
                 )
     
-            margin_b, leg_y, leg_anchor = 20, 1.02, "bottom"
-    
+# ✅ 图例 y 从 1.03 降到 1.01，使其稍微靠下一点点
+            margin_b, leg_y, leg_anchor = 20, 1.01, "bottom" 
+
             if not df_lat[metric].dropna().empty:
                 avg_val  = df_lat[metric].mean()
                 y_vals   = df_lat[metric].dropna().tolist() + df_pre[metric].dropna().tolist()
                 y_range  = (max(y_vals) - min(y_vals)) if y_vals else 1
-    
+
                 if avg_val < 0:
                     leg_y, leg_anchor, margin_b = -0.15, "top", 60
-    
+
                 fig.add_hline(y=avg_val, line_dash="dash", line_color=c_latest, line_width=1.5)
-    
+
+                # ==========================================
+                # 🌟 核心：动态防碰撞计算（获取最右侧柱子的高度）
+                # ==========================================
+                last_pre = df_pre[metric].iloc[-1] if not pd.isna(df_pre[metric].iloc[-1]) else 0
+                last_lat = df_lat[metric].iloc[-1] if not pd.isna(df_lat[metric].iloc[-1]) else 0
+                last_max = max(last_pre, last_lat)
+
+                # 判断平均线和最右侧柱子顶部的距离
+                # 如果差距小于量程的 15%，说明会和柱子或它的数据标签重叠
+                if abs(avg_val - last_max) < (y_range * 0.15):
+                    # 如果打架了：平均线在柱子上方，就把标签再往上推推；在下方就往下压压
+                    dyn_anchor = "bottom" if avg_val >= last_max else "top"
+                    dyn_yshift = 15 if avg_val >= last_max else -15
+                else:
+                    # 距离很安全，直接坐在虚线上即可
+                    dyn_anchor = "bottom"
+                    dyn_yshift = 2
+
                 fig.add_annotation(
-                    x=0.97,                # ✅ 不超出右边界
+                    x=0.98,                    # ✅ 回到右侧边缘
                     xref="paper",
                     y=avg_val,
                     yref="y",
-                    xanchor="right",       # ✅ 文字在x左侧结束
-                    text=f"<b>{str(latest_year)[-2:]}年平均 {avg_val*100:.1f}%</b>",
+                    xanchor="right",           # ✅ 文字往左边写，不超边界
+                    yanchor=dyn_anchor,        # ✅ 启用动态锚点
+                    yshift=dyn_yshift,         # ✅ 启用动态平移避让
+                    text=f"{str(latest_year)[-2:]}年平均 {avg_val*100:.1f}%",
                     showarrow=False,
-                    bgcolor="white",
+                    bgcolor="rgba(255,255,255,0.85)", # ✅ 稍微加深一点白色底色，防遮挡
                     bordercolor=c_latest,
-                    borderwidth=1.5,
-                    borderpad=3,
-                    font=dict(color=c_latest, size=lab_sz - 1)
+                    borderwidth=1,
+                    borderpad=2,
+                    font=dict(color=c_latest, size=max(lab_sz - 3, 8))
                 )
     
             tick_txt = [
@@ -1467,11 +1519,11 @@ def show_step_7_content():
                 title=dict(
                     text=f"<b>{metric}</b>", x=0.5, xanchor='center',
                     y=0.98 if is_print_mode else 0.95,
-                    font=COMMON_TITLE_FONT
+                    font=dict(size=14, color="#00338D", family="Microsoft YaHei")
                 ),
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 barmode='group', bargap=plot_bargap,
-                margin=dict(t=50, b=margin_b, l=20, r=40),  # ✅ r从150改成40
+                margin=dict(t=90, b=margin_b, l=20, r=40),  # ✅ r从150改成40
                 height=chart_height,
                 yaxis=dict(
                     tickformat=".0%", showgrid=False,
@@ -1804,7 +1856,7 @@ def show_step_7_content():
             title_html = f"<span style='font-size:14px'><b>{t}</b></span><br><span style='font-size:11px;color:#666'>Y轴={y_c}，X轴={x_c}（单位：{unit_label}）</span>"
             
             if d_plt.empty:
-                fig.update_layout(title=dict(text=title_html, x=0.02), height=240, margin=dict(l=30, r=30, t=55, b=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                fig.update_layout(title=dict(text=title_html, x=0.02), height=250, margin=dict(l=20, r=15, t=40, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                 figs.append(fig); continue
 
             d_plt["x_p"] = pd.to_numeric(d_plt[x_c], errors="coerce") / rd
@@ -1817,7 +1869,7 @@ def show_step_7_content():
                     hovertemplate=f"<b>{co}</b><br>{x_c}（{unit_label}）: %{{customdata[0]}}<br>{y_c}: %{{customdata[1]}}<br>{x_c}（原值）: %{{customdata[2]}}<extra></extra>"
                 ))
 
-            fig.update_layout(title=dict(text=title_html, x=0.02), width=320, height=220, margin=dict(l=20, r=20, t=45, b=15), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False, hovermode="closest", xaxis=dict(showgrid=True, gridcolor="rgba(180,180,180,0.2)", zeroline=True, zerolinecolor="rgba(150,150,150,0.3)"), yaxis=dict(tickformat=y_fmt, showgrid=True, gridcolor="rgba(180,180,180,0.2)", zeroline=True, zerolinecolor="rgba(150,150,150,0.3)"))
+            fig.update_layout(title=dict(text=title_html, x=0.02), width=260, height=250, margin=dict(l=20, r=20, t=45, b=15), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False, hovermode="closest", xaxis=dict(showgrid=True, gridcolor="rgba(180,180,180,0.2)", zeroline=True, zerolinecolor="rgba(150,150,150,0.3)"), yaxis=dict(tickformat=y_fmt, showgrid=True, gridcolor="rgba(180,180,180,0.2)", zeroline=True, zerolinecolor="rgba(150,150,150,0.3)"))
             fig.add_hline(y=0, line_dash="dash", line_color="rgba(120,120,120,0.7)", line_width=1)
             fig.add_vline(x=0, line_dash="dash", line_color="rgba(120,120,120,0.7)", line_width=1)
             figs.append(fig)
@@ -1846,22 +1898,31 @@ def show_step_7_content():
         get_val = lambda co, field: data_map.get((co, field), 0) / div
 
         rows_config = [("未采用保费分配法的保险合同", None, "header"), ("保险服务收入", "未采用保费分配法计量的保险合同保险服务收入", "data"), ("合同服务边际的释放", "合同服务边际的摊销", "data"), ("非金融风险调整的变动", "非金融风险调整的变动", "data"), ("预期当期发生的保险服务费用", "预计当期发生的保险服务费用", "data"), ("保险获取现金流的摊销", "保险获取现金流的摊销（保险服务收入）", "data"), ("其他", "其他收入调整", "data"), ("保险服务费用", "未采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险获取现金流的摊销 ", "保险获取现金流的摊销（保险服务费用）", "neg_data"), ("亏损部分的确认及转回", "亏损部分的确认及转回", "neg_data"), ("当期发生的赔款及其他相关费用", "当期发生的赔款及其他相关费用", "neg_data"), ("已发生赔款负债相关的履约现金流量变动", "已发生赔款负债相关的履约现金流量变动", "neg_data"), ("其他项", "FIXED_ZERO", "data"), ("保险服务业绩", "FORMULA_KPI_1", "subtotal"), ("采用保费分配法的保险合同", None, "header"), ("保险服务收入 ", "采用保费分配法计量的保险合同保险服务收入", "data"), ("保险服务费用 ", "采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险服务业绩 ", "采用保费分配法计量的保险合同保险业绩", "subtotal"), ("集团/业务条线-汇总", None, "header"), ("保险服务收入  ", "保险服务收入合计", "data"), ("保险服务费用  ", "保险服务费用合计", "neg_data"), ("保险服务业绩（不含再保收支净额）", "FORMULA_TOTAL_KPI", "total"), ("CSM释放在保险服务业绩中占比", "FORMULA_CSM_RATIO", "percent")]
-
+# 🌟 变窄：width 改为 96%（原来是100%），缩小整体字号到 10.5px，底部留白缩小
         current_hl = str(highlight_co).strip()
-        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 11px;'>"
-        html += f"<tr style='background-color: #00338D; color: white; font-size: 12px; text-align: center; font-weight: bold;'><th style='padding: 6px 4px; text-align: left; border: 1.5px solid white;'>项目名称 (单位: {unit_str}人民币)</th>"
+        html = "<table style='width:96%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 10px; font-size: 10.5px;'>"
+        
+        # 🌟 增加 thead 标准标签，并把表头的 padding 压缩到 3px 2px
+        html += "<thead>"
+        html += f"<tr style='background-color: #00338D; color: white; font-size: 11px; text-align: center; font-weight: bold;'><th style='padding: 3px 2px; text-align: left; border: 1.5px solid white;'>项目名称 (单位: {unit_str}人民币)</th>"
         for co in cos:
             is_hl = (str(co).strip() == current_hl)
-            if is_hl: html += f"<th style='padding: 6px 4px; text-align: center; background-color: #001A4D; border-top: 1px solid #00338D; border-left: 1px solid #00338D; border-right: 1px solid #00338D; border-bottom: none;'>{co}</th>"
-            else: html += f"<th style='padding: 6px 4px; text-align: center; border: 1.5px solid white;'>{co}</th>"
+            if is_hl: html += f"<th style='padding: 3px 2px; text-align: center; background-color: #001A4D; border-top: 1px solid #00338D; border-left: 1px solid #00338D; border-right: 1px solid #00338D; border-bottom: none;'>{co}</th>"
+            else: html += f"<th style='padding: 3px 2px; text-align: center; border: 1.5px solid white;'>{co}</th>"
         html += "</tr>"
+        html += "</thead>"
+        
+        # 🌟 增加 tbody 标签
+        html += "<tbody>"
 
         total_rows = len(rows_config)
         for row_idx, (row_name, field, r_type) in enumerate(rows_config):
             is_header, is_total = (r_type == "header"), (r_type in ["subtotal", "total"])
             row_bg = "#E8EDF4" if is_header else ("white" if row_idx % 2 == 0 else "#F8F9FA")
             n_weight, n_indent = ("bold" if (is_header or is_total) else "normal"), ("0px" if is_header else "10px")
-            html += f"<tr><td style='padding: 4px 4px; padding-left: {n_indent}; text-align: left; font-weight: {n_weight}; background-color: {row_bg}; border: 1px solid #EAEAEA; color: #333333;'>{row_name}</td>"
+            
+            # 🌟 数据行变紧凑：padding 压缩到 2px 3px
+            html += f"<tr><td style='padding: 2px 3px; padding-left: {n_indent}; text-align: left; font-weight: {n_weight}; background-color: {row_bg}; border: 1px solid #EAEAEA; color: #333333;'>{row_name}</td>"
             for co in cos:
                 is_hl = (str(co).strip() == current_hl)
                 val_str = ""
@@ -1888,9 +1949,13 @@ def show_step_7_content():
                     border_b = "1.5px solid #00338D" if row_idx == total_rows - 1 else "none"
                     borders = f"border-left: 2.5px solid #00338D; border-right: 1.5px solid #00338D; border-top: none; border-bottom: {border_b};"
                 else: borders = "border: 1px solid #EAEAEA;"
-                html += f"<td style='padding: 4px 4px; text-align: center; background-color: {c_bg}; {borders} color: {c_color}; font-weight: {c_weight};'>{val_str}</td>"
+                
+                # 🌟 数据单元格变紧凑：padding 压缩到 2px 3px
+                html += f"<td style='padding: 2px 3px; text-align: center; background-color: {c_bg}; {borders} color: {c_color}; font-weight: {c_weight};'>{val_str}</td>"
             html += "</tr>"
-        return html + "</table>"
+            
+        # 🌟 闭合 tbody
+        return html + "</tbody></table>"
     
     # --- 30.新业务价值及增长分析表 (纯HTML生成不变) ---
     def create_nbv_summary_table(df, cos, div, unit_str, target_year, target_prev_year, highlight_co="无"):
@@ -1927,7 +1992,7 @@ def show_step_7_content():
 
 
 
-# ==========================================
+    # ==========================================
     # 🎛️ 终极模块路由引擎：绑定专属 UI 控件并出图
     # ==========================================
     def render_pure_chart_entity(m_id, print_mode):
@@ -2234,7 +2299,7 @@ def show_step_7_content():
             fig = create_csm_composition_chart(df_filtered, selected_cos, y, lab, sz, wid, current_hl, title_text="")
             show_chart(fig, print_mode,m_id=m_id)
 
-# 19. CSM比率折线图 (摊销比率 + 持续率双图并行)
+        # 19. CSM比率折线图 (摊销比率 + 持续率双图并行)
         elif m_id == "csm_ratio_trend":
             if not print_mode:
                 c1, c2 = st.columns(2)
@@ -2362,20 +2427,21 @@ def show_step_7_content():
                 c1, c2, c3 = st.columns(3)
                 with c1: lab = st.toggle("显示标签", True, key=f"lab_{m_id}")
                 with c2: wid = st.slider("柱宽", 0.2, 1.0, 0.6, key=f"wid_{m_id}")
-                with c3: sz = st.slider("字号", 8, 20, 12, key=f"sz_{m_id}")
+                with c3: sz  = st.slider("字号", 8, 20, 12, key=f"sz_{m_id}")
             else:
                 lab = st.session_state.get(f"lab_{m_id}", True)
                 wid = st.session_state.get(f"wid_{m_id}", 0.6)
-                sz = st.session_state.get(f"sz_{m_id}", 12)
-            # 🌟 核心修改：将 print_mode 状态传递给内部函数，让它知道是否要压扁高度
+                sz  = st.session_state.get(f"sz_{m_id}", 12)
+        
             f1, f2, f3 = create_new_business_metrics_charts(
                 df_filtered, selected_cos, lab, sz, wid, 12, current_hl, is_print_mode=print_mode
             )
-            
             if f1:
-                show_chart(f1, print_mode,m_id=m_id)
-                show_chart(f2, print_mode,m_id=m_id)
-                show_chart(f3, print_mode,m_id=m_id)
+                show_chart(f1, print_mode, m_id=m_id)
+                # 👇 第2、3个图前插续标题（只在打印模式）
+                # if print_mode: render_continue_title(m_id)
+                show_chart(f2, print_mode, m_id=m_id)
+                show_chart(f3, print_mode, m_id=m_id)
 
         # 23. 新业务IFRS利润率趋势
         elif m_id == "nb_margin_trend":
@@ -2471,12 +2537,23 @@ def show_step_7_content():
         # 26. 附录：业绩明细表与新业务明细表 (双表同打)
         elif m_id == "report_detail":  
             try: cy_int = int(latest_year)
-            except: cy_int = 2024 
+            except: cy_int = 2011 # 兜底最新年份
             py_int = cy_int - 1
+            
+            # ====== 第一页：渲染最新一年 (cy_int) ======
             st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度分析表</div>", unsafe_allow_html=True)
             html_cy = create_financial_report_table(df_filtered, cy_int, selected_cos, divisor, unit_label, current_hl)
             if html_cy: st.markdown(html_cy, unsafe_allow_html=True)
-            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-top: 15px; margin-bottom: 5px;'>▪ {py_int}年度分析表</div>", unsafe_allow_html=True)
+            
+            # ====== 第二页：强制断页，并渲染去年 (py_int) ======
+            # 引入专业的 pdf-page-break 强行另起一页
+            st.markdown(f"""
+            <div class="pdf-page-break"></div>
+            <div style='font-size:13px;font-weight:bold;color:#00338D;margin-top:15px;margin-bottom:5px;'>
+            ▪ {py_int}年度分析表
+            </div>
+            """, unsafe_allow_html=True)
+            
             html_py = create_financial_report_table(df_filtered, py_int, selected_cos, divisor, unit_label, current_hl)
             if html_py: st.markdown(html_py, unsafe_allow_html=True)
 
@@ -2491,8 +2568,6 @@ def show_step_7_content():
             html_py = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, py_int, ppy_int, current_hl)
             if html_py: st.markdown(html_py, unsafe_allow_html=True)
 
-
-
         elif m_id == "six_dimensional_charts":
             figs = create_six_dimensional_charts(
                 df_raw=df_filtered, target_year=latest_year, cos=selected_cos,
@@ -2502,49 +2577,45 @@ def show_step_7_content():
             valid_figs = [f for f in figs if f is not None]
         
             if valid_figs:
-                # ✅ 图例单独一行
                 legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
                 st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False})
         
-                # ✅ 两两合并成 subplot，彻底解决打印并列问题
                 from plotly.subplots import make_subplots
                 pairs = [(valid_figs[i], valid_figs[i+1] if i+1 < len(valid_figs) else None)
                          for i in range(0, len(valid_figs), 2)]
         
-                for left_fig, right_fig in pairs:
+                for pair_idx, (left_fig, right_fig) in enumerate(pairs):
+                    # ✅ 只在第二对（pair_idx==1）前加续标题，后面不再重复
+                    if print_mode and pair_idx == 1:
+                        render_continue_title(m_id)
+                
                     if right_fig is None:
-                        # 奇数最后一个单独显示
-                        left_fig.update_layout(height=340 if print_mode else 420,
-                            margin=dict(t=40, b=20, l=30, r=30),
+                        left_fig.update_layout(
+                            height=260 if print_mode else 300,  # ✅ 同步缩小
+                            margin=dict(t=60, b=10, l=20, r=15),
                             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                        st.plotly_chart(left_fig, use_container_width=True, config={"displayModeBar": False})
+                        st.plotly_chart(left_fig, use_container_width=False, config={"displayModeBar": False})
                         continue
-        
-                    # 提取两个图的 traces 合并进 subplot
+                
                     combined = make_subplots(rows=1, cols=2, horizontal_spacing=0.08,
                         subplot_titles=[
                             left_fig.layout.title.text if left_fig.layout.title.text else "",
                             right_fig.layout.title.text if right_fig.layout.title.text else ""
                         ])
-        
                     for trace in left_fig.data:
                         trace.showlegend = False
                         combined.add_trace(trace, row=1, col=1)
                     for trace in right_fig.data:
                         trace.showlegend = False
                         combined.add_trace(trace, row=1, col=2)
-        
-                    # 复制坐标轴设置
                     combined.update_xaxes(left_fig.layout.xaxis.to_plotly_json(), row=1, col=1)
                     combined.update_xaxes(right_fig.layout.xaxis.to_plotly_json(), row=1, col=2)
                     combined.update_yaxes(left_fig.layout.yaxis.to_plotly_json(), row=1, col=1)
                     combined.update_yaxes(right_fig.layout.yaxis.to_plotly_json(), row=1, col=2)
-        
                     combined.update_layout(
-                        height=340 if print_mode else 420,
-                        margin=dict(t=40, b=20, l=30, r=30),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=260 if print_mode else 320,  # ✅ 同步缩小
+                        margin=dict(t=60, b=30, l=20, r=15),
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                         showlegend=False
                     )
                     st.plotly_chart(combined, use_container_width=True, config={"displayModeBar": False})
@@ -2579,11 +2650,12 @@ def show_step_7_content():
     
         # ====== 第 1 步：标题 ======（移出else，打印和网页都执行）
         title_cls = "page-break-title" if (print_mode and not is_first) else ""
+        mt = "-200px" if (print_mode and is_first) else "20px"
         st.markdown(
             f"<h3 class='{title_cls}' style='"
-            f"text-align:left; color:#00338D; font-size:38px; font-weight:900; "
+            f"text-align:left; color:#00338D; font-size:42px; font-weight:900; "
             f"font-family:Microsoft YaHei, 微软雅黑, sans-serif; "
-            f"margin-top:20px; margin-bottom:15px; border:none; padding-bottom:0px;'>"
+            f"margin-top:{mt}; margin-bottom:15px; border:none; padding-bottom:0px;'>"
             f"{full_title}</h3>",
             unsafe_allow_html=True
         )
@@ -2609,14 +2681,14 @@ def show_step_7_content():
         if print_mode:
             if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
                 unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
-                st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
             render_pure_chart_entity(m_id, print_mode)
         else:
             chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
             with chart_col_center:
                 if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
                     unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
-                    st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
+                    st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
                 render_pure_chart_entity(m_id, print_mode)
     
         # ====== 第 5 步：底部注释 ======
@@ -2624,7 +2696,25 @@ def show_step_7_content():
     
         if print_mode:
             st.markdown("</div>", unsafe_allow_html=True)
-
+            
+#-----------跨页标题重复---------
+    def render_continue_title(m_id):
+        title = ""
+        if 'df_notes' in st.session_state and isinstance(st.session_state['df_notes'], pd.DataFrame):
+            df_n = st.session_state['df_notes']
+            match = df_n[df_n['模块ID'] == m_id]
+            if not match.empty:
+                r = match.iloc[0]
+                parts = [str(r.get(f,'')).strip() for f in ['一级分类','二级分类','对应图表名称']
+                         if str(r.get(f,'')).strip() not in ['','nan','全部']]
+                title = " - ".join(parts)
+        st.markdown(
+            f"<h3 class='print-only page-break-title' style='text-align:left; color:#00338D; font-size:32px; "  # ✅ 加 print-only
+            f"font-weight:900; font-family:Microsoft YaHei,微软雅黑,sans-serif; "
+            f"margin-top:10px; margin-bottom:0px; border:none;'>"
+            f"{title}（续）</h3>",
+            unsafe_allow_html=True
+        )
 
     # ==========================================
     # 🌐 网页模式 / 🖨️ 打印模式 的最终执行器
