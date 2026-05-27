@@ -443,7 +443,7 @@ def show_step_7_content():
     def show_chart(fig,p_mode,m_id=None):
         if not fig:return
         if p_mode:
-            H={"csm_trans":520,"oci_deep":280,"nb_struct":300,"csm_ratio_trend":240,"six_dimensional_charts":180}
+            H={"csm_trans":520,"oci_deep":280,"nb_struct":300,"csm_ratio_trend":300,"six_dimensional_charts":180}
             h=H.get(m_id,380)
             fig.update_layout(
                 autosize=False,
