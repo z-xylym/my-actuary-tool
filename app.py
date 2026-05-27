@@ -58,6 +58,21 @@ def show_step_7_content():
     }
     
     @media print {
+        @page{
+            size:A4 landscape;
+            margin:8mm 8mm 8mm 8mm;
+        }
+        html,body{
+            width:297mm!important;
+            height:210mm!important;
+            overflow:hidden!important;
+            zoom:100%!important;
+        }
+        .main .block-container{
+            max-width:100%!important;
+            padding-top:0!important;
+            padding-bottom:0!important;
+        }       
         /* ===== 隐藏所有交互元素 ===== */
         .no-print, h1, .nav-floating-sign,
         [data-testid="collapsedControl"], header, footer,
@@ -85,27 +100,26 @@ def show_step_7_content():
         }
         
         /* 保留两列并排布局的例外 */
-        .keep-columns [data-testid="stHorizontalBlock"] {
-            display: flex !important;
+        /* ⭐ PDF打印时强制双列 */
+        
+        .keep-columns [data-testid="stHorizontalBlock"]{
+            display:flex!important;
+            flex-wrap:nowrap!important;
+            align-items:flex-start!important;
+            justify-content:space-between!important;
+            gap:0!important;
+            width:100%!important;
         }
-        .keep-columns [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {
-            width: 50% !important;
-            min-width: 50% !important;
-            max-width: 50% !important;
-            flex: 1 !important;
-            padding: 0 4px !important;
+        .keep-columns [data-testid="stHorizontalBlock"]>div{
+            width:49%!important;
+            min-width:49%!important;
+            max-width:49%!important;
+            flex:0 0 49%!important;
+            overflow:hidden!important;
+            page-break-inside:avoid!important;
+            break-inside:avoid!important;
         }
-        /* ===== 核心：打印时拆掉三列居中布局，图表撑满纸张 ===== */
-        [data-testid="stHorizontalBlock"] {
-            display: block !important;
-        }
-        [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlock"] {
-            width: 100% !important;
-            min-width: 100% !important;
-            max-width: 100% !important;
-            flex: none !important;
-            padding: 0 !important;
-        }
+
 
         /* ===== 分页标题 ===== */
         .page-break-title {
@@ -232,7 +246,9 @@ def show_step_7_content():
                 img_val = str(r.get('图片文件名', '')).strip() if has_img and pd.notna(r.get('图片文件名')) else ''
                 notes_dict[m_id] = {
                     'title': str(r.get('对应图表名称', '')).strip(),
-                    'analysis': str(r.get('分析内容', '')).strip() if pd.notna(r.get('分析内容')) else '',
+                    # ✅ 拆成两个字段分别读取
+                    'analysis_default': str(r.get('分析内容-默认', '')).strip() if pd.notna(r.get('分析内容-默认')) else '',
+                    'analysis_custom': str(r.get('分析内容-自定义', '')).strip() if pd.notna(r.get('分析内容-自定义')) else '',
                     'note': str(r.get('注释内容', '')).strip() if pd.notna(r.get('注释内容')) else '',
                     'image_file': img_val if img_val.lower() != 'nan' else ''
                 }
@@ -401,35 +417,44 @@ def show_step_7_content():
 
     def display_notes(module_id, ai_df=None, ai_field=None, is_pct=False):
         md = notes_dict.get(module_id, {})
-        an, nt, ai_txt = md.get('analysis', ""), md.get('note', ""), generate_ai_insight(ai_df, ai_field, is_pct)
-        if an or ai_txt:
-            html = f'<div style="text-align: left;background: #F0F4FA; border-left: 4px solid #00338D; padding: 15px; margin-bottom: 10px; border-radius: 4px;">'
-            if an: html += f'<p style="margin: 0 0 8px 0; color: #1E3A8A; font-size: 14px;"><b> </b> {an}</p>'
-            if ai_txt: html += f'<p style="margin: 0; color: #D84315; font-size: 13px; border-top: 1px dashed #B0BEC5; padding-top: 8px;">{ai_txt}</p>'
+        an_default = md.get('analysis_default', "")
+        an_custom  = md.get('analysis_custom', "")
+        nt         = md.get('note', "")
+        ai_txt     = generate_ai_insight(ai_df, ai_field, is_pct)
+    
+        if an_default or an_custom or ai_txt:
+            html = '<div style="text-align:left; background:#F0F4FA; border-left:4px solid #00338D; padding:3px 12px; margin-bottom:10px; border-radius:4px;">'
+            # 默认内容：深蓝色
+            if an_default:
+            # margin-bottom 从 6px 改成 2px，段间距更紧
+                html += f'<p style="margin:2px 0; color:#1E3A8A; font-size:13px; line-height:1.4;">{an_default}</p>'
+            if an_custom:
+                html += f'<p style="margin:2px 0; color:#7A9CC5; font-size:13px; line-height:1.4;">{an_custom}</p>'
+            if ai_txt:
+                html += f'<p style="margin:2px 0; color:#D84315; font-size:12px; line-height:1.4;">{ai_txt}</p>'
             st.markdown(html + "</div>", unsafe_allow_html=True)
-        return an, nt
+    
+        return (an_default or an_custom), nt
 
     def display_bottom_note(nt_text):
         if nt_text and str(nt_text).lower() != 'nan':
-            st.markdown(f'<div style="text-align: left;margin-top: 5px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="text-align: left;margin-top: 2px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
-    def show_chart(fig, p_mode, m_id=None):
-        if fig:
-            if p_mode:
-                # 按图表类型定制打印高度
-                PRINT_HEIGHT_MAP = {
-                    # 宫格类图表，内容多，给足空间
-                    "csm_trans": 550,
-                    # 图表+表格组合，图要压矮给表格留空间
-                    "oci_deep":      300,
-                    "nb_struct":    320,
-                    # 默认
-                }
-                h = PRINT_HEIGHT_MAP.get(m_id, 420)
-                fig.update_layout(autosize=True, height=h, margin=dict(t=50, b=30, l=40, r=40))
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.plotly_chart(fig, use_container_width=True)
+    def show_chart(fig,p_mode,m_id=None):
+        if not fig:return
+        if p_mode:
+            H={"csm_trans":520,"oci_deep":280,"nb_struct":300,"csm_ratio_trend":240,"six_dimensional_charts":180}
+            h=H.get(m_id,380)
+            fig.update_layout(
+                autosize=False,
+                width=1100,
+                height=h,
+                margin=dict(t=35,b=15,l=15,r=15)
+            )
+            st.plotly_chart(fig,use_container_width=False,config={"displayModeBar":False})
+        else:
+            fig.update_layout(autosize=True)
+            st.plotly_chart(fig,use_container_width=True,config={"displayModeBar":False})
 
 
     # ==========================================
@@ -1181,21 +1206,38 @@ def show_step_7_content():
                 mapping[co] = st.color_picker(label=co, value=PRESET_COLORS_FIXED[i % len(PRESET_COLORS_FIXED)], key=f"{key_prefix}_{co}", label_visibility="collapsed")
         return mapping
 
-    def create_ratio_line_chart_v3(df_plot, title, color_map, show_labels, marker_size, legend_font_size, y_axis_format, selected_cos, highlight_co="无"):
-        fig = go.Figure()
-        for co in selected_cos:
-            d_co = df_plot[df_plot['公司'] == co].sort_values('报告年份')
-            if d_co.empty: continue
-            is_highlight = (co == highlight_co)
-            fig.add_trace(go.Scatter(
-                x=d_co['报告年份'], y=d_co['value'], name=co, mode='lines+markers+text' if show_labels else 'lines+markers',
-                line=dict(color=HIGHLIGHT_COLOR if is_highlight else color_map.get(co, "#333"), width=4 if is_highlight else 2, dash="solid" if is_highlight else "dot"),
-                marker=dict(size=marker_size*1.5 if is_highlight else marker_size, symbol='circle'),
-                text=[f"{v*100:.1f}%" if show_labels else "" for v in d_co['value']], textposition="top center", cliponaxis=False
-            ))
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=40, l=40, r=40), height=450, showlegend=True, legend=dict(orientation="h", yanchor="top", y=1.15, xanchor="right", x=1, font=dict(size=legend_font_size)))
-        fig.update_xaxes(showgrid=False, showline=False, zeroline=False); fig.update_yaxes(showgrid=False, zeroline=False, tickformat=y_axis_format)
-        return fig
+    #22.CSM摊销、持续比例图
+    def render_shared_legend(selected_cos, color_map, highlight_co="无"):
+            items = "".join([f'<div style="display:flex;align-items:center;"><div style="width:10px;height:10px;border-radius:50%;background:{HIGHLIGHT_COLOR if co == highlight_co else color_map.get(co, "#333")};margin-right:5px;flex-shrink:0;"></div><span>{co}</span></div>' for co in selected_cos])
+            st.markdown(f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:6px;padding-left:6px;font-size:12px;">{items}</div>', unsafe_allow_html=True)
+    
+    def create_ratio_line_chart_v3(df_plot, title, color_map, show_labels, marker_size, y_axis_format, selected_cos, highlight_co="无", print_mode=False):
+            fig = go.Figure()
+            latest_yr = df_plot['报告年份'].max()
+            df_latest = df_plot[df_plot['报告年份'] == latest_yr].dropna(subset=['value'])
+            
+            max_co = df_latest.loc[df_latest['value'].idxmax(), '公司'] if not df_latest.empty else None
+            min_co = df_latest.loc[df_latest['value'].idxmin(), '公司'] if not df_latest.empty else None
+    
+            for co in selected_cos:
+                d_co = df_plot[df_plot['公司'] == co].sort_values('报告年份')
+                if d_co.empty: continue
+                
+                is_hl, is_ext = (co == highlight_co), (co in [max_co, min_co])
+                fig.add_trace(go.Scatter(
+                    x=d_co['报告年份'], y=d_co['value'], name=co,
+                    mode='lines+markers+text' if show_labels else 'lines+markers',
+                    line=dict(color=HIGHLIGHT_COLOR if is_hl else color_map.get(co, "#333"), width=4 if is_hl else (2.5 if is_ext else 2), dash="solid" if (is_hl or is_ext) else "dot"),
+                    marker=dict(size=marker_size * 1.5 if is_hl else marker_size, symbol='circle'),
+                    text=[f"{v*100:.1f}%" if (not print_mode or i == len(d_co)-1) else "" for i, v in enumerate(d_co['value'])],
+                    textposition="middle right", cliponaxis=False
+                ))
+    
+            fig.update_layout(title=dict(text=title, x=0, font=dict(size=12)), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=160, margin=dict(t=25, b=0, l=0, r=0), showlegend=False)
+            fig.update_xaxes(showgrid=False, showline=False, zeroline=False)
+            fig.update_yaxes(showgrid=False, zeroline=False, tickformat=y_axis_format)
+            
+            return fig
 
     # --- 22.综合净资产指标 --- 
     def create_csm_equity_analysis(df, selected_cos, show_labels, label_size, bar_width, co_font_size, pct_height_adjust, highlight_co="无",title_text=""):
@@ -1716,501 +1758,77 @@ def show_step_7_content():
 
 
 
-    # --- 29. 净利润 vs 净利润增长率 散点图 ---
-    def create_six_dimensional_charts(
-        df_raw,
-        target_year,
-        cos,
-        divisor=1,
-        unit_label="百万元",
-        highlight_co="无",
-        label_size=11,
-        show_labels=False,
-        dot_size=11
-    ):
-        import pandas as pd
-        import numpy as np
-        import plotly.graph_objects as go
-        import plotly.express as px
-    
+# --- 29. 6维度增长率 散点图 ---
+    def create_six_dimensional_charts(df_raw, target_year, cos, divisor=1, unit_label="百万元", highlight_co="无", label_size=11, show_labels=False, dot_size=11):
+        import pandas as pd, numpy as np, plotly.graph_objects as go, plotly.express as px
         df = df_raw.copy()
-        df["字段名"] = df["字段名"].fillna("").astype(str).str.strip()
-        df["公司"] = df["公司"].astype(str).str.strip()
-        df["报告年份"] = df["报告年份"].astype(str).str.replace(".0", "", regex=False)
-    
-        curr_year_str = str(target_year)
-    
-        # 只保留目标年份 + 目标公司 + 需要字段
-        needed_fields = [
-            "净利润",
-            "期初股东权益",
-            "期末股东权益",
-            "CSM期初余额",
-            "CSM期末余额",
-            "总资产",
-            "投资收益率",
-            "综合偿付能力充足率"
-        ]
-    
-        df = df[
-            (df["报告年份"] == curr_year_str) &
-            (df["公司"].isin(cos)) &
-            (df["字段名"].isin(needed_fields))
-        ].copy()
-    
-        if df.empty:
-            return []
-    
-        # 去重：避免同一公司同一年同一字段重复
-        df = df.drop_duplicates(subset=["公司", "报告年份", "字段名"], keep="first").copy()
-    
-        # 字段分类
-        amount_fields = {
-            "净利润",
-            "期初股东权益",
-            "期末股东权益",
-            "CSM期初余额",
-            "CSM期末余额",
-            "总资产"
-        }
-    
-        ratio_fields = {
-            "投资收益率",
-            "综合偿付能力充足率"
-        }
-    
-        # 常见金额列
-        amount_cols = [
-            "(百万)人民币", "(亿元)人民币", "(百万)原币", "(亿元)原币",
-            "人民币", "原币", "数值", "值"
-        ]
-    
-        # 常见比例列
-        ratio_cols = [
-            "(%)原币", "(%)", "百分比", "比例", "占比", "比率"
-        ]
-    
-        def is_blank(v):
-            if pd.isna(v):
-                return True
-            s = str(v).strip().lower()
-            return s in ["", "nan", "none", "null", "-"]
-    
-        def to_float(v):
-            if is_blank(v):
-                return np.nan
-            s = str(v).strip().replace(",", "")
-            if s.endswith("%"):
-                s = s[:-1].strip()
-            try:
-                return float(s)
-            except:
-                return np.nan
-    
-        def parse_amount(v):
-            return to_float(v)
-    
-        def parse_ratio(v):
-            """
-            统一转成小数：
-            - 12%   -> 0.12
-            - 12    -> 0.12
-            - 0.12  -> 0.12
-            """
-            if is_blank(v):
-                return np.nan
-    
-            raw = str(v).strip()
-            num = to_float(v)
-            if pd.isna(num):
-                return np.nan
-    
-            if "%" in raw:
-                return num / 100.0
-    
-            # 经验判断：大于1通常表示“12=12%”
-            if abs(num) > 1:
-                return num / 100.0
-    
-            return num
-    
-        def extract_value(row, field):
-            # 比例型字段优先从比例列读取
-            if field in ratio_fields:
-                for col in ratio_cols:
-                    if col in row.index and not is_blank(row[col]):
-                        return parse_ratio(row[col])
-    
-                # 兜底：有些比例字段可能落在通用列里
-                for col in ["数值", "值", "原币", "人民币", "(百万)人民币", "(百万)原币"]:
-                    if col in row.index and not is_blank(row[col]):
-                        return parse_ratio(row[col])
-    
-                return np.nan
-    
-            # 金额型字段优先从金额列读取
-            if field in amount_fields:
-                for col in amount_cols:
-                    if col in row.index and not is_blank(row[col]):
-                        return parse_amount(row[col])
-    
-                # 兜底
-                for col in ratio_cols:
-                    if col in row.index and not is_blank(row[col]):
-                        return parse_amount(row[col])
-    
-                return np.nan
-    
+        df[["字段名", "公司", "报告年份"]] = df[["字段名", "公司", "报告年份"]].astype(str).apply(lambda x: x.str.strip().str.replace(".0", "", regex=False))
+        needed = ["净利润", "期初股东权益", "期末股东权益", "CSM期初余额", "CSM期末余额", "总资产", "投资收益率", "综合偿付能力充足率"]
+        df = df[(df["报告年份"] == str(target_year)) & df["公司"].isin(cos) & df["字段名"].isin(needed)].drop_duplicates(subset=["公司", "报告年份", "字段名"])
+        if df.empty: return []
+
+        a_cols, r_cols = ["(百万)人民币", "(亿元)人民币", "(百万)原币", "(亿元)原币", "人民币", "原币", "数值", "值"], ["(%)原币", "(%)", "百分比", "比例", "占比", "比率"]
+        def get_v(r, is_r):
+            for c in (r_cols + a_cols if is_r else a_cols + r_cols):
+                if c in r.index and pd.notna(r[c]) and str(r[c]).strip().lower() not in ["", "nan", "none", "null", "-"]:
+                    s = str(r[c]).strip().replace(",", "")
+                    try:
+                        v = float(s[:-1])/100.0 if s.endswith("%") else float(s)
+                        return v/100.0 if is_r and ("%" in str(r[c]) or abs(v)>1) else v
+                    except: continue
             return np.nan
-    
-        # 抽取数值
-        records = []
-        for _, row in df.iterrows():
-            field = row["字段名"]
-            val = extract_value(row, field)
-            records.append({
-                "公司": row["公司"],
-                "字段名": field,
-                "数值": val
-            })
-    
-        df_value = pd.DataFrame(records)
-        if df_value.empty:
-            return []
-    
-        df_value = df_value.dropna(subset=["数值"])
-        if df_value.empty:
-            return []
-    
-        df_pivot = df_value.pivot_table(
-            index="公司",
-            columns="字段名",
-            values="数值",
-            aggfunc="first"
-        )
+
+        records = [{"公司": r["公司"], "字段名": r["字段名"], "数值": get_v(r, r["字段名"] in ["投资收益率", "综合偿付能力充足率"])} for _, r in df.iterrows()]
+        df_p = pd.DataFrame(records).dropna(subset=["数值"]).pivot_table(index="公司", columns="字段名", values="数值", aggfunc="first").reindex(cos)
         
-        # 保持公司顺序
-        df_pivot = df_pivot.reindex(cos)
-        df_pivot.index.name = None
-    
-        def get_col(name):
-            if name in df_pivot.columns:
-                return pd.to_numeric(df_pivot[name], errors="coerce")
-            return pd.Series(np.nan, index=df_pivot.index)
-    
-        # 原始字段
-        net_profit = get_col("净利润")
-        equity_begin = get_col("期初股东权益")
-        equity_end = get_col("期末股东权益")
-        csm_begin = get_col("CSM期初余额")
-        csm_end = get_col("CSM期末余额")
-        total_assets = get_col("总资产")
-        invest_return = get_col("投资收益率")
-        solvency_ratio = get_col("综合偿付能力充足率")
-    
-        avg_equity = (equity_begin + equity_end) / 2
-    
-        # 六张图的数据
-        plot_data = pd.DataFrame(index=df_pivot.index)
-        plot_data["公司"] = plot_data.index
-    
-        # 1. 股东回报：Y=利润率，X=净利润
-        plot_data["利润率"] = np.where(
-            avg_equity.notna() & (avg_equity != 0),
-            net_profit / avg_equity,
-            np.nan
-        )
-        plot_data["净利润"] = net_profit
-    
-        # 2. 盈利潜力：Y=CSM增长率，X=CSM期末余额
-        plot_data["CSM增长率"] = np.where(
-            csm_begin.notna() & (csm_begin != 0),
-            (csm_end - csm_begin) / csm_begin,
-            np.nan
-        )
-        plot_data["CSM期末余额"] = csm_end
-    
-        # 3. 财务杠杆：Y=财务杠杆率，X=期末股东权益
-        plot_data["财务杠杆率"] = np.where(
-            total_assets.notna() & (total_assets != 0),
-            equity_end / total_assets,
-            np.nan
-        )
-    
-        # 4. 投资能力：Y=投资收益率，X=期末股东权益
-        plot_data["投资收益率"] = invest_return
-    
-        # 5. 财务稳定：Y=净资产增长率，X=期末股东权益
-        plot_data["净资产增长率"] = np.where(
-            equity_begin.notna() & (equity_begin != 0),
-            (equity_end - equity_begin) / equity_begin,
-            np.nan
-        )
-    
-        # 6. 偿付能力：Y=综合偿付能力充足率，X=期末股东权益
-        plot_data["综合偿付能力充足率"] = solvency_ratio
-        plot_data["期末股东权益"] = equity_end
-    
-        configs = [
-            {
-                "title": "股东回报",
-                "y_col": "利润率",
-                "x_col": "净利润",
-                "y_title": "利润率",
-                "subtitle": "Y轴=利润率，X轴=净利润",
-                "y_tickformat": ".1%"
-            },
-            {
-                "title": "盈利潜力",
-                "y_col": "CSM增长率",
-                "x_col": "CSM期末余额",
-                "y_title": "CSM增长率",
-                "subtitle": "Y轴=CSM增长率，X轴=CSM期末余额",
-                "y_tickformat": ".1%"
-            },
-            {
-                "title": "财务杠杆",
-                "y_col": "财务杠杆率",
-                "x_col": "期末股东权益",
-                "y_title": "财务杠杆率",
-                "subtitle": "Y轴=财务杠杆率，X轴=期末股东权益",
-                "y_tickformat": ".1%"
-            },
-            {
-                "title": "投资能力",
-                "y_col": "投资收益率",
-                "x_col": "期末股东权益",
-                "y_title": "投资收益率",
-                "subtitle": "Y轴=投资收益率，X轴=期末股东权益",
-                "y_tickformat": ".1%"
-            },
-            {
-                "title": "财务稳定",
-                "y_col": "净资产增长率",
-                "x_col": "期末股东权益",
-                "y_title": "净资产增长率",
-                "subtitle": "Y轴=净资产增长率，X轴=期末股东权益",
-                "y_tickformat": ".1%"
-            },
-            {
-                "title": "偿付能力",
-                "y_col": "综合偿付能力充足率",
-                "x_col": "期末股东权益",
-                "y_title": "综合偿付能力充足率",
-                "subtitle": "Y轴=综合偿付能力充足率，X轴=期末股东权益",
-                "y_tickformat": ".0%"
-            },
-        ]
-    
-        # 颜色：沿用你喜欢的那种清爽风格
-        base_colors = px.colors.qualitative.Plotly
-        color_map = {co: base_colors[i % len(base_colors)] for i, co in enumerate(cos)}
-    
-        current_hl = str(highlight_co).strip()
-        real_divisor = divisor if divisor not in [0, None] else 1
-    
-        def fmt_amt(v):
-            if pd.isna(v):
-                return "-"
-            try:
-                return f"{float(v):,.2f}"
-            except:
-                return "-"
-    
-        def fmt_pct(v, digits=1):
-            if pd.isna(v):
-                return "-"
-            try:
-                return f"{v:.{digits}%}"
-            except:
-                return "-"
-    
+        # 🌟 修复：抹去索引的名字，防止后续 sort_values 发生歧义冲突！
+        df_p.index.name = None 
+        
+        c = lambda n: pd.to_numeric(df_p[n], errors="coerce") if n in df_p.columns else pd.Series(np.nan, index=df_p.index)
+
+        np_val, eq_b, eq_e, csm_b, csm_e, ta, ir, sr = c("净利润"), c("期初股东权益"), c("期末股东权益"), c("CSM期初余额"), c("CSM期末余额"), c("总资产"), c("投资收益率"), c("综合偿付能力充足率")
+        pd_data = pd.DataFrame({"公司": df_p.index, "净利润": np_val, "CSM期末余额": csm_e, "期末股东权益": eq_e, "投资收益率": ir, "综合偿付能力充足率": sr})
+        
+        pd_data["利润率"] = np.where((eq_b+eq_e)!=0, np_val / ((eq_b+eq_e)/2), np.nan)
+        pd_data["CSM增长率"] = np.where(csm_b!=0, (csm_e-csm_b)/csm_b, np.nan)
+        pd_data["财务杠杆率"] = np.where(ta!=0, eq_e/ta, np.nan)
+        pd_data["净资产增长率"] = np.where(eq_b!=0, (eq_e-eq_b)/eq_b, np.nan)
+
+        cfgs = [("股东回报","利润率","净利润",".1%"), ("盈利潜力","CSM增长率","CSM期末余额",".1%"), ("财务杠杆","财务杠杆率","期末股东权益",".1%"), ("投资能力","投资收益率","期末股东权益",".1%"), ("财务稳定","净资产增长率","期末股东权益",".1%"), ("偿付能力","综合偿付能力充足率","期末股东权益",".0%")]
+        cmap, hl, rd = {co: px.colors.qualitative.Plotly[i % 10] for i, co in enumerate(cos)}, str(highlight_co).strip(), divisor or 1
         figs = []
-    
-        for fig_idx, conf in enumerate(configs):
-            y_col = conf["y_col"]
-            x_col = conf["x_col"]
-    
-            df_plot = plot_data[["公司", y_col, x_col]].copy()
-            df_plot["x_plot"] = pd.to_numeric(df_plot[x_col], errors="coerce") / real_divisor
-            df_plot["y_plot"] = pd.to_numeric(df_plot[y_col], errors="coerce")
-    
-            df_plot = df_plot.replace([np.inf, -np.inf], np.nan)
-            df_plot = df_plot.dropna(subset=["x_plot", "y_plot"])
-    
+
+        for t, y_c, x_c, y_fmt in cfgs:
+            d_plt = pd_data[["公司", y_c, x_c]].copy().replace([np.inf, -np.inf], np.nan).dropna()
             fig = go.Figure()
-    
-            if df_plot.empty:
-                fig.update_layout(
-                    title=dict(
-                        text=f"<b>{conf['title']}</b><br><span style='font-size:12px;color:#666'>{conf['subtitle']}（横轴单位：{unit_label}）</span>",
-                        x=0.02,
-                        xanchor="left"
-                    ),
-                    height=480,
-                    margin=dict(l=40, r=40, t=75, b=40),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)"
-                )
-                figs.append(fig)
-                continue
-    
-            df_plot["公司"] = pd.Categorical(df_plot["公司"], categories=cos, ordered=True)
-            df_plot = df_plot.sort_values("公司")
-    
-            df_plot["x_display"] = df_plot["x_plot"].apply(fmt_amt)
-            df_plot["x_raw_display"] = df_plot[x_col].apply(fmt_amt)
-            pct_digits = 0 if conf["y_tickformat"] == ".0%" else 1
-            df_plot["y_display"] = df_plot["y_plot"].apply(lambda v: fmt_pct(v, digits=pct_digits))
-    
-            for _, row in df_plot.iterrows():
-                co = str(row["公司"])
-                is_hl = (co.strip() == current_hl and current_hl not in ["", "无"])
-    
-                fig.add_trace(
-                    go.Scatter(
-                        x=[row["x_plot"]],
-                        y=[row["y_plot"]],
-                        mode="markers+text" if show_labels else "markers",
-                        name=co,
-                        legendgroup=co,
-                        showlegend=False,
-                        text=[co] if show_labels else None,
-                        textposition="top center",
-                        textfont=dict(
-                            size=label_size,
-                            color="#333"
-                        ),
-                        marker=dict(
-                            size=dot_size * 1.45 if is_hl else dot_size,
-                            color=color_map.get(co, "#1f77b4"),
-                            line=dict(
-                                color="white",
-                                width=1.8 if is_hl else 1.2
-                            ),
-                            opacity=0.95
-                        ),
-                        customdata=[[row["x_display"], row["y_display"], row["x_raw_display"]]],
-                        hovertemplate=(
-                            f"<b>{co}</b><br>"
-                            f"{x_col}（{unit_label}）: %{{customdata[0]}}<br>"
-                            f"{conf['y_title']}: %{{customdata[1]}}<br>"
-                            f"{x_col}（原值）: %{{customdata[2]}}"
-                            "<extra></extra>"
-                        )
-                    )
-                )
-    
-            fig.update_layout(
-                title=dict(
-                    text=f"<b>{conf['title']}</b><br><span style='font-size:12px;color:#666'>{conf['subtitle']}（横轴单位：{unit_label}）</span>",
-                    x=0.02,
-                    xanchor="left"
-                ),
-                height=480,
-                margin=dict(l=40, r=40, t=75, b=40),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                showlegend=False,
-                legend=dict(
-                    title="公司",
-                    orientation="v",
-                    yanchor="top",
-                    y=1,
-                    xanchor="left",
-                    x=1.02,
-                    bgcolor="rgba(0,0,0,0)"
-                ) if fig_idx == 0 else dict(),
-                hovermode="closest"
-            )
-    
-            fig.update_xaxes(
-                title=f"{x_col}（{unit_label}）",
-                showgrid=True,
-                gridcolor="rgba(180,180,180,0.20)",
-                zeroline=True,
-                zerolinecolor="rgba(150,150,150,0.30)"
-            )
-    
-            fig.update_yaxes(
-                title=conf["y_title"],
-                tickformat=conf["y_tickformat"],
-                showgrid=True,
-                gridcolor="rgba(180,180,180,0.20)",
-                zeroline=True,
-                zerolinecolor="rgba(150,150,150,0.30)"
-            )
-    
-            fig.add_hline(
-                y=0,
-                line_dash="dash",
-                line_color="rgba(120,120,120,0.7)",
-                line_width=1
-            )
-    
-            fig.add_vline(
-                x=0,
-                line_dash="dash",
-                line_color="rgba(120,120,120,0.7)",
-                line_width=1
-            )
-    
+            title_html = f"<span style='font-size:14px'><b>{t}</b></span><br><span style='font-size:11px;color:#666'>Y轴={y_c}，X轴={x_c}（单位：{unit_label}）</span>"
+            
+            if d_plt.empty:
+                fig.update_layout(title=dict(text=title_html, x=0.02), height=240, margin=dict(l=30, r=30, t=55, b=20), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                figs.append(fig); continue
+
+            d_plt["x_p"] = pd.to_numeric(d_plt[x_c], errors="coerce") / rd
+            for _, r in d_plt.sort_values("公司").iterrows():
+                co, is_hl = str(r["公司"]), (str(r["公司"]) == hl)
+                fig.add_trace(go.Scatter(
+                    x=[r["x_p"]], y=[r[y_c]], mode="markers+text" if show_labels else "markers", name=co, text=[co] if show_labels else None, textposition="top center", textfont=dict(size=label_size, color="#333"),
+                    marker=dict(size=dot_size*1.45 if is_hl else dot_size, color=cmap.get(co,"#1f77b4"), line=dict(color="white", width=1.8 if is_hl else 1.2), opacity=0.95),
+                    customdata=[[f"{r['x_p']:,.2f}" if pd.notna(r["x_p"]) else "-", f"{r[y_c]:{y_fmt}}" if pd.notna(r[y_c]) else "-", f"{r[x_c]:,.2f}" if pd.notna(r[x_c]) else "-"]],
+                    hovertemplate=f"<b>{co}</b><br>{x_c}（{unit_label}）: %{{customdata[0]}}<br>{y_c}: %{{customdata[1]}}<br>{x_c}（原值）: %{{customdata[2]}}<extra></extra>"
+                ))
+
+            fig.update_layout(title=dict(text=title_html, x=0.02), width=320, height=220, margin=dict(l=20, r=20, t=45, b=15), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False, hovermode="closest", xaxis=dict(showgrid=True, gridcolor="rgba(180,180,180,0.2)", zeroline=True, zerolinecolor="rgba(150,150,150,0.3)"), yaxis=dict(tickformat=y_fmt, showgrid=True, gridcolor="rgba(180,180,180,0.2)", zeroline=True, zerolinecolor="rgba(150,150,150,0.3)"))
+            fig.add_hline(y=0, line_dash="dash", line_color="rgba(120,120,120,0.7)", line_width=1)
+            fig.add_vline(x=0, line_dash="dash", line_color="rgba(120,120,120,0.7)", line_width=1)
             figs.append(fig)
-    
+            
         return figs
 
     def create_six_dimensional_legend(cos, highlight_co="无"):
-        import plotly.graph_objects as go
-        import plotly.express as px
-    
-        base_colors = px.colors.qualitative.Plotly
-        color_map = {co: base_colors[i % len(base_colors)] for i, co in enumerate(cos)}
-        current_hl = str(highlight_co).strip()
-    
-        fig = go.Figure()
-    
-        for co in cos:
-            is_hl = (str(co).strip() == current_hl and current_hl not in ["", "无"])
-    
-            fig.add_trace(
-                go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode="markers",
-                    name=co,
-                    marker=dict(
-                        size=12 if is_hl else 10,
-                        color=color_map.get(co, "#1f77b4"),
-                        line=dict(
-                            color="white",
-                            width=1.8 if is_hl else 1.2
-                        ),
-                        opacity=0.95
-                    ),
-                    showlegend=True
-                )
-            )
-    
-        fig.update_layout(
-            height=70,
-            margin=dict(l=0, r=0, t=0, b=0),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                x=0.5,
-                xanchor="center",
-                y=0.5,
-                yanchor="middle",
-                bgcolor="rgba(0,0,0,0)",
-                font=dict(size=11),
-                traceorder="normal"
-            ),
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False)
-        )
-    
+        import plotly.graph_objects as go, plotly.express as px
+        cmap, hl = {co: px.colors.qualitative.Plotly[i % 10] for i, co in enumerate(cos)}, str(highlight_co).strip()
+        fig = go.Figure([go.Scatter(x=[None], y=[None], mode="markers", name=co, marker=dict(size=12 if co==hl else 10, color=cmap.get(co,"#1f77b4"), line=dict(color="white", width=1.8 if co==hl else 1.2), opacity=0.95)) for co in cos])
+        fig.update_layout(height=50, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=True, legend=dict(orientation="h", x=0.5, xanchor="center", y=0.5, yanchor="middle", bgcolor="rgba(0,0,0,0)", font=dict(size=11)), xaxis=dict(visible=False), yaxis=dict(visible=False))
         return fig
 
 
@@ -2227,7 +1845,7 @@ def show_step_7_content():
         data_map = df_year.set_index(['公司', '字段名'])[val_col].to_dict()
         get_val = lambda co, field: data_map.get((co, field), 0) / div
 
-        rows_config = [("未采用保费分配法的保险合同", None, "header"), ("保险服务收入", "未采用保费分配法计量的保险合同保险服务收入", "data"), ("合同服务边际的释放", "合同服务边际的摊销", "data"), ("非金融风险调整的变动", "非金融风险调整的变动", "data"), ("预期当期发生的保险服务费用", "预计当期发生的保险服务费用", "data"), ("保险获取现金流的摊销", "保险获取现金流的摊销（保险服务收入）", "data"), ("其他", "其他收入调整", "data"), ("保险服务费用", "未采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险获取现金流的摊销 ", "保险获取现金流的摊销（保险服务费用）", "neg_data"), ("亏损部分的确认及转回", "亏损部分的确认及转回", "neg_data"), ("当期发生的赔款及其他相关费用", "当期发生的赔款及其他相关费用", "neg_data"), ("已发生赔款负债相关的履约现金流量变动", "已发生赔款负债相关的履约现金流量变动", "neg_data"), ("其他项", "FIXED_ZERO", "data"), ("保险服务业绩", "FORMULA_KPI_1", "subtotal"), ("采用保费分配法的保险合同", None, "header"), ("保险服务收入 ", "采用保费分配法计量的保险合同保险服务收入", "data"), ("保险服务费用 ", "采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险服务业绩 ", "采用保费分配法计量的保险合同保险业绩", "subtotal"), ("集团/业务条线-汇总（见附注）", None, "header"), ("保险服务收入  ", "保险服务收入合计", "data"), ("保险服务费用  ", "保险服务费用合计", "neg_data"), ("保险服务业绩（不含再保收支净额）", "FORMULA_TOTAL_KPI", "total"), ("CSM释放在保险服务业绩中占比", "FORMULA_CSM_RATIO", "percent")]
+        rows_config = [("未采用保费分配法的保险合同", None, "header"), ("保险服务收入", "未采用保费分配法计量的保险合同保险服务收入", "data"), ("合同服务边际的释放", "合同服务边际的摊销", "data"), ("非金融风险调整的变动", "非金融风险调整的变动", "data"), ("预期当期发生的保险服务费用", "预计当期发生的保险服务费用", "data"), ("保险获取现金流的摊销", "保险获取现金流的摊销（保险服务收入）", "data"), ("其他", "其他收入调整", "data"), ("保险服务费用", "未采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险获取现金流的摊销 ", "保险获取现金流的摊销（保险服务费用）", "neg_data"), ("亏损部分的确认及转回", "亏损部分的确认及转回", "neg_data"), ("当期发生的赔款及其他相关费用", "当期发生的赔款及其他相关费用", "neg_data"), ("已发生赔款负债相关的履约现金流量变动", "已发生赔款负债相关的履约现金流量变动", "neg_data"), ("其他项", "FIXED_ZERO", "data"), ("保险服务业绩", "FORMULA_KPI_1", "subtotal"), ("采用保费分配法的保险合同", None, "header"), ("保险服务收入 ", "采用保费分配法计量的保险合同保险服务收入", "data"), ("保险服务费用 ", "采用保费分配法计量的保险合同保险服务费用", "neg_data"), ("保险服务业绩 ", "采用保费分配法计量的保险合同保险业绩", "subtotal"), ("集团/业务条线-汇总", None, "header"), ("保险服务收入  ", "保险服务收入合计", "data"), ("保险服务费用  ", "保险服务费用合计", "neg_data"), ("保险服务业绩（不含再保收支净额）", "FORMULA_TOTAL_KPI", "total"), ("CSM释放在保险服务业绩中占比", "FORMULA_CSM_RATIO", "percent")]
 
         current_hl = str(highlight_co).strip()
         html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; font-size: 11px;'>"
@@ -2278,7 +1896,7 @@ def show_step_7_content():
     def create_nbv_summary_table(df, cos, div, unit_str, target_year, target_prev_year, highlight_co="无"):
         cy, py = target_year, target_prev_year
         cy_str, py_str = str(cy)[-2:], str(py)[-2:]
-        metrics = [f"新业务盈利合同(CSM) ({unit_str})", f"新业务CSM增长率 ({cy_str}YE/{py_str}YE-1)", f"新业务亏损合同(LC) ({unit_str})", f"新业务未来现金流入现值 ({unit_str})", f"新业务IFRS利润率 ", f"新业务增长 (新业务CSM/CSM摊销)"]
+        metrics = ["新业务盈利合同(CSM)", f"新业务CSM增长率 ({cy_str}YE/{py_str}YE-1)", "新业务亏损合同(LC)", "新业务未来现金流入现值", "新业务IFRS利润率", "新业务增长 (新业务CSM/CSM摊销)"]
         col_data = {}
         for co in cos:
             df_co = df[df['公司'] == co]
@@ -2502,17 +2120,17 @@ def show_step_7_content():
             show_chart(fig, print_mode,m_id=m_id)
             df_a, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos)
             if not df_a.empty:
-                st.markdown(f"<p style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom:6px;'>资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='font-size:13px; font-weight:bold; color:#00338D; margin-top:-30px; margin-bottom:6px;'>资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)</p>", unsafe_allow_html=True)
                 df_t = df_a.set_index("公司").T.rename(index={f"FVOCI占比_{p_y}": f"FVOCI占比({p_y})", f"FVOCI占比_{c_y}": f"FVOCI占比({c_y})", "FVOCI变动": "FVOCI变动", "负债OCI变动": "负债OCI变动", "两年资负OCI变动比率": "资负匹配率"})
-                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 20px;'><tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'><th style='padding: 6px 4px; border: 1px solid white;'>项目</th>"
-                for co in df_t.columns: html += f"<th style='padding: 6px 4px; text-align: center; background-color: {'#002266' if str(co).strip()==current_hl else '#00338D'}; border: 1px solid white;'>{co}</th>"
+                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px;margin-top:-20px; margin-bottom: 20px;'><tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'><th style='padding: 3px 3px; border: 1px solid white;'>项目</th>"
+                for co in df_t.columns: html += f"<th style='padding: 3px 4px; text-align: center; background-color: {'#002266' if str(co).strip()==current_hl else '#00338D'}; border: 1px solid white;'>{co}</th>"
                 html += "</tr>"
                 for r_idx, (nm, row) in enumerate(df_t.iterrows()):
                     html += f"<tr><td style='padding: 4px 4px; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>{nm}</td>"
                     for co in df_t.columns:
                         v_str = f"{row[co]:.2%}" if pd.notna(row[co]) else "-"
                         is_hl = (str(co).strip() == current_hl)
-                        html += f"<td style='padding: 4px 4px; text-align: center; background-color: {'rgba(0,51,141,0.05)' if is_hl else 'white'}; border: {'1.5px solid #00338D' if is_hl else '1px solid #EAEAEA'}; color: {'#00338D' if is_hl else '#444'}; font-weight: {'bold' if is_hl else 'normal'};'>{v_str}</td>"
+                        html += f"<td style='padding: 2px 2px; text-align: center; background-color: {'rgba(0,51,141,0.05)' if is_hl else 'white'}; border: {'1.5px solid #00338D' if is_hl else '1px solid #EAEAEA'}; color: {'#00338D' if is_hl else '#444'}; font-weight: {'bold' if is_hl else 'normal'};'>{v_str}</td>"
                     html += "</tr>"
                 html += "</table>"
                 st.markdown(html, unsafe_allow_html=True)
@@ -2623,26 +2241,71 @@ def show_step_7_content():
                 with c1: lab = st.toggle("显示数值", True, key=f"lab_{m_id}")
                 with c2: sz = st.slider("点大小", 4, 15, 6, key=f"sz_{m_id}")
             else:
-                lab = st.session_state.get(f"lab_{m_id}", True)
-                sz = st.session_state.get(f"sz_{m_id}", 6)
+                lab, sz = st.session_state.get(f"lab_{m_id}", True), st.session_state.get(f"sz_{m_id}", 6)
         
             color_map = get_color_map(selected_cos)
-            df_c_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
+            df_c_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(
+                index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
             df_c_sub['摊销比率'] = -df_c_sub['CSM摊销'] / (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销'])
             df_c_sub['持续率'] = -df_c_sub['新业务CSM（集团口径）'] / df_c_sub['CSM摊销']
             df_c_sub.replace([np.inf, -np.inf], np.nan, inplace=True)
             df_c_sub['报告年份'] = df_c_sub['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
         
-            # 👇 加保护壳
-            st.markdown("<div class='keep-columns'>", unsafe_allow_html=True)
-            col_l, col_r = st.columns(2)
-            with col_l:
-                fig1 = create_ratio_line_chart_v3(df_c_sub[['公司', '报告年份', '摊销比率']].rename(columns={'摊销比率': 'value'}), "摊销比率趋势", color_map, lab, sz, 11, ".1%", selected_cos, current_hl)
-                show_chart(fig1, print_mode, m_id=m_id)
-            with col_r:
-                fig2 = create_ratio_line_chart_v3(df_c_sub[['公司', '报告年份', '持续率']].rename(columns={'持续率': 'value'}), "持续率趋势", color_map, lab, sz, 11, ".1%", selected_cos, current_hl)
-                show_chart(fig2, print_mode, m_id=m_id)
-            st.markdown("</div>", unsafe_allow_html=True)
+            # ✅ 自定义圆点图例（HTML），两个子图共用
+            items = "".join([
+                f'<div style="display:flex;align-items:center;gap:4px;">'
+                f'<div style="width:9px;height:9px;border-radius:50%;background:{HIGHLIGHT_COLOR if co == current_hl else color_map.get(co, "#333")};flex-shrink:0;"></div>'
+                f'<span>{co}</span></div>'
+                for co in selected_cos
+            ])
+            st.markdown(
+                f'<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;font-size:11px;font-family:Microsoft YaHei,sans-serif;">{items}</div>',
+                unsafe_allow_html=True
+            )
+        
+            # ✅ 合并成一个 subplot，打印网页都稳定
+            from plotly.subplots import make_subplots
+            fig = make_subplots(rows=1, cols=2,
+                                subplot_titles=["CSM摊销比率趋势", "CSM持续率趋势"],
+                                horizontal_spacing=0.08)
+        
+            for col_idx, metric in enumerate(['摊销比率', '持续率'], 1):
+                df_m = df_c_sub[['公司', '报告年份', metric]].rename(columns={metric: 'value'})
+                latest_yr = df_m['报告年份'].max()
+                df_latest = df_m[df_m['报告年份'] == latest_yr].dropna(subset=['value'])
+                max_co = df_latest.loc[df_latest['value'].idxmax(), '公司'] if not df_latest.empty else None
+                min_co = df_latest.loc[df_latest['value'].idxmin(), '公司'] if not df_latest.empty else None
+        
+                for co in selected_cos:
+                    d_co = df_m[df_m['公司'] == co].sort_values('报告年份')
+                    if d_co.empty: continue
+                    is_hl  = (co == current_hl)
+                    is_ext = (co in [max_co, min_co])
+                    fig.add_trace(go.Scatter(
+                        x=d_co['报告年份'], y=d_co['value'], name=co,
+                        mode='lines+markers+text' if lab else 'lines+markers',
+                        line=dict(
+                            color=HIGHLIGHT_COLOR if is_hl else color_map.get(co, "#333"),
+                            width=4 if is_hl else (2.5 if is_ext else 2),
+                            dash="solid" if (is_hl or is_ext) else "dot"
+                        ),
+                        marker=dict(size=sz * 1.5 if is_hl else sz, symbol='circle'),
+                        text=[f"{v*100:.1f}%" for v in d_co['value']] if lab else None,
+                        textposition="top center", cliponaxis=False,
+                        showlegend=False  # ✅ 关掉Plotly自带图例，用上面HTML圆点图例
+                    ), row=1, col=col_idx)
+        
+                fig.update_yaxes(tickformat=".1%", showgrid=False, zeroline=False, row=1, col=col_idx)
+                fig.update_xaxes(showgrid=False, showline=False, zeroline=False, row=1, col=col_idx)
+        
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=False,
+                height=380 if print_mode else 430,
+                margin=dict(t=40, b=20, l=30, r=30),
+            )
+        
+            show_chart(fig, print_mode, m_id=m_id)
 
         # 20. 综合净资产指标
         elif m_id == "csm_equity":
@@ -2810,10 +2473,10 @@ def show_step_7_content():
             try: cy_int = int(latest_year)
             except: cy_int = 2024 
             py_int = cy_int - 1
-            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度 分析表</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度分析表</div>", unsafe_allow_html=True)
             html_cy = create_financial_report_table(df_filtered, cy_int, selected_cos, divisor, unit_label, current_hl)
             if html_cy: st.markdown(html_cy, unsafe_allow_html=True)
-            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-top: 15px; margin-bottom: 5px;'>▪ {py_int}年度 分析表</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-top: 15px; margin-bottom: 5px;'>▪ {py_int}年度分析表</div>", unsafe_allow_html=True)
             html_py = create_financial_report_table(df_filtered, py_int, selected_cos, divisor, unit_label, current_hl)
             if html_py: st.markdown(html_py, unsafe_allow_html=True)
 
@@ -2821,35 +2484,70 @@ def show_step_7_content():
             try: cy_int = int(latest_year)
             except: cy_int = 2024 
             py_int, ppy_int = cy_int - 1, cy_int - 2
-            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度 分析表</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度分析表</div>", unsafe_allow_html=True)
             html_cy = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, cy_int, py_int, current_hl)
             if html_cy: st.markdown(html_cy, unsafe_allow_html=True)
-            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {py_int}年度 分析表</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {py_int}年度分析表</div>", unsafe_allow_html=True)
             html_py = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, py_int, ppy_int, current_hl)
             if html_py: st.markdown(html_py, unsafe_allow_html=True)
 
 
 
         elif m_id == "six_dimensional_charts":
-            legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
             figs = create_six_dimensional_charts(
                 df_raw=df_filtered, target_year=latest_year, cos=selected_cos,
                 divisor=divisor, unit_label=unit_label, highlight_co=current_hl,
                 label_size=11, show_labels=False, dot_size=11
             )
-            valid_figs = [fig for fig in figs if fig is not None]
+            valid_figs = [f for f in figs if f is not None]
         
             if valid_figs:
+                # ✅ 图例单独一行
+                legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
                 st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False})
         
-                # 👇 加保护壳
-                st.markdown("<div class='keep-columns'>", unsafe_allow_html=True)
-                col1, col2 = st.columns(2)
-                for i, fig in enumerate(valid_figs):
-                    target_col = col1 if i % 2 == 0 else col2
-                    with target_col:
-                        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-                st.markdown("</div>", unsafe_allow_html=True)
+                # ✅ 两两合并成 subplot，彻底解决打印并列问题
+                from plotly.subplots import make_subplots
+                pairs = [(valid_figs[i], valid_figs[i+1] if i+1 < len(valid_figs) else None)
+                         for i in range(0, len(valid_figs), 2)]
+        
+                for left_fig, right_fig in pairs:
+                    if right_fig is None:
+                        # 奇数最后一个单独显示
+                        left_fig.update_layout(height=340 if print_mode else 420,
+                            margin=dict(t=40, b=20, l=30, r=30),
+                            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        st.plotly_chart(left_fig, use_container_width=True, config={"displayModeBar": False})
+                        continue
+        
+                    # 提取两个图的 traces 合并进 subplot
+                    combined = make_subplots(rows=1, cols=2, horizontal_spacing=0.08,
+                        subplot_titles=[
+                            left_fig.layout.title.text if left_fig.layout.title.text else "",
+                            right_fig.layout.title.text if right_fig.layout.title.text else ""
+                        ])
+        
+                    for trace in left_fig.data:
+                        trace.showlegend = False
+                        combined.add_trace(trace, row=1, col=1)
+                    for trace in right_fig.data:
+                        trace.showlegend = False
+                        combined.add_trace(trace, row=1, col=2)
+        
+                    # 复制坐标轴设置
+                    combined.update_xaxes(left_fig.layout.xaxis.to_plotly_json(), row=1, col=1)
+                    combined.update_xaxes(right_fig.layout.xaxis.to_plotly_json(), row=1, col=2)
+                    combined.update_yaxes(left_fig.layout.yaxis.to_plotly_json(), row=1, col=1)
+                    combined.update_yaxes(right_fig.layout.yaxis.to_plotly_json(), row=1, col=2)
+        
+                    combined.update_layout(
+                        height=340 if print_mode else 420,
+                        margin=dict(t=40, b=20, l=30, r=30),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        showlegend=False
+                    )
+                    st.plotly_chart(combined, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.info("暂无可用于绘制六维图的数据。")
 
@@ -2858,93 +2556,80 @@ def show_step_7_content():
     # 🌟 统一调用出口：根据 m_id 自动组装全部零配件
     # ==========================================
     def render_report_module(m_id, print_mode, is_first=False):
-            mod_data = notes_dict.get(m_id, {})
+        mod_data = notes_dict.get(m_id, {})
     
-            full_title = mod_data.get('title', m_id)
-            if 'df_notes' in st.session_state and isinstance(st.session_state['df_notes'], pd.DataFrame):
-                df_n = st.session_state['df_notes']
-                if '模块ID' in df_n.columns:
-                    match = df_n[df_n['模块ID'] == m_id]
-                    if not match.empty:
-                        r = match.iloc[0]
-                        title_parts = []
-                        for field in ['一级分类', '二级分类', '对应图表名称']:
-                            val = str(r.get(field, '')).strip()
-                            if val and val.lower() != 'nan':
-                                title_parts.append(val)
-                        if title_parts:
-                            full_title = " - ".join(title_parts)
+        full_title = mod_data.get('title', m_id)
+        if 'df_notes' in st.session_state and isinstance(st.session_state['df_notes'], pd.DataFrame):
+            df_n = st.session_state['df_notes']
+            if '模块ID' in df_n.columns:
+                match = df_n[df_n['模块ID'] == m_id]
+                if not match.empty:
+                    r = match.iloc[0]
+                    title_parts = []
+                    for field in ['一级分类', '二级分类', '对应图表名称']:
+                        val = str(r.get(field, '')).strip()
+                        if val and val.lower() != 'nan' and val != '全部':
+                            title_parts.append(val)
+                    if title_parts:
+                        full_title = " - ".join(title_parts)
     
+        if print_mode:
+            st.markdown("<div class='page-break-container' style='margin:0;padding:0;'>", unsafe_allow_html=True)
+        st.markdown("<div class='no-print' style='height:2px; background:linear-gradient(to right, transparent, #D0D9EE 20%, #D0D9EE 80%, transparent); margin:30px 0 0 0;'></div>", unsafe_allow_html=True)
+    
+        # ====== 第 1 步：标题 ======（移出else，打印和网页都执行）
+        title_cls = "page-break-title" if (print_mode and not is_first) else ""
+        st.markdown(
+            f"<h3 class='{title_cls}' style='"
+            f"text-align:left; color:#00338D; font-size:38px; font-weight:900; "
+            f"font-family:Microsoft YaHei, 微软雅黑, sans-serif; "
+            f"margin-top:20px; margin-bottom:15px; border:none; padding-bottom:0px;'>"
+            f"{full_title}</h3>",
+            unsafe_allow_html=True
+        )
+    
+        # ====== 第 2 步：手动截图覆盖 ======
+        if 'manual_upload_images' in st.session_state and m_id in st.session_state.manual_upload_images:
             if print_mode:
-                st.markdown("<div class='page-break-container' style='margin:0;padding:0;'>", unsafe_allow_html=True)
-    
-            # ====== 第 1 步：标题 ======
-            title_cls = "page-break-title" if (print_mode and not is_first) else ""
-            st.markdown(
-                f"<h3 class='{title_cls}' style='"
-                f"text-align:left; "
-                f"color:#00338D; "
-                f"font-size:38px; "
-                f"font-weight:900; "
-                f"font-family:Microsoft YaHei, 微软雅黑, sans-serif; "
-                f"margin-top:20px; "
-                f"margin-bottom:15px; "
-                f"border:none; "
-                f"padding-bottom:0px;'>"
-                f"{full_title}</h3>",
-                unsafe_allow_html=True
-            )
-    
-            # ====== 第 2 步：手动截图覆盖 ======
-            if 'manual_upload_images' in st.session_state and m_id in st.session_state.manual_upload_images:
-                if print_mode:
-                    st.image(st.session_state.manual_upload_images[m_id], use_column_width=True)
-                else:
-                    img_col_left, img_col_center, img_col_right = st.columns([1, 8, 1])
-                    with img_col_center:
-                        st.image(st.session_state.manual_upload_images[m_id], use_column_width=True)
-                _, nt = display_notes(m_id)
-                display_bottom_note(nt)
-                if print_mode:
-                    st.markdown("</div>", unsafe_allow_html=True)
-                return
-    
-            # ====== 第 3 步：AI / 注释框 ======
-            an, nt = display_notes(m_id, ai_df=df_filtered, ai_field=mod_data.get('title', m_id))
-    
-            # ====== 第 4 步：图表 ======
-            if print_mode:
-                # 打印模式：不用三列，直接全宽
-                if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
-                    unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
-                    st.markdown(
-                        f"<p style='text-align:right; font-size:11px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>",
-                        unsafe_allow_html=True
-                    )
-                render_pure_chart_entity(m_id, print_mode)
+                st.image(st.session_state.manual_upload_images[m_id], use_column_width=True)
             else:
-                # 网页模式：三列居中
-                chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
-                with chart_col_center:
-                    if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
-                        unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
-                        st.markdown(
-                            f"<p style='text-align:right; font-size:12px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>",
-                            unsafe_allow_html=True
-                        )
-                    render_pure_chart_entity(m_id, print_mode)
-    
-            # ====== 第 5 步：底部注释 ======
+                img_col_left, img_col_center, img_col_right = st.columns([1, 8, 1])
+                with img_col_center:
+                    st.image(st.session_state.manual_upload_images[m_id], use_column_width=True)
+            _, nt = display_notes(m_id)
             display_bottom_note(nt)
-    
             if print_mode:
                 st.markdown("</div>", unsafe_allow_html=True)
+            return
+    
+        # ====== 第 3 步：AI / 注释框 ======
+        an, nt = display_notes(m_id, ai_df=df_filtered, ai_field=mod_data.get('title', m_id))
+    
+        # ====== 第 4 步：图表 ======
+        if print_mode:
+            if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
+                unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
+                st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
+            render_pure_chart_entity(m_id, print_mode)
+        else:
+            chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
+            with chart_col_center:
+                if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
+                    unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
+                    st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:-10px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
+                render_pure_chart_entity(m_id, print_mode)
+    
+        # ====== 第 5 步：底部注释 ======
+        display_bottom_note(nt)
+    
+        if print_mode:
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
     # ==========================================
     # 🌐 网页模式 / 🖨️ 打印模式 的最终执行器
     # ==========================================
-    st.write("---")
+    st.markdown("<hr class='no-print' style='border:none; border-top:1px solid #EAEAEA; margin:10px 0;'>", unsafe_allow_html=True)
     if print_mode:
         # 如果点了一键打印按钮，直接遍历所有的 Excel 配置表行顺序，暴力冲锋！
         if 'ordered_modules' not in locals() or not ordered_modules:
