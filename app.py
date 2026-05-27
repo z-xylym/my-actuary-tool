@@ -220,7 +220,7 @@ def show_step_7_content():
         df_notes = None
         if use_default:
             try:
-                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E6%96%B0.xlsx")
+                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_%E5%88%86%E6%9E%90%E5%86%85%E5%AE%B9%E4%B8%A4%E5%88%97.xlsx")
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
                 st.error(f"❌ 加载失败：{e}")
