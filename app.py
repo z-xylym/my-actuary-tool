@@ -687,6 +687,45 @@ def show_step_7_content():
             if "<b>" in str(ann.text): ann.update(y=1, font=dict(size=co_font_size, color="#00338D"))
         return fig, df_avg
     
+    
+    
+    
+    def create_kpmg_exp_chart(df, field_map, color_map, title_prefix, show_labels, label_size, bar_width, co_font_size, highlight_co="无"):
+        fields = list(field_map.keys())
+        d = df[df['公司'].isin(selected_cos)].drop_duplicates(subset=['公司', '报告年份', '字段名'], keep='first').copy()
+        d['报告年份'] = d['报告年份'].astype(str).str.replace(".0", "", regex=False)
+        
+        d_p = d[d['字段名'].isin(fields)].pivot_table(index=['box', '报告年份'], columns='字段名', values='(百万)人民币', aggfunc='first').fillna(0) if d.empty else d[d['字段名'].isin(fields)].pivot_table(index=['公司', '报告年份'], columns='字段名', values='(百万)人民币', aggfunc='first').fillna(0)
+        d_p['Total'] = d_p[fields].abs().sum(axis=1).replace(0, 1)
+        for f in fields: d_p[field_map[f]] = d_p[f] / d_p['Total'] * 100
+        
+        all_yrs = sorted(d['报告年份'].unique())
+        df_avg = d_p[[field_map[f] for f in fields]].groupby('报告年份').mean().reindex(all_yrs[-2:] if len(all_yrs)>=2 else all_yrs)
+        df_avg.index = [f"{y}YE" for y in df_avg.index] 
+    
+        av_cos = [co for co in selected_cos if co in d['公司'].unique()]
+        if not av_cos: return go.Figure(), pd.DataFrame()
+        titles = [f"<b>{co}</b>" for co in av_cos]
+        fig = make_subplots(rows=1, cols=len(av_cos), shared_yaxes=True, horizontal_spacing=0.015, column_titles=titles)
+        
+        for i, co in enumerate(av_cos):
+            d_co = d[d['公司']==co].pivot(index='报告年份', columns='字段名', values='(百万)人民币').reindex(all_yrs).fillna(0)
+            d_co['Total'] = d_co[fields].abs().sum(axis=1).replace(0, 1)
+            for f, d_n in field_map.items():
+                val = d_co.get(f, 0) / d_co['Total'] * 100
+                txt_c = "white" if any(x in color_map[f] for x in ["30, 73, 226", "114, 19, 234", "0, 163, 161"]) else "black"
+                fig.add_trace(go.Bar(x=[f"{y}YE" for y in d_co.index], y=val, name=d_n if i==0 else None, marker_color=color_map[f], text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in val] if show_labels else None, textangle=0, textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=txt_c), constraintext='none', cliponaxis=False, width=bar_width, showlegend=(i==0), legendgroup=f), row=1, col=i+1)
+            
+            is_hl = (str(co).strip() == str(highlight_co).strip())
+            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
+            fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.08, y1=1.08, fillcolor=bg_fill, line=line_dict, layer="above", row=1, col=i+1)
+                    
+        fig.update_layout(barmode='relative', height=500, margin=dict(t=50, b=80, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.17, xanchor="center", x=0.5, font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        for ann in fig.layout.annotations:
+            if "<b>" in str(ann.text): ann.update(y=1, font=dict(size=co_font_size, color="#00338D"))
+        return fig, df_avg
+    
     # --- 6.利润贡献拆解 ---
     def create_profit_composition_chart(df, selected_cos, target_year, show_labels, label_size, bar_width, co_font_size, highlight_co="无"):
         source_fields = ["合同服务边际的摊销", "非金融风险调整的变动", "亏损部分的确认及转回", "采用保费分配法计量的保险合同保险业绩", "保险利润", "再保净损益"]
@@ -719,7 +758,7 @@ def show_step_7_content():
         for col_name, legend_name, color in display_mapping:
             vals_pct = (d_pivot[col_name] / d_pivot['Total']) * 100
             txt_color = "white" if "30, 73, 226" in color or "114, 19, 214" in color or "9, 142, 126" in color else "black"
-            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=vals_pct, width=bar_width, marker_color=color, text=[f"{v:.0f}%" if abs(v) >= 2 else "" for v in vals_pct] if show_labels else None, textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=txt_color), constraintext='none'))
+            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=vals_pct, width=bar_width, marker_color=color, text=[f"{v:.0f}%" if abs(v) >= 2 else "" for v in vals_pct] if show_labels else None, textposition='inside',textangle=0, insidetextanchor='middle', textfont=dict(size=label_size, color=txt_color), constraintext='none'))
             
         fig.update_layout(barmode='relative', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=20, b=80, l=220, r=80), legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05, traceorder="reversed", font=dict(size=11, color="#00338D")), yaxis=dict(side='right', showgrid=False, range=[-45, 105],tickmode='array',showticklabels=True, tickvals=[-40, -20, 0, 20, 40, 60, 80, 100], ticktext=["-40%", "-20%", "0%", "20%", "40%", "60%", "80%", "100%"], zeroline=True, zerolinecolor="#F7860C"))
         
@@ -1203,13 +1242,36 @@ def show_step_7_content():
             if f not in d_pivot.columns: d_pivot[f] = 0
         d_pivot = d_pivot.reindex(selected_cos).fillna(0)
         d_pivot['Total'] = d_pivot[fields].abs().sum(axis=1).replace(0, 1)
+        no_data_cos = d_pivot[d_pivot[fields].abs().sum(axis=1) == 0].index.tolist()
         fig, hl_co = go.Figure(), str(highlight_co).strip()
         x_idx = list(range(len(selected_cos)))
+        no_data_x = [i for i, co in enumerate(selected_cos) if co in no_data_cos]
+        if no_data_x:
+            fig.add_trace(go.Bar(
+                x=no_data_x, y=[100] * len(no_data_x),
+                width=bar_width,
+                marker_color="#D9D9D9",
+                showlegend=False,
+                text=["未披露"] * len(no_data_x),
+                textposition='inside',
+                insidetextanchor='middle',
+                textfont=dict(size=label_size, color="white"),
+                hoverinfo='skip'
+            ))
+        
         for f_name in fields:
             vals_pct = (d_pivot[f_name] / d_pivot['Total']) * 100
+            # ✅ 有数据的公司正常显示，无数据的公司值设为0不显示
+            vals_pct = [0 if co in no_data_cos else v for co, v in zip(selected_cos, vals_pct)]
             t_color = "white" if f_name == "新业务CSM（集团口径）" else "black"
-            fig.add_trace(go.Bar(name=field_map[f_name], x=x_idx, y=vals_pct, width=bar_width, marker_color=color_map[f_name], text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in vals_pct] if show_labels else None, textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=t_color), constraintext='none'))
-        
+            fig.add_trace(go.Bar(
+                name=field_map[f_name], x=x_idx, y=vals_pct,
+                width=bar_width, marker_color=color_map[f_name],
+                text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in vals_pct] if show_labels else None,
+                textposition='inside', insidetextanchor='middle',
+                textfont=dict(size=label_size, color=t_color),
+                constraintext='none'
+            ))  
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
             fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
@@ -1929,7 +1991,7 @@ def show_step_7_content():
                 if not is_header:
                     val = 0
                     if r_type == "data": val = get_val(co, field) if field != "FIXED_ZERO" else 0
-                    elif r_type == "neg_data": val = -abs(get_val(co, field))
+                    elif r_type == "neg_data": val = -(get_val(co, field))
                     elif r_type == "subtotal": val = get_val(co, "未采用保费分配法计量的保险合同保险服务收入") - get_val(co, "未采用保费分配法计量的保险合同保险服务费用") if row_name == "保险服务业绩" else get_val(co, "采用保费分配法计量的保险合同保险业绩")
                     elif r_type == "total": val = get_val(co, "保险服务收入合计") - get_val(co, "保险服务费用合计")
                     elif r_type == "percent":
@@ -2073,18 +2135,63 @@ def show_step_7_content():
                 html += "</table>"
                 st.markdown(html, unsafe_allow_html=True)
             show_chart(fig, print_mode,m_id=m_id)
+
+
+        #6.新加费用的图
+        elif m_id == "exp_1":
+            if not print_mode:
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: lab = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
+                with c2: lsz = st.slider("标签大小", 5, 20, 12, key=f"lsz_{m_id}")
+                with c3: wid = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
+                with c4: cfs = st.slider("公司名称大小", 10, 20, 12, key=f"cfs_{m_id}")
+            else:
+                lab = st.session_state.get(f"lab_{m_id}", True)
+                lsz = st.session_state.get(f"lsz_{m_id}", 12)
+                wid = st.session_state.get(f"wid_{m_id}", 0.6)
+                cfs = st.session_state.get(f"cfs_{m_id}", 12)
+        
+            f_m2 = {
+                "保险获取现金流的摊销（保险服务费用）": "保险获取现金流的摊销",
+                "亏损部分的确认及转回": "亏损部分的确认及转回",
+                "当期发生的赔款及其他相关费用": "当期发生的赔款及费用",
+                "已发生赔款负债相关的履约现金流量变动": "已发生赔款负债变动",
+            }
+            c_m2 = {
+                "保险获取现金流的摊销（保险服务费用）": "rgb(30, 73, 226)",
+                "亏损部分的确认及转回":               "rgb(254, 174, 215)",
+                "当期发生的赔款及其他相关费用":        "rgb(0, 163, 161)",
+                "已发生赔款负债相关的履约现金流量变动": "rgb(1, 184, 245)",
+            }
+        
+            fig, df_avg = create_kpmg_exp_chart(df_filtered, f_m2, c_m2, "", lab, lsz, wid, cfs, current_hl)
+            if fig and not df_avg.empty:
+                st.markdown("<div style='font-size:13px; font-weight:bold; margin-bottom:8px; color:#333;'>各公司平均占比情况 (样本均值)</div>", unsafe_allow_html=True)
+                html = "<table style='width:100%; border-collapse:collapse; font-family:sans-serif; font-size:11px; margin-bottom:10px;'><tr style='background-color:#00338D; color:white; text-align:center; font-weight:bold;'><th style='padding:4px 6px; border:1px solid white;'>报告年份</th>"
+                for orig_k, display_name in f_m2.items():
+                    html += f"<th style='padding:4px 6px; background-color:{c_m2[orig_k]}; color:white; border:1px solid white;'>{display_name}</th>"
+                html += "</tr>"
+                for yr, row in df_avg.iterrows():
+                    html += f"<tr><td style='padding:4px 6px; font-weight:bold; background-color:#F8F9FA; border:1px solid #EAEAEA;'>{yr}</td>"
+                    for orig_k, display_name in f_m2.items():
+                        html += f"<td style='padding:4px 6px; text-align:center; background-color:white; border:1px solid #EAEAEA;'>{row[display_name]:.1f}%</td>"
+                    html += "</tr>"
+                html += "</table>"
+                st.markdown(html, unsafe_allow_html=True)
+            show_chart(fig, print_mode, m_id=m_id)   
+            
             
         # 6. 利润构成拆解
         elif m_id in ["prof_2025", "prof_2024"]:
             y_val = latest_year if m_id == "prof_2025" else prev_year
             if not print_mode:
                 c1, c2, c3, c4 = st.columns(4)
-                with c1: lab = st.toggle("显示利润标签", value=False, key=f"lab_{m_id}")
+                with c1: lab = st.toggle("显示利润标签", value=True, key=f"lab_{m_id}")
                 with c2: psz = st.slider("标签字号", 8, 16, 11, key=f"psz_{m_id}")
                 with c3: wid = st.slider("柱宽", 0.2, 0.8, 0.4, key=f"wid_{m_id}")
                 with c4: cfs = st.slider("公司字号", 10, 20, 11, key=f"cfs_{m_id}")
             else:
-                lab = st.session_state.get(f"lab_{m_id}", False)
+                lab = st.session_state.get(f"lab_{m_id}", True)
                 psz = st.session_state.get(f"psz_{m_id}", 11)
                 wid = st.session_state.get(f"wid_{m_id}", 0.5)
                 cfs = st.session_state.get(f"cfs_{m_id}", 11)
