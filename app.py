@@ -267,7 +267,6 @@ def show_step_7_content():
             return out
     
         def rise_fall(field):
-            """涨跌型：x家上升增幅最大，y家下降降幅最大"""
             cv, pv = gv(field, cy), gv(field, py)
             rises, falls = [], []
             for co in cos:
@@ -278,12 +277,12 @@ def show_step_7_content():
             parts = []
             if rises:
                 rises.sort(key=lambda x: -x[1])
-                names = '、'.join(c for c,_ in rises)
-                parts.append(f"{names}上升，其中{rises[0][0]}增幅最大（+{rises[0][1]:.1%}）")
+                # ✅ 改这行：用家数代替公司名列表
+                parts.append(f"{len(rises)}家上升，其中{rises[0][0]}增幅最大（+{rises[0][1]:.1%}）")
             if falls:
                 falls.sort(key=lambda x: x[1])
-                names = '、'.join(c for c,_ in falls)
-                parts.append(f"{names}下降，其中{falls[0][0]}降幅最大（{falls[0][1]:.1%}）")
+                # ✅ 改这行：用家数代替公司名列表
+                parts.append(f"{len(falls)}家下降，其中{falls[0][0]}降幅最大（{falls[0][1]:.1%}）")
             return "；".join(parts) + "。" if parts else ""
     
         def trend_only(field):
@@ -384,9 +383,9 @@ def show_step_7_content():
                 }, cy)
             if m_id == "csm_trans":
                 return composition({
-                    "采用修正追溯法计量的合同": "修正追溯法",
-                    "采用公允价值法计量的合同": "公允价值法",
-                    "其他保险合同": "其他合同",
+                    f"采用公允价值法计量的合同期末负债": "公允价值法",
+                    f"采用修正追溯调整法计量的合同期末负债": "修正追溯法",
+                    f"其他合同期末负债": "其他合同",
                 }, cy)
             if m_id in ["csm_comp_lat", "csm_comp_pre"]:
                 y = cy if m_id == "csm_comp_lat" else py
@@ -501,13 +500,17 @@ def show_step_7_content():
             check_btn = st.button("🔓验证下载", use_container_width=True)
     
         if check_btn:
+            # 🌟 核心修复 1：一点击按钮，立刻清空之前的旧文件缓存
+            if 'filled_notes_excel' in st.session_state:
+                del st.session_state['filled_notes_excel']
+                
             if pwd_input == "KPMG666":
                 try:
                     import requests
                     from io import BytesIO
                     import openpyxl
         
-                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx"
+                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E5%8F%AA%E5%90%AB%E9%BB%98%E8%AE%A4.xlsx"
                     r = requests.get(url, timeout=15)
         
                     if r.status_code == 200:
@@ -533,10 +536,11 @@ def show_step_7_content():
                                 if generated:
                                     row[custom_col - 1].value = generated
         
-                        # ✅ 填完之后存进 session_state，防止 rerun 时丢失
                         output = BytesIO()
                         wb.save(output)
                         output.seek(0)
+                        
+                        # 🌟 核心修复 2：只有走到这一步，完全成功了，才把文件放入缓存
                         st.session_state['filled_notes_excel'] = output.getvalue()
                         st.success("✅ 验证成功，分析内容已自动填充，请点击下方按钮下载")
                     else:
@@ -546,10 +550,10 @@ def show_step_7_content():
             else:
                 st.error("❌ 安全码错误")
         
-        # ✅ 下载按钮单独放在外面，从 session_state 读取，不受 rerun 影响
+        # ✅ 下载按钮：严格依赖本次验证成功放入的 session_state
         if 'filled_notes_excel' in st.session_state:
             st.download_button(
-                label="📥 点击下载（已自动填充分析内容）",
+                label="🔓点击下载（已自动填充分析内容）",
                 data=st.session_state['filled_notes_excel'],
                 file_name=f"注释表_{st.session_state.get('selected_cos_cache', [''])[0] if st.session_state.get('selected_cos_cache') else ''}_{2025}年.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -561,7 +565,7 @@ def show_step_7_content():
         df_notes = None
         if use_default:
             try:
-                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx")
+                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E5%8F%AA%E5%90%AB%E9%BB%98%E8%AE%A4.xlsx")
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
                 st.error(f"❌ 加载失败：{e}")
@@ -846,7 +850,7 @@ def show_step_7_content():
         html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 15px;'>"
         html += "<tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'>"
         for idx, h in enumerate(headers):
-            b_bottom = "border-bottom: none;" if (idx > 0 and str(col_names[idx-1]).strip() == current_hl) else "border-bottom: 1.5px solid white;"
+            b_bottom = "border-bottom: none;" if (idx > 0 and (idx - 1) < len(col_names) and str(col_names[idx-1]).strip() == current_hl) else "border-bottom: 1.5px solid white;"
             html += f"<th style='padding: 6px 4px; { 'text-align: left;' if idx == 0 else 'text-align: center;' } border: 1.5px solid white; {b_bottom}'>{h}</th>"
         html += "</tr>"
         
@@ -1415,21 +1419,51 @@ def show_step_7_content():
         d = df_source[df_source['指标名称'] == field_name].copy()
         d['value'] = d['value'] / divisor 
         yrs, hl_co = sorted(d['报告年份'].dropna().astype(str).str.replace(".0", "", regex=False).unique()), str(highlight_co).strip()
-        c_map, fig, x_idx = {str(latest_year): "#00338D", str(prev_year): "#0F65FD"}, go.Figure(), list(range(len(selected_cos)))
+        
+        c_map = {str(latest_year): "#00338D", str(prev_year): "#0F65FD"}
         if len(yrs) > 2: c_map[yrs[-3]] = "#ADD8E6"
         
-        for yr in yrs:
-            df_yr = d[d['报告年份'].astype(str) == yr].set_index('公司').reindex(selected_cos).reset_index()
-            fig.add_trace(go.Bar(name=f"{yr}YE", x=x_idx, y=df_yr['value'], marker_color=c_map.get(yr, "gray"), text=[f"{v:.0f}" if pd.notna(v) and v!=0 else "" for v in df_yr['value']] if show_labels else None, textposition='outside', textfont=dict(size=12), cliponaxis=False))
-            
+        fig, x_idx = go.Figure(), list(range(len(selected_cos)))
         all_vals = d['value'].dropna()
-        off = (all_vals.max() - all_vals.min()) * 0.12 if not all_vals.empty else 12
-        df_old, df_new = d[d['报告年份'].astype(str) == str(prev_year)].set_index('公司'), d[d['报告年份'].astype(str) == str(latest_year)].set_index('公司')
+        all_vals = all_vals[all_vals != 0]
+        y_max, y_min = (all_vals.max(), all_vals.min()) if not all_vals.empty else (100, 0)
+        off = (y_max - y_min) * 0.12 if not all_vals.empty else 12
+        placeholder_h = y_max * 0.15 if y_max > 0 else 10  
+
+        # 隐形散点锁定图例
+        for yr in yrs:
+            fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color=c_map.get(yr, "gray")), name=f"{yr}YE"))
+
+        # 🌟 核心修复：预先按年份整理好所有数据桶
+        y_data, t_data, c_data, p_data, fc_data = {y:[] for y in yrs}, {y:[] for y in yrs}, {y:[] for y in yrs}, {y:[] for y in yrs}, {y:[] for y in yrs}
         
+        for i, co in enumerate(selected_cos):
+            co_vals = [d[(d['公司'] == co) & (d['报告年份'].astype(str) == yr)]['value'].iloc[0] if not d[(d['公司'] == co) & (d['报告年份'].astype(str) == yr)].empty else np.nan for yr in yrs]
+            
+            # 如果这家公司所有年份全是空的或 0
+            if all(pd.isna(v) or v == 0 for v in co_vals):
+                for yr in yrs:
+                    y_data[yr].append(placeholder_h); t_data[yr].append(""); c_data[yr].append("#CDCDCD"); p_data[yr].append("inside"); fc_data[yr].append("white")
+                # 🌟 绝对居中打上标签
+                fig.add_annotation(x=i, y=placeholder_h/2, text="未披露", showarrow=False, font=dict(color="white", size=11), xanchor="center", yanchor="middle")
+            else:
+                # 正常情况或只有部分年份缺失，文字就在各自的柱子内部或外部
+                for idx, yr in enumerate(yrs):
+                    v = co_vals[idx]
+                    if pd.isna(v) or v == 0:
+                        y_data[yr].append(placeholder_h); t_data[yr].append("未披露"); c_data[yr].append("#CDCDCD"); p_data[yr].append("inside"); fc_data[yr].append("white")
+                    else:
+                        y_data[yr].append(v); t_data[yr].append(f"{v:.0f}" if show_labels else ""); c_data[yr].append(c_map.get(yr, "gray")); p_data[yr].append("outside"); fc_data[yr].append("#333")
+
+        # 将整理好的数据画成真实柱子
+        for yr in yrs:
+            fig.add_trace(go.Bar(name=f"{yr}YE", x=x_idx, y=y_data[yr], marker_color=c_data[yr], text=t_data[yr], textposition=p_data[yr], textfont=dict(size=12, color=fc_data[yr]), cliponaxis=False, showlegend=False))
+
+        df_old, df_new = d[d['报告年份'].astype(str) == str(prev_year)].set_index('公司'), d[d['报告年份'].astype(str) == str(latest_year)].set_index('公司')
         for i, co in enumerate(selected_cos):
             if co in df_old.index and co in df_new.index:
                 v0, v1 = df_old.loc[co, 'value'], df_new.loc[co, 'value']
-                if pd.notna(v0) and v0 != 0:
+                if pd.notna(v0) and v0 != 0 and pd.notna(v1) and v1 != 0:
                     pct = (v1 - v0) / abs(v0)
                     fig.add_annotation(x=i, y=(max(v0, v1)+off if v1>=0 else min(v0, v1)-off), text=f"<b>{'↗' if pct>=0 else '↘'} {pct:.1%}</b>", showarrow=False, font=dict(color="#FD349C" if pct>=0 else "#269924", size=p_size), xshift=15, valign="bottom" if v1>=0 else "top")
                     
@@ -1437,13 +1471,14 @@ def show_step_7_content():
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
             fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
 
+        r_top = max(y_max + (y_max - y_min) * 0.15, placeholder_h * 1.3)
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=450, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
-        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02)
+        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02, range=[0 if y_min>=0 else y_min*1.2, r_top])
         return fig
 
 
-    #CSM占比
+# --- CSM占比 ---
     def create_csm_ratio_chart(df, cos, show_lbl, gap, highlight_co="无"):
         c_bar = {prev_year: '#C7A0F7', latest_year: '#1E49E2'}
         c_line = {prev_year: '#7213EA', latest_year: '#00338D'}
@@ -1456,53 +1491,58 @@ def show_step_7_content():
                 v = lambda k: c_df[c_df['字段名'].str.contains(k, regex=False, na=False)]['(百万)人民币'].sum()
                 a, b, c = v('CSM期末'), v('LRC非亏损部分期末'), v('LRC亏损部分期末')
                 denom = b + c - a
-                data.append(a / denom if denom != 0 else 0)
+                data.append(a / denom if denom != 0 else np.nan) 
             return data
     
         y_py, y_cy = get_r(prev_year), get_r(latest_year)
-        avg_py, avg_cy = (np.mean(y_py) if y_py else 0), (np.mean(y_cy) if y_cy else 0)
-    
-        for nm, y, yr in [(f"{prev_year}YE", y_py, prev_year), (f"{latest_year}YE", y_cy, latest_year)]:
-            fig.add_trace(go.Bar(name=nm, x=x_idx, y=y, marker_color=c_bar[yr],
-                text=[f"{v:.1%}" for v in y] if show_lbl else None,
-                textposition='outside', cliponaxis=False))
-    
-        y_max_val = max(max(y_py) if y_py else 0, max(y_cy) if y_cy else 0)
+        valid_py, valid_cy = [v for v in y_py if pd.notna(v)], [v for v in y_cy if pd.notna(v)]
+        avg_py, avg_cy = np.mean(valid_py) if valid_py else 0, np.mean(valid_cy) if valid_cy else 0
+        y_max_val = max(max(valid_py) if valid_py else 0, max(valid_cy) if valid_cy else 0)
         y_range = y_max_val * 1.15 + 0.05
-        too_close = abs(avg_py - avg_cy) < y_range * 0.05
-    
-        for i, (avg, yr) in enumerate([(avg_py, prev_year), (avg_cy, latest_year)]):
-                fig.add_shape(type="line", x0=0, x1=1, y0=avg, y1=avg, xref="paper", yref="y",
-                    line=dict(color=c_line[yr], dash="dash"))
+        placeholder_h = y_max_val * 0.15 if y_max_val > 0 else 0.1 
+
+        for yr in [prev_year, latest_year]:
+            fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color=c_bar[yr]), name=f"{yr}YE"))
+
+        # 🌟 核心修复：同时校验两年数据，完美分配标签位置
+        y_vals_py, t_vals_py, c_vals_py, p_vals_py, fc_vals_py = [], [], [], [], []
+        y_vals_cy, t_vals_cy, c_vals_cy, p_vals_cy, fc_vals_cy = [], [], [], [], []
+        
+        for i, co in enumerate(cos):
+            v_p, v_c = y_py[i], y_cy[i]
+            m_p, m_c = (pd.isna(v_p) or v_p == 0), (pd.isna(v_c) or v_c == 0)
+            
+            if m_p and m_c:
+                # 两年均无数据，中间打标
+                y_vals_py.append(placeholder_h); y_vals_cy.append(placeholder_h)
+                t_vals_py.append(""); t_vals_cy.append("")
+                c_vals_py.append("#CDCDCD"); c_vals_cy.append("#CDCDCD")
+                p_vals_py.append("inside"); p_vals_cy.append("inside")
+                fc_vals_py.append("white"); fc_vals_cy.append("white")
+                fig.add_annotation(x=i, y=placeholder_h/2, text="未披露", showarrow=False, font=dict(color="white", size=11), xanchor="center", yanchor="middle")
+            else:
+                if m_p: y_vals_py.append(placeholder_h); t_vals_py.append("未披露"); c_vals_py.append("#CDCDCD"); p_vals_py.append("inside"); fc_vals_py.append("white")
+                else: y_vals_py.append(v_p); t_vals_py.append(f"{v_p:.1%}" if show_lbl else ""); c_vals_py.append(c_bar[prev_year]); p_vals_py.append("outside"); fc_vals_py.append("#333")
                 
-                # 🌟 核心修改：动态调整位置，退回图表内部！
+                if m_c: y_vals_cy.append(placeholder_h); t_vals_cy.append("未披露"); c_vals_cy.append("#CDCDCD"); p_vals_cy.append("inside"); fc_vals_cy.append("white")
+                else: y_vals_cy.append(v_c); t_vals_cy.append(f"{v_c:.1%}" if show_lbl else ""); c_vals_cy.append(c_bar[latest_year]); p_vals_cy.append("outside"); fc_vals_cy.append("#333")
+
+        fig.add_trace(go.Bar(name=f"{prev_year}YE", x=x_idx, y=y_vals_py, marker_color=c_vals_py, text=t_vals_py, textposition=p_vals_py, textfont=dict(size=12, color=fc_vals_py), cliponaxis=False, showlegend=False))
+        fig.add_trace(go.Bar(name=f"{latest_year}YE", x=x_idx, y=y_vals_cy, marker_color=c_vals_cy, text=t_vals_cy, textposition=p_vals_cy, textfont=dict(size=12, color=fc_vals_cy), cliponaxis=False, showlegend=False))
+    
+        too_close = abs(avg_py - avg_cy) < y_range * 0.05
+        for i, (avg, yr) in enumerate([(avg_py, prev_year), (avg_cy, latest_year)]):
+                fig.add_shape(type="line", x0=0, x1=1, y0=avg, y1=avg, xref="paper", yref="y", line=dict(color=c_line[yr], dash="dash"))
                 y_shift = y_max_val * 0.20 if (too_close and i == 0) else (-y_range * 0.03 if too_close else 0)
-                fig.add_annotation(
-                    x=0.99, y=avg + y_shift,
-                    xref="paper", yref="y",
-                    xanchor="right",
-                    text=f"{yr}均值: {avg:.1%}",
-                    showarrow=False,
-                    bgcolor="rgba(255,255,255,0.15)",   # ✅ 透明度极高，几乎看不见框
-                    bordercolor=c_line[yr], borderwidth=1, borderpad=2,
-                    font=dict(color=c_line[yr], size=11))
+                fig.add_annotation(x=0.99, y=avg + y_shift, xref="paper", yref="y", xanchor="right", text=f"{yr}均值: {avg:.1%}", showarrow=False, bgcolor="rgba(255,255,255,0.15)", bordercolor=c_line[yr], borderwidth=1, borderpad=2, font=dict(color=c_line[yr], size=11))
     
         if hl_co in [str(c).strip() for c in cos]:
             idx = [str(c).strip() for c in cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper",
-                x0=idx-0.46, x1=idx+0.46, y0=-0.10, y1=1.05,
-                fillcolor="rgba(0,51,141,0.05)",
-                line=dict(color="rgba(0,51,141,0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.10, y1=1.05, fillcolor="rgba(0,51,141,0.05)", line=dict(color="rgba(0,51,141,0.85)", width=1.5), layer="above")
     
-        fig.update_layout(barmode='group', bargap=gap, height=450,
-            margin=dict(t=50, b=40, l=40, r=40),  # ✅ r=130 刚好接住标签
-            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-            legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
-        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx,
-            ticktext=[f"<span style='color:#00338D;'><b>{c}</b></span>" for c in cos],
-            ticks="", ticklen=0)
-        fig.update_yaxes(showgrid=False, tickformat='.0%',
-            zeroline=True, zerolinecolor='lightgray', range=[0, y_range])
+        fig.update_layout(barmode='group', bargroupgap=0, bargap=gap, height=450, margin=dict(t=50, b=40, l=40, r=40), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
+        fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{c}</b></span>" for c in cos], ticks="", ticklen=0)
+        fig.update_yaxes(showgrid=False, tickformat='.0%', zeroline=True, zerolinecolor='lightgray', range=[0, max(y_range, placeholder_h * 1.3)])
         return fig
 
     # --- 18. CSM概览表 ---
@@ -1556,7 +1596,7 @@ def show_step_7_content():
             is_hl = (str(co).strip() == hl_co)
             bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
             line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
-            fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.08, x1=1.08, y0=-0.15, y1=1.30, fillcolor=bg_fill, line=line_dict, layer="above", row=r, col=c)
+            fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.08, x1=1.08, y0=-0.10, y1=1.33, fillcolor=bg_fill, line=line_dict, layer="above", row=r, col=c)
             fig.update_yaxes(
                 type='category',             # 强制设为分类文本轴
                 categoryorder='array',       # 按我们指定的数组排序
@@ -1816,12 +1856,22 @@ def show_step_7_content():
         
         all_vals = d['value'].dropna()
         all_vals = all_vals[all_vals != 0]
-        y_max, y_min = (all_vals.max(), all_vals.min()) if not all_vals.empty else (0, -100)
-        off = (y_max - y_min) * 0.15 if not all_vals.empty else 12
-        
-        # 🌟 强制将未披露柱子设为数，保证向下绘制
-        placeholder_h = y_max * 0.2 if y_max > 0 else 10
-        
+        if not all_vals.empty:
+            y_max, y_min = all_vals.max(), all_vals.min()
+            off = (y_max - y_min) * 0.15
+            
+            # 判断整体方向：如果极小值的绝对值 > 极大值的绝对值，说明主要是负数（向下画）
+            if abs(y_min) > abs(y_max):
+                placeholder_h = y_min * 0.5  # 取最深的一半
+            else:
+                placeholder_h = y_max * 0.5  # 取最高的一半
+                
+        else:
+            # 如果全军覆没都没数据，给个默认的向下占位
+            y_max, y_min = 0, -100
+            off = 12
+            placeholder_h = -50 
+            
         df_old, df_new = d[d['报告年份'] == y_old].set_index('公司'), d[d['报告年份'] == y_new].set_index('公司')
         vals_old, vals_new, txt_old, txt_new = [], [], [], []
         col_old, col_new, pos_old, pos_new, fc_old, fc_new = [], [], [], [], [], []
@@ -1831,7 +1881,7 @@ def show_step_7_content():
             v1 = df_new.loc[co, 'value'] if co in df_new.index else np.nan
             m0, m1 = (pd.isna(v0) or v0 == 0), (pd.isna(v1) or v1 == 0)
 
-            # 情况1：两年都未披露 -> 双倍宽灰柱，文字居中悬浮
+            # 🌟 修复了文字居中：如果两年都未披露，只在居中位置打一个标签
             if m0 and m1:
                 vals_old.append(placeholder_h); vals_new.append(placeholder_h)
                 txt_old.append(""); txt_new.append("")
@@ -1840,7 +1890,6 @@ def show_step_7_content():
                 fc_old.append("white"); fc_new.append("white")
                 fig.add_annotation(x=i, y=placeholder_h/2, text="未披露", showarrow=False, font=dict(color="white", size=11), xanchor="center", yanchor="middle")
             
-            # 情况2：只有往年未披露 -> 往年灰柱(字在内)，最新年蓝柱(字在外)
             elif m0 and not m1:
                 vals_old.append(placeholder_h); vals_new.append(v1)
                 txt_old.append("未披露"); txt_new.append(f"{v1:.1f}" if show_labels else "")
@@ -1848,7 +1897,6 @@ def show_step_7_content():
                 pos_old.append("inside"); pos_new.append("outside")
                 fc_old.append("white"); fc_new.append("#333")
                 
-            # 情况3：只有最新年未披露 -> 往年蓝柱(字在外)，最新年灰柱(字在内)
             elif not m0 and m1:
                 vals_old.append(v0); vals_new.append(placeholder_h)
                 txt_old.append(f"{v0:.1f}" if show_labels else ""); txt_new.append("未披露")
@@ -1856,7 +1904,6 @@ def show_step_7_content():
                 pos_old.append("outside"); pos_new.append("inside")
                 fc_old.append("#333"); fc_new.append("white")
                 
-            # 情况4：两年都有数据 -> 正常蓝柱，计算百分比箭头
             else:
                 vals_old.append(v0); vals_new.append(v1)
                 txt_old.append(f"{v0:.1f}" if show_labels else ""); txt_new.append(f"{v1:.1f}" if show_labels else "")
@@ -1869,11 +1916,9 @@ def show_step_7_content():
                 y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
                 fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
 
-        # 🌟 增加隐形散点图例，锁定为方形和标准蓝
-        fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=12, color="rgb(15, 101, 253)"), name=f"{y_old}年新业务亏损（LC）"))
-        fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=12, color="rgb(0, 51, 141)"), name=f"{y_new}年新业务亏损（LC）"))
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color="rgb(15, 101, 253)"), name=f"{y_old}年新业务亏损（LC）"))
+        fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color="rgb(0, 51, 141)"), name=f"{y_new}年新业务亏损（LC）"))
 
-        # 🌟 真实柱子，关闭自身图例
         fig.add_trace(go.Bar(name=f"{y_old}年新业务亏损（LC）", x=x_idx, y=vals_old, marker_color=col_old, text=txt_old, textposition=pos_old, textfont=dict(size=12, color=fc_old), textangle=0, cliponaxis=False, showlegend=False))
         fig.add_trace(go.Bar(name=f"{y_new}年新业务亏损（LC）", x=x_idx, y=vals_new, marker_color=col_new, text=txt_new, textposition=pos_new, textfont=dict(size=12, color=fc_new), textangle=0, cliponaxis=False, showlegend=False))
             
@@ -1882,8 +1927,13 @@ def show_step_7_content():
             fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
 
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
-        r_top, r_bot = y_max + (y_max - y_min) * 0.18, y_min - (y_max - y_min) * 0.15 if y_min < 0 else 0
-        r_top = max(r_top, placeholder_h * 1.3) # 保证未披露的负数柱子不会戳穿底部边界
+        
+        # 🌟 修复 Y 轴范围保护，同时适应正数和负数的扩展
+        r_top = y_max + (y_max - y_min) * 0.18
+        r_bot = y_min - (y_max - y_min) * 0.15 if y_min < 0 else 0
+        if placeholder_h > 0: r_top = max(r_top, placeholder_h * 1.3)
+        if placeholder_h < 0: r_bot = min(r_bot, placeholder_h * 1.3)
+            
         fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02, range=[r_bot, r_top])
         fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
         return fig
@@ -1945,12 +1995,12 @@ def show_step_7_content():
             if hl_co in [str(c).strip() for c in selected_cos]:
                 fig.add_shape(type="rect", xref="x", yref="paper", x0=selected_cos.index(hl_co)-0.46, x1=selected_cos.index(hl_co)+0.46, y0=-0.18, y1=1.05, fillcolor="rgba(0,51,141,0.05)", line=dict(color="rgba(0,51,141,0.85)", width=1.5), layer="above")
 
-            mb, leg_y, leg_a = 20, 1.01, "bottom"
+            mb, leg_y, leg_a = 20, 1.02, "bottom"
             if not df_lat[m].dropna().empty:
                 avg, y_r = df_lat[m].mean(), (max(val_valid) - min(val_valid)) if not val_valid.empty else 1
                 if avg < 0: mb, leg_y, leg_a = 60, -0.15, "top"
                 
-                if m == "新业务LC亏损率" and avg < 0: leg_y -= 0.1; mb += 20
+                if m == "新业务LC亏损率" and avg < 0: leg_y -= 0.11; mb += 20
                 
                 fig.add_hline(y=avg, line_dash="dash", line_color=c_lat, line_width=1.5)
                 l_m = max((df_pre[m].iloc[-1] if not pd.isna(df_pre[m].iloc[-1]) else 0), (df_lat[m].iloc[-1] if not pd.isna(df_lat[m].iloc[-1]) else 0))
