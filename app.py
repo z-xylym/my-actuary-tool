@@ -867,7 +867,17 @@ def show_step_7_content():
     def create_profit_mixed_chart(df, cos, title_prefix, show_lbl, gap, div, unit_str, highlight_co="无"):
         c, cy, py, n = {'PI': '#FFD6EB', 'PS': '#00B8F5', 'CI': '#FD349C', 'CS': '#00338D'}, latest_year, prev_year, len(cos)
         sub_titles = [f"<span style='color:#00338D;'><b>{co}</b></span>" for co in cos]
-        fig = make_subplots(rows=2, cols=n, row_heights=[0.18, 0.82], subplot_titles=sub_titles, shared_yaxes=True, vertical_spacing=0.15, horizontal_spacing=0.03, specs=[[{"type": "domain"}]*n, [{"type": "xy"}]*n])
+        # 🌟 动态计算安全间距：如果公司数量过多，自动压缩间距，强制总间距最多占用总宽度的 80%
+        safe_h_gap = 0.03 if n <= 1 else min(0.03, 0.8 / (n - 1))  
+        fig = make_subplots(
+            rows=2, cols=n, 
+            row_heights=[0.18, 0.82], 
+            subplot_titles=sub_titles, 
+            shared_yaxes=True, 
+            vertical_spacing=0.15, 
+            horizontal_spacing=safe_h_gap,  # 🌟 用安全变量替换原来写死的 0.03
+            specs=[[{"type": "domain"}]*n, [{"type": "xy"}]*n]
+        )
         txt = dict(textposition='outside', textfont=dict(size=12), constraintext='none', cliponaxis=False) if show_lbl else dict()        
         
         for i, co in enumerate(cos):
@@ -3919,7 +3929,7 @@ if not st.session_state['logged_in']:
                 st.session_state.update({'logged_in':True, 'user_role':u_type, 'api_key':api_input, 'base_url':d_url, 'model_name':d_mod})
                 st.rerun()
 
-        st.markdown("<div style='text-align:center; color:#94A3B8; font-size:11px; margin-top:30px; letter-spacing:1px;'>系统版本：v3.0 (Alpha) © 2026<br>Developed by 林友沐Bella</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; color:#94A3B8; font-size:11px; margin-top:30px; letter-spacing:1px;'>系统版本：v3.0 (Alpha) © 2026<br>Developed by 林友沐Bella@KPMG</div>", unsafe_allow_html=True)
 
     # 阻止程序继续往下渲染主系统界面
     st.stop()
