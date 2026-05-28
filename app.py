@@ -2869,16 +2869,13 @@ def show_step_7_content():
             color_map = get_color_map(selected_cos)
             df_c_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(
                 index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
-            df_c_sub['摊销比率'] = np.where(
-                (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销']) != 0,
-                -df_c_sub['CSM摊销'] / (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销']),
-                np.nan
-            )
-            df_c_sub['持续率'] = np.where(
-                df_c_sub['CSM摊销'] != 0,
-                -df_c_sub['新业务CSM（集团口径）'] / df_c_sub['CSM摊销'],
-                np.nan
-            )
+            denom1 = (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销']).replace(0, np.nan)
+            denom2 = df_c_sub['CSM摊销'].replace(0, np.nan)
+            
+            df_c_sub['摊销比率'] = -df_c_sub['CSM摊销'] / denom1
+            df_c_sub['持续率'] = -df_c_sub['新业务CSM（集团口径）'] / denom2
+            
+            df_c_sub.replace([np.inf, -np.inf], np.nan, inplace=True)
             df_c_sub.replace([np.inf, -np.inf], np.nan, inplace=True)
             df_c_sub['报告年份'] = df_c_sub['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
         
