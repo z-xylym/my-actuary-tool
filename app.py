@@ -1519,7 +1519,7 @@ def show_step_7_content():
             d_pivot[col] = d_pivot[col].apply(lambda x: "-" if pd.isna(x) or abs(x)<0.05 else (f"({abs(x):.1f})" if x<0 else f"{x:.1f}"))
         return d_pivot
 
-    # --- 19. CSM过渡期拆分 ---
+    # --- 19. CSM过渡期拆 ---
     def create_csm_transition_chart(df, selected_cos, show_labels, bar_width, highlight_co="无"):
         cols, m = 3, [("采用公允价值法计量的合同", "rgb(0, 51, 141)", "采用公允价值法计量的合同"), ("采用修正追溯法计量的合同", "rgb(1, 176, 234)", "采用修正追溯调整法计量的合同"), ("其他保险合同", "#7213Ea", "其他合同")]
         rows = (len(selected_cos) + cols - 1) // cols
@@ -1527,6 +1527,17 @@ def show_step_7_content():
         fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, horizontal_spacing=0.08, vertical_spacing=0.15)
         ym, hl_co = latest_year, str(highlight_co).strip()
         
+        # 准备统一的 Y 轴标签（强行锁定，防止变成 0, 2, 4）
+        y_labels = [f"{ym-2}YE", f"{ym-1}YE", f"{ym}YE"]
+        
+        # 用隐形散点强制锁定全局图例
+        for name, clr, _ in m:
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None], mode="markers", 
+                marker=dict(symbol="square", size=10, color=clr), 
+                name=name, showlegend=True
+            ))
+
         for i, co in enumerate(selected_cos):
             r, c, df_c = (i // cols) + 1, (i % cols) + 1, df[df['公司'] == co]
             for yt in [ym-2, ym-1, ym]:
@@ -1534,20 +1545,34 @@ def show_step_7_content():
                 df_y = df_c[df_c['报告年份'].astype(str) == str(dy)]
                 vs = [df_y.loc[df_y['字段名'] == f"{f}{suf}", '(百万)人民币'].sum() for _, _, f in m]
                 tot = sum(vs)
+                
                 if tot <= 0:
-                    fig.add_trace(go.Bar(x=[100], textangle=0, constraintext='none',y=[f"{yt}YE"], orientation='h', marker_color='lightgray', width=bar_width, showlegend=False, text=["未披露"], textposition='inside', insidetextanchor='middle', textfont=dict(size=11, color="white")), row=r, col=c)
+                    fig.add_trace(go.Bar(x=[100], textangle=0, constraintext='none',y=[f"{yt}YE"], orientation='h', marker_color='#CDCDCD', width=bar_width, showlegend=False, text=["未披露"], textposition='inside', insidetextanchor='middle', textfont=dict(size=11, color="white")), row=r, col=c)
                 else:
                     for j, (name, clr, _) in enumerate(m):
                         pct = vs[j] / tot * 100
-                        fig.add_trace(go.Bar(x=[pct],textangle=0, constraintext='none',y=[f"{yt}YE"], orientation='h', name=name, marker_color=clr, width=bar_width, showlegend=bool(i==0 and yt==ym), text=[f"{pct:.0f}%" if show_labels and pct>0 else ""], textposition='inside', insidetextanchor='middle', textfont=dict(size=11, color="white")), row=r, col=c)
+                        fig.add_trace(go.Bar(x=[pct],textangle=0, constraintext='none',y=[f"{yt}YE"], orientation='h', name=name, marker_color=clr, width=bar_width, showlegend=False, text=[f"{pct:.0f}%" if show_labels and pct>0 else ""], textposition='inside', insidetextanchor='middle', textfont=dict(size=11, color="white")), row=r, col=c)
+            
             is_hl = (str(co).strip() == hl_co)
             bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
             line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.08, x1=1.08, y0=-0.15, y1=1.30, fillcolor=bg_fill, line=line_dict, layer="above", row=r, col=c)
-
+            fig.update_yaxes(
+                type='category',             # 强制设为分类文本轴
+                categoryorder='array',       # 按我们指定的数组排序
+                categoryarray=y_labels,      # 锁定标签为 ['2023YE', '2024YE', '2025YE']
+                showgrid=False, ticks="", ticklen=0, tickcolor="rgba(0,0,0,0)",
+                row=r, col=c                 # 精准打击当前子图
+            )
+            fig.update_xaxes(
+                range=[0, 100], 
+                tickvals=[0, 20, 40, 60, 80, 100], 
+                ticksuffix="%",               # 也可以加 "%"
+                showgrid=False,
+                row=r, col=c                 # 精准打击当前子图
+            )
+            
         fig.update_layout(barmode='stack', height=300 * rows, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=80, l=50, r=20), legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08))
-        fig.update_yaxes(showgrid=False, ticks="", ticklen=0, tickcolor="rgba(0,0,0,0)") 
-        fig.update_xaxes(range=[0, 100], tickvals=[0, 20, 40, 60, 80, 100], ticksuffix="%", showgrid=False)
         fig.update_annotations(yshift=15, font_size=12)
         return fig
 
@@ -2844,8 +2869,16 @@ def show_step_7_content():
             color_map = get_color_map(selected_cos)
             df_c_sub = df_filtered[df_filtered['字段名'].isin(['CSM摊销', 'CSM期末余额', '新业务CSM（集团口径）'])].pivot_table(
                 index=['公司', '报告年份'], columns='字段名', values='(百万)人民币').reset_index().fillna(0)
-            df_c_sub['摊销比率'] = -df_c_sub['CSM摊销'] / (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销'])
-            df_c_sub['持续率'] = -df_c_sub['新业务CSM（集团口径）'] / df_c_sub['CSM摊销']
+            df_c_sub['摊销比率'] = np.where(
+                (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销']) != 0,
+                -df_c_sub['CSM摊销'] / (df_c_sub['CSM期末余额'] - df_c_sub['CSM摊销']),
+                np.nan
+            )
+            df_c_sub['持续率'] = np.where(
+                df_c_sub['CSM摊销'] != 0,
+                -df_c_sub['新业务CSM（集团口径）'] / df_c_sub['CSM摊销'],
+                np.nan
+            )
             df_c_sub.replace([np.inf, -np.inf], np.nan, inplace=True)
             df_c_sub['报告年份'] = df_c_sub['报告年份'].astype(str).str.replace(".0", "", regex=False) + "YE"
         
@@ -2891,9 +2924,11 @@ def show_step_7_content():
             for col_idx, metric in enumerate(['摊销比率', '持续率'], 1):
                 df_m = df_c_sub[['公司', '报告年份', metric]].rename(columns={metric: 'value'})
                 latest_yr = df_m['报告年份'].max()
+                # ✅ 改成：只从有效（非0非NaN）的数据里找最大最小
                 df_latest = df_m[df_m['报告年份'] == latest_yr].dropna(subset=['value'])
-                max_co = df_latest.loc[df_latest['value'].idxmax(), '公司'] if not df_latest.empty else None
-                min_co = df_latest.loc[df_latest['value'].idxmin(), '公司'] if not df_latest.empty else None
+                df_latest_valid = df_latest[df_latest['value'] != 0]  # 👈 排除0值
+                max_co = df_latest_valid.loc[df_latest_valid['value'].idxmax(), '公司'] if not df_latest_valid.empty else None
+                min_co = df_latest_valid.loc[df_latest_valid['value'].idxmin(), '公司'] if not df_latest_valid.empty else None
         
                 for co in selected_cos:
                     d_co = df_m[df_m['公司'] == co].sort_values('报告年份')
@@ -3244,14 +3279,14 @@ def show_step_7_content():
         # ====== 第 4 步：图表 ======
         if print_mode:
             if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
-                unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
+                unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "csm_trans"in m_id or "struct" in m_id else f"{unit_label}人民币"
                 st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
             render_pure_chart_entity(m_id, print_mode)
         else:
             chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
             with chart_col_center:
                 if m_id not in ["csm_amortization", "discount_rate", "confidence_level", "csm_maturity_table"]:
-                    unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "struct" in m_id else f"{unit_label}人民币"
+                    unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "csm_trans"in m_id or "struct" in m_id else f"{unit_label}人民币"
                     st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
                 render_pure_chart_entity(m_id, print_mode)
     
