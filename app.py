@@ -511,48 +511,50 @@ def show_step_7_content():
                     r = requests.get(url, timeout=15)
         
                     if r.status_code == 200:
-                        # ✅ 读取Excel，填充"分析内容-自定义"列
                         wb = openpyxl.load_workbook(BytesIO(r.content))
                         ws = wb.active
-        
-                        # 找到列索引
                         header = {cell.value: cell.column for cell in ws[1]}
                         mid_col = header.get('模块ID')
                         custom_col = header.get('分析内容-自定义')
         
                         if mid_col and custom_col and 'integrated_data' in st.session_state:
                             df_for_gen = st.session_state['integrated_data'].copy()
+                            _cos = st.session_state.get('selected_cos_cache', [])
+                            _valid_years = sorted([y for y in df_for_gen['报告年份'].dropna().astype(str).str.replace(".0","",regex=False).unique() if y.isdigit()])
+                            _cy = int(_valid_years[-1]) if _valid_years else 2025
+                            _py = int(_valid_years[-2]) if len(_valid_years) > 1 else 2024
+        
                             for row in ws.iter_rows(min_row=2):
                                 m_id_val = row[mid_col - 1].value
                                 if not m_id_val: continue
-                                # 自动生成
                                 generated = generate_custom_analysis(
-                                    str(m_id_val).strip(),
-                                    df_for_gen, selected_cos,
-                                    latest_year, prev_year
+                                    str(m_id_val).strip(), df_for_gen, _cos, _cy, _py
                                 )
                                 if generated:
                                     row[custom_col - 1].value = generated
         
-                        # ✅ 保存到内存并下载
+                        # ✅ 填完之后存进 session_state，防止 rerun 时丢失
                         output = BytesIO()
                         wb.save(output)
                         output.seek(0)
-        
-                        st.download_button(
-                            label="点击下载（已自动填充分析内容）",
-                            data=output.getvalue(),
-                            file_name=f"注释表_{latest_year}年.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
-                        st.success("✅ 验证成功，分析内容已自动填充，请下载")
+                        st.session_state['filled_notes_excel'] = output.getvalue()
+                        st.success("✅ 验证成功，分析内容已自动填充，请点击下方按钮下载")
                     else:
                         st.error("❌ 文件获取失败")
                 except Exception as e:
                     st.error(f"❌ 错误：{e}")
             else:
                 st.error("❌ 安全码错误")
+        
+        # ✅ 下载按钮单独放在外面，从 session_state 读取，不受 rerun 影响
+        if 'filled_notes_excel' in st.session_state:
+            st.download_button(
+                label="📥 点击下载（已自动填充分析内容）",
+                data=st.session_state['filled_notes_excel'],
+                file_name=f"注释表_{st.session_state.get('selected_cos_cache', [''])[0] if st.session_state.get('selected_cos_cache') else ''}_{2025}年.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
     
         st.divider()        
         use_default = st.toggle("使用默认注释表", value=True, key="use_default_notes")
@@ -692,6 +694,7 @@ def show_step_7_content():
         with c1: 
             raw_ordered_cos = list(dict.fromkeys(df_filtered['公司'].dropna().tolist()))
             selected_cos = st.multiselect("展示公司", options=raw_ordered_cos, default=raw_ordered_cos)
+            st.session_state['selected_cos_cache'] = selected_cos
         with c2: 
             unit_label = st.selectbox("显示单位", ["十亿元", "亿元", "百万元", "十万元"])
             divisor = {"十亿元": 1000, "亿元": 100, "百万元": 1, "十万元": 0.1}[unit_label]
