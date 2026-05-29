@@ -5184,167 +5184,152 @@ else:
                     )
             else:
                 st.info("💡 提取结果将在此处显示。请先在上方点击“开始提取”按钮。")
-
-        # ─────────── Step 5 多公司合并目标表 ───────────
+                
+#------step5----------------
         with tab5:
             col_title, col_btn = st.columns([4, 1])
             with col_title:
                 st.subheader("⛓️‍💥 多公司数据集成与汇率/单位转换")
             st.info("功能说明：支持上传单文件多Sheet或多文件。系统将自动提取所有公司，请在下方为不同公司配置对应的汇率和原始表格的单位。")
         
-            # 1. 多文件上传
             uploaded_files = st.file_uploader("请上传已完成勾稽检查的底稿 (支持多文件或单文件多Sheet)", type="xlsx", accept_multiple_files=True)
         
-            # ==========================================
-            # 🌟 核心提速秘籍：使用 st.cache_data 锁定数据处理层
-            # ==========================================
             @st.cache_data(show_spinner=False)
             def run_data_integration(temp_data_list, rate_cfg, unit_cfg):
-                """
-                这个函数被加上了缓存装饰器。
-                只要上传的 Excel 内容和汇率没变，Streamlit 就不会再重新执行下面这几百行耗时计算！
-                """
-                exact_exempt_fields = [
-                    "折现率假设", "非金融风险的置信水平", "1年及1年以内合同服务边际",
-                    "1-5年合同服务边际", "5-10年合同服务边际", "10-20年合同服务边际",
-                    "20年合同服务边际", "投资收益率", "综合偿付能力充足率"
-                ]
-                
+                exact_exempt_fields = ["折现率假设","非金融风险的置信水平","1年及1年以内合同服务边际","1-5年合同服务边际","5-10年合同服务边际","10-20年合同服务边际","20年合同服务边际","投资收益率","综合偿付能力充足率"]
                 combined_list = []
-                
                 def clean_to_float(val):
                     try:
                         if isinstance(val, (int, float)): return float(val)
                         if isinstance(val, str):
                             val = val.replace(',','').replace('(','-').replace(')','').strip()
-                            if val == '-' or val == '': return 0.0
-                            return float(val)
+                            return 0.0 if val in ['-',''] else float(val)
                         return 0.0
                     except: return 0.0
         
                 for item in temp_data_list:
-                    df_single = item["df"]
-                    comp_name = item["comp"]
-                    rate = rate_cfg[comp_name]
-                    unit_mult = unit_cfg[comp_name]
-                    
-                    c_24 = next((c for c in df_single.columns if '24' in str(c)), None)
-                    c_25 = next((c for c in df_single.columns if '25' in str(c)), None)
-                    
-                    if not c_24 or not c_25:
-                        continue
+                    df_single, comp_name = item["df"], item["comp"]
+                    rate, unit_mult = rate_cfg[comp_name], unit_cfg[comp_name]
         
-                    base_cols = ["公司类型", "公司", "类别", "字段名", "字段类型"]
+                    # ✅ 动态识别年份列（不写死2024/2025）
+                    year_cols = {}
+                    for c in df_single.columns:
+                        import re
+                        m = re.search(r'(20\d{2})', str(c))
+                        if m: year_cols[m.group(1)] = c
+        
+                    if len(year_cols) < 1: continue
+        
+                    base_cols = ["公司类型","公司","类别","字段名","字段类型"]
                     existing_base = [c for c in base_cols if c in df_single.columns]
         
-                    for year_label, col_name in [("2024", c_24), ("2025", c_25)]:
+                    for year_label, col_name in year_cols.items():
                         df_year = df_single[existing_base + [col_name]].copy()
                         df_year["公司"] = comp_name
                         df_year["报告年份"] = year_label
                         df_year["汇率"] = rate
-                        
                         df_year["(百万)原币"] = None
                         df_year["(百万)人民币"] = None
                         df_year["汇率"] = df_year["汇率"].astype(object)
-                        
+        
                         for idx in df_year.index:
                             raw_val = df_year.loc[idx, col_name]
                             f_name = str(df_year.loc[idx, "字段名"]).strip()
-                            
                             if f_name in exact_exempt_fields:
                                 if "折现率" in f_name or "非金融风险的置信水平" in f_name:
-                                    df_year.at[idx, "(百万)原币"] = str(raw_val) if pd.notna(raw_val) else ""
-                                    df_year.at[idx, "(百万)人民币"] = str(raw_val) if pd.notna(raw_val) else ""
+                                    df_year.at[idx,"(百万)原币"] = str(raw_val) if pd.notna(raw_val) else ""
+                                    df_year.at[idx,"(百万)人民币"] = str(raw_val) if pd.notna(raw_val) else ""
                                 else:
-                                    if isinstance(raw_val, str) and '%' in raw_val:
-                                        try:
-                                            dec_val = float(raw_val.replace('%', '').strip()) / 100.0
-                                        except:
-                                            dec_val = 0.0
-                                    else:
-                                        dec_val = clean_to_float(raw_val) 
-                                        
-                                    df_year.at[idx, "(百万)原币"] = dec_val
-                                    df_year.at[idx, "(百万)人民币"] = dec_val
-                                    
-                                df_year.at[idx, "汇率"] = "豁免换算"
+                                    dec_val = float(raw_val.replace('%','').strip())/100.0 if isinstance(raw_val,str) and '%' in raw_val else clean_to_float(raw_val)
+                                    df_year.at[idx,"(百万)原币"] = dec_val
+                                    df_year.at[idx,"(百万)人民币"] = dec_val
+                                df_year.at[idx,"汇率"] = "豁免换算"
                             else:
                                 c_val = clean_to_float(raw_val)
-                                df_year.at[idx, "(百万)原币"] = c_val * unit_mult
-                                df_year.at[idx, "(百万)人民币"] = c_val * unit_mult * rate
+                                df_year.at[idx,"(百万)原币"] = c_val * unit_mult
+                                df_year.at[idx,"(百万)人民币"] = c_val * unit_mult * rate
         
-                        final_cols = ["公司类型","公司", "类别", "字段名", "字段类型", "报告年份", "(百万)原币", "汇率", "(百万)人民币"]
+                        final_cols = ["公司类型","公司","类别","字段名","字段类型","报告年份","(百万)原币","汇率","(百万)人民币"]
                         actual_cols = [c for c in final_cols if c in df_year.columns]
                         combined_list.append(df_year[actual_cols])
-                        
+        
                 return pd.concat(combined_list, ignore_index=True) if combined_list else pd.DataFrame()
         
+            # ✅ 从列名自动识别单位的辅助函数
+            def detect_unit_from_col(col_name):
+                """从列名里读取单位关键词，返回对应的下拉选项文字"""
+                s = str(col_name)
+                if "十亿" in s: return "原表为: 十亿元 (× 1,000)"
+                if "亿元" in s: return "原表为: 亿元 (× 100)"
+                if "百万" in s: return "原表为: 百万元 (无需转换)"
+                if "万元" in s or "万" in s: return "原表为: 万元 (÷ 100)"
+                if "千元" in s: return "原表为: 千元 (÷ 1,000)"
+                if "元" in s:   return "原表为: 元 (÷ 1,000,000)"
+                return "原表为: 百万元 (无需转换)"  # 默认
         
-            # ==========================================
-            # 界面交互与调用
-            # ==========================================
+            unit_multipliers = {
+                "原表为: 百万元 (无需转换)": 1.0,
+                "原表为: 万元 (÷ 100)": 0.01,
+                "原表为: 元 (÷ 1,000,000)": 0.000001,
+                "原表为: 千元 (÷ 1,000)": 0.001,
+                "原表为: 亿元 (× 100)": 100.0,
+                "原表为: 十亿元 (× 1,000)": 1000.0,
+            }
+        
             if uploaded_files:
-                all_temp_data = [] 
-                found_companies = set()
+                all_temp_data, found_companies = [], {}
         
                 for file in uploaded_files:
                     xl = pd.ExcelFile(file)
                     for sheet_name in xl.sheet_names:
                         df_raw = pd.read_excel(file, sheet_name=sheet_name)
                         current_company = str(df_raw["公司"].iloc[0]) if "公司" in df_raw.columns and not df_raw["公司"].empty else sheet_name
-                        
-                        if "基本信息" in current_company or "Sheet" in current_company:
-                            continue
-                        
-                        found_companies.add(current_company)
+                        if "基本信息" in current_company or "Sheet" in current_company: continue
+        
+                        # ✅ 从列名自动检测默认单位
+                        import re
+                        detected_unit = "原表为: 百万元 (无需转换)"
+                        for c in df_raw.columns:
+                            if re.search(r'20\d{2}', str(c)):
+                                detected_unit = detect_unit_from_col(c)
+                                break
+        
+                        found_companies[current_company] = detected_unit
                         all_temp_data.append({"comp": current_company, "df": df_raw, "source": f"{file.name} - {sheet_name}"})
         
                 st.markdown("#### 💵 汇率与数值单位配置盘")
-                st.caption("目标表统一要求以【百万元人民币】展示。请根据原始底稿设置：1.兑人民币汇率 2.该公司报告中的披露金额单位。")
-                
-                rate_config = {}
-                unit_config = {}
-                
-                unit_multipliers = {
-                    "原表为: 百万元 (无需转换)": 1.0, "原表为: 元 (÷ 1,000,000)": 0.000001,
-                    "原表为: 千元 (÷ 1,000)": 0.001, "原表为: 亿元 (× 100)": 100.0,
-                    "原表为: 十亿元 (× 1,000)": 1000.0
-                }
-                
-                rate_cols = st.columns(3) 
-                for i, comp in enumerate(sorted(list(found_companies))):
+                st.caption("目标表统一要求以【百万元人民币】展示。系统已根据列名自动识别默认单位，请人工核对后调整。")
+        
+                rate_config, unit_config = {}, {}
+                rate_cols = st.columns(3)
+                for i, (comp, default_unit) in enumerate(sorted(found_companies.items())):
                     with rate_cols[i % 3]:
                         with st.container(border=True):
                             st.markdown(f"**🏢 {comp}**")
-                            rate_config[comp] = st.number_input(f"汇率 (相对于RMB)", value=1.0, step=0.0001, format="%.4f", key=f"rate_{comp}")
-                            unit_choice = st.selectbox(f"原表数值单位", list(unit_multipliers.keys()), key=f"unit_{comp}")
+                            rate_config[comp] = st.number_input("汇率 (相对于RMB)", value=1.0, step=0.0001, format="%.4f", key=f"rate_{comp}")
+                            # ✅ 默认值用自动检测的单位
+                            unit_options = list(unit_multipliers.keys())
+                            default_idx = unit_options.index(default_unit) if default_unit in unit_options else 0
+                            unit_choice = st.selectbox("原表数值单位", unit_options, index=default_idx, key=f"unit_{comp}")
                             unit_config[comp] = unit_multipliers[unit_choice]
         
-                # 3. 按钮触发：调用带有缓存的高速运算函数
-                if st.button("🚀 开始集成并换算数据", type="primary", use_container_width=True):
+                if st.button("开始集成并换算数据", type="primary", use_container_width=True):
                     with st.spinner("正在后台执行极速数据合并与换算..."):
                         final_all_df = run_data_integration(all_temp_data, rate_config, unit_config)
         
                     if not final_all_df.empty:
                         st.session_state['integrated_data'] = final_all_df
-                        
-                        st.success(f"✅ 集成与换算完毕！共处理 {len(found_companies)} 家公司，生成 {len(final_all_df)} 条对标数据。")
+                        years_found = sorted(final_all_df['报告年份'].unique().tolist())
+                        st.success(f"✅ 集成与换算完毕！共处理 {len(found_companies)} 家公司，识别到年份：{' / '.join(years_found)}，生成 {len(final_all_df)} 条对标数据。")
                         st.dataframe(final_all_df, use_container_width=True)
         
                         import io
                         output = io.BytesIO()
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             final_all_df.to_excel(writer, index=False, sheet_name='行业集成分析表')
-                        
-                        st.download_button(
-                            label="📥 下载行业集成目标表 (长表格式)",
-                            data=output.getvalue(),
-                            file_name="行业集成目标数据表.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
+                        st.download_button(label="下载行业集成目标表 (长表格式)", data=output.getvalue(), file_name="行业集成目标数据表.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
                     else:
-                        st.error("未能从上传的文件中提取到有效数据，请检查列名是否包含 2024/2025等年份。")
+                        st.error("未能从上传的文件中提取到有效数据，请检查列名中是否包含年份信息（如 2024YE、2025YE 等）。")
 
 
         # ─────────── KPMG 官方色卡 ───────────
