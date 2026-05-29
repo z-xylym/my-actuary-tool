@@ -757,7 +757,7 @@ def show_step_7_content():
         with c3: highlight_co = st.selectbox("特定追踪", ["无"] + selected_cos)
         with c4: enable_ai = st.toggle("一键AI分析", value=False)
         
-        HIGHLIGHT_COLOR, HL_BOX_LINE, HL_BOX_FILL = "#00338D", "rgba(0,51,141,0.8)", "rgba(0,51,141,0.04)"
+        HIGHLIGHT_COLOR, HL_BOX_LINE, HL_BOX_FILL = "#00338D", "rgba(0,51,141,0.35)", "rgba(0,51,141,0.03)"
         
         st.markdown("---")
         st.caption("📸 手动上传图片（png或jpg）")
@@ -909,7 +909,7 @@ def show_step_7_content():
         for i, co in enumerate(col_names):
             row_vals = [c1[i], c2[i], c3[i], c4[i], c5[i], c6[i], c7[i], c8[i]]
             is_hl = (str(co).strip() == current_hl)
-            bg = "rgba(0, 51, 141, 0.05)" if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
+            bg = HL_BOX_FILL   if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
             base = f"background-color: {bg}; padding: 4px 4px; font-size: 11px; " + ("border-top: 1.5px solid #00338D; border-bottom: 1.5px solid #00338D; font-weight: bold;" if is_hl else "border: 1px solid #EAEAEA;")
             s_first, s_mid, s_last = base + f"text-align: left; color: #333333; { 'border-left: 1.5px solid #00338D;' if is_hl else '' }", base + f"text-align: center; { 'color: #00338D; border-left: none; border-right: none;' if is_hl else 'color: #444444;' }", base + f"text-align: center; { 'color: #00338D; border-right: 1.5px solid #00338D; border-left: none;' if is_hl else 'color: #444444;' }"
             html += f"<tr><td style='{s_first}'>{co}</td>" + "".join([f"<td style='{s_last if idx==len(row_vals)-1 else s_mid}'>{v}</td>" for idx, v in enumerate(row_vals)]) + "</tr>"        
@@ -976,8 +976,8 @@ def show_step_7_content():
             fig.add_trace(go.Bar(x=x_lbl, y=[ps, cs], marker_color=[c['PS'], c['CS']], text=[f"{ps:.0f}", f"{cs:.0f}"] if show_lbl else None, showlegend=False, **txt), row=2, col=col)
             
             is_hl = (str(co).strip() == str(highlight_co).strip())
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
-            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="lightgray", width=1)            
+            bg_fill = HL_BOX_FILL   if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="lightgray", width=1)            
             fig.add_shape(type="rect", xref=f"x{col if col > 1 else ''} domain", yref="paper", x0=-0.05, x1=1.05, y0=0, y1=1.13, fillcolor=bg_fill, line=line_dict, layer="below")       
         
         for ann in fig.layout.annotations: 
@@ -1052,8 +1052,8 @@ def show_step_7_content():
             fig.add_trace(go.Bar(x=d_co.index, y=paa_val, name=short_names[fields[0]] if i == 0 else None, marker_color="#510DBC", text=[f"{v:.0f}%" if v > 0 else "" for v in paa_val] if show_labels else None, textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size), constraintext='none', textangle=0, width=bar_width, showlegend=(i == 0), legendgroup="group1", hoverinfo="none"), row=1, col=i+1)
 
             is_hl = (str(co).strip() == str(highlight_co).strip())
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
-            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="#E0E0E0", width=1)
+            bg_fill = HL_BOX_FILL   if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="#E0E0E0", width=1)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.1, y1=1.12, fillcolor=bg_fill, line=line_dict, layer="above", row=1, col=i+1)
 
         fig.update_layout(barmode='stack', height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=80, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5))
@@ -1113,8 +1113,8 @@ def show_step_7_content():
             ), row=1, col=i+1)
             
             is_hl = (str(co).strip() == str(highlight_co).strip())
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
-            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
+            bg_fill = HL_BOX_FILL   if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.1, y1=1.08, fillcolor=bg_fill, line=line_dict, layer="above", row=1, col=i+1)
                     
         fig.update_layout(barmode='relative', height=500, margin=dict(t=50, b=80, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.17, xanchor="center", x=0.5, font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
@@ -1151,8 +1151,8 @@ def show_step_7_content():
                 fig.add_trace(go.Bar(x=[f"{y}YE" for y in d_co.index], y=val, name=d_n if i==0 else None, marker_color=color_map[f], text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in val] if show_labels else None, textangle=0, textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color=txt_c), constraintext='none', cliponaxis=False, width=bar_width, showlegend=(i==0), legendgroup=f), row=1, col=i+1)
             
             is_hl = (str(co).strip() == str(highlight_co).strip())
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
-            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
+            bg_fill = HL_BOX_FILL   if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.1, y1=1.08, fillcolor=bg_fill, line=line_dict, layer="above", row=1, col=i+1)
                     
         # 原有的 layout 更新
@@ -1202,7 +1202,7 @@ def show_step_7_content():
         
         if highlight_co and highlight_co != "无" and highlight_co in d_pivot.index:
             idx = list(d_pivot.index).index(highlight_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx - 0.46, x1=idx + 0.46, y0=0, y1=1.08, fillcolor="rgba(0, 51, 141, 0.08)", line=dict(color="rgba(0, 51, 141, 0.9)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=0, y1=1.08, fillcolor=HL_BOX_FILL, line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
         x_labels = [f"<span style='font-size:{co_font_size}px;color:#00338D;'><b>{co}</b></span>" for co in d_pivot.index]
         fig.update_xaxes(showgrid=False, zeroline=False, tickvals=x_indices, ticktext=x_labels, side="top")
@@ -1248,7 +1248,7 @@ def show_step_7_content():
         clean_cos = [str(c).strip() for c in selected_cos]
         if current_hl in clean_cos:
             idx = clean_cos.index(current_hl)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx - 0.46, x1=idx + 0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx - 0.46, x1=idx + 0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
             
         x_labels = [f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos]
         fig.update_xaxes(showgrid=False, zeroline=False, tickvals=x_indices, ticktext=x_labels)
@@ -1294,7 +1294,7 @@ def show_step_7_content():
                 if pd.notna(tr[j]) and mt[j] == "": fig.add_annotation(x=yr, y=lbl_y, text=f"<b>{tr[j]:.0%}</b>", showarrow=False, font=dict(size=label_size+2, color="#97014F" if tr[j]>=0 else "#269924"), xref=f"x{ci}" if ci>1 else "x", yref="y1")
             
             hl = (str(co).strip() == str(highlight_co).strip())
-            fig.add_shape(type="rect", xref=f"x{ci} domain" if ci>1 else "x domain", yref="paper", x0=-0.05, x1=1.05, y0=-0.12, y1=1.1, line=dict(color="rgba(0, 51, 141, 0.85)" if hl else "rgba(200, 200, 200, 0.3)", width=1.5 if hl else 1), fillcolor="rgba(0, 51, 141, 0.05)" if hl else "rgba(0,0,0,0)", layer="above")
+            fig.add_shape(type="rect", xref=f"x{ci} domain" if ci>1 else "x domain", yref="paper", x0=-0.05, x1=1.05, y0=-0.12, y1=1.1, line=dict(color=HL_BOX_LINE if hl else "rgba(200, 200, 200, 0.3)", width=1.5 if hl else 1), fillcolor=HL_BOX_FILL   if hl else "rgba(0,0,0,0)", layer="above")
 
         fig.update_layout(height=550, margin=dict(t=40, b=100, l=20, r=20), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5))
         for i in range(1, n+1):
@@ -1333,7 +1333,7 @@ def show_step_7_content():
         
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
     
         fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
         fig.update_yaxes(showgrid=False, zeroline=True)
@@ -1358,10 +1358,10 @@ def show_step_7_content():
             for fn in fields:
                 val_pct = d_co[fn] / d_co['T'] * 100
                 fig.add_trace(go.Bar(x=d_co.index, y=val_pct, name=field_map[fn] if i==0 else None, marker_color=color_map[fn], text=[f"{v:.0f}%" if show_labels and raw_total.iloc[idx]>0 else "" for idx, v in enumerate(val_pct)], textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color="white" if fn in ["FVOCI", "指定FVOCI", "AC"] else "black"), constraintext='none', textangle=0, cliponaxis=False, width=bar_width, showlegend=(i==0), legendgroup=fn, hoverinfo="skip"), row=1, col=i+1)
-            fig.add_trace(go.Bar(x=d_co.index, y=[100 if t==0 else 0 for t in raw_total], name="未披露", marker_color="#E0E0E8", text=["未披露" if t==0 else "" for t in raw_total], textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color="#666666"), constraintext='none', textangle=0, cliponaxis=False, width=bar_width, showlegend=False, hoverinfo="skip"), row=1, col=i+1)
+            fig.add_trace(go.Bar(x=d_co.index, y=[100 if t==0 else 0 for t in raw_total], name="未披露", marker_color="#CDCDCD", text=["未披露" if t==0 else "" for t in raw_total], textposition='inside', insidetextanchor='middle', textfont=dict(size=label_size, color="white"), constraintext='none', textangle=0, cliponaxis=False, width=bar_width, showlegend=False, hoverinfo="skip"), row=1, col=i+1)
             
             is_hl = (str(co).strip() == hl_co)
-            fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.12, y1=1.12, fillcolor="rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0), layer="above", row=1, col=i+1)
+            fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.12, y1=1.12, fillcolor=HL_BOX_FILL   if is_hl else "rgba(0,0,0,0)", line=dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0), layer="above", row=1, col=i+1)
 
         fig.update_layout(barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', uniformtext=dict(minsize=label_size, mode='show'), margin=dict(t=50, b=120, l=40, r=40), legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11), itemsizing="constant"))
         for i in range(1, len(av_cos) + 1):
@@ -1398,8 +1398,8 @@ def show_step_7_content():
                 fig.add_trace(go.Bar(name=m_info["n"], x=[m_key], y=[val], text=[f"{val:.0f}" if (show_labels and val!=0) else ""], textposition='outside', textfont=dict(size=11, color='#00338D'), marker_color=m_info["c"], width=0.8, legendgroup=m_key, showlegend=(col_idx==0), cliponaxis=False, constraintext='none'), row=1, col=col_idx+1)
             
             is_hl = (str(co).strip() == hl_co)
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(240, 240, 240, 0.35)"
-            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(210, 210, 210, 0.6)", width=1)
+            bg_fill = HL_BOX_FILL   if is_hl else "rgba(240, 240, 240, 0.35)"
+            line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="rgba(210, 210, 210, 0.6)", width=1)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.04, x1=1.04, y0=-0.04, y1=1.13, fillcolor=bg_fill, line=line_dict, layer="above" if is_hl else "below", row=1, col=col_idx+1)
             fig.update_xaxes(showticklabels=False, showline=False, zeroline=False, showgrid=False, ticks="", ticklen=0, row=1, col=col_idx+1)
             
@@ -1444,8 +1444,8 @@ def show_step_7_content():
             fig.add_shape(type="rect",
                 xref=xref_str, yref=yref_str,
                 x0=-0.06, x1=1.06, y0=0, y1=1.08,
-                fillcolor="rgba(0,51,141,0.05)" if hl else "rgba(245,245,245,0.5)",
-                line=dict(color="rgba(0,51,141,0.85)" if hl else "#CCCCCC", width=1.5 if hl else 1),
+                fillcolor=HL_BOX_FILL if hl else "rgba(245,245,245,0.5)",
+                line=dict(color=HL_BOX_LINE   if hl else "#CCCCCC", width=1.5 if hl else 1),
                 layer="below")       
         fig.update_layout(barmode='group', bargap=bar_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=420, margin=dict(t=50, b=80, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.28, x=0.5, xanchor="center"))
         y_rng = [g_min - abs(g_min)*0.3, g_max + abs(g_max)*0.3]
@@ -1541,7 +1541,7 @@ def show_step_7_content():
                     
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
         fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos], ticks="", ticklen=0)
@@ -1603,7 +1603,7 @@ def show_step_7_content():
                     
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
         r_top = max(y_max + (y_max - y_min) * 0.15, placeholder_h * 1.3)
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=450, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
@@ -1679,7 +1679,7 @@ def show_step_7_content():
     
         if hl_co in [str(c).strip() for c in cos]:
             idx = [str(c).strip() for c in cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.10, y1=1.05, fillcolor="rgba(0,51,141,0.05)", line=dict(color="rgba(0,51,141,0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.10, y1=1.05, fillcolor=HL_BOX_FILL, line=dict(color=HL_BOX_LINE  , width=1.5), layer="above")
     
         fig.update_layout(barmode='group', bargroupgap=0, bargap=gap, height=450, margin=dict(t=50, b=40, l=40, r=40), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
         fig.update_xaxes(showline=False, showgrid=False, zeroline=False, tickvals=x_idx, ticktext=[f"<span style='color:#00338D;'><b>{c}</b></span>" for c in cos], ticks="", ticklen=0)
@@ -1758,8 +1758,8 @@ def show_step_7_content():
                         fig.add_trace(go.Bar(x=[pct],textangle=0, constraintext='none',y=[f"{yt}YE"], orientation='h', name=name, marker_color=clr, width=bar_width, showlegend=False, text=[f"{pct:.0f}%" if show_labels and pct>0 else ""], textposition='inside', insidetextanchor='middle', textfont=dict(size=11, color="white")), row=r, col=c)
             
             is_hl = (str(co).strip() == hl_co)
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(0,0,0,0)"
-            line_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
+            bg_fill = HL_BOX_FILL   if is_hl else "rgba(0,0,0,0)"
+            line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.08, x1=1.08, y0=-0.10, y1=1.33, fillcolor=bg_fill, line=line_dict, layer="above", row=r, col=c)
             fig.update_yaxes(
                 type='category',             # 强制设为分类文本轴
@@ -1824,7 +1824,7 @@ def show_step_7_content():
             ))  
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
         tick_txt = [f"<span style='font-size:14px; color:#00338D;'><b>{co}</b></span>" for co in selected_cos]
         
@@ -1931,15 +1931,17 @@ def show_step_7_content():
             y25_line = global_base_y + (p25 / pct_max) * delta * 0.5 if not m25 else None
             
             fig.add_trace(go.Scatter(x=x_axis, y=[y24_line, y25_line], mode="lines", line=dict(color="rgb(114, 19, 214)", width=1.2), showlegend=False, hoverinfo="skip"), row=1, col=col_idx)
-            # 🌟 对于散点和文本，如果是未披露，把文本设为空字符串
+            # 对于散点和文本，如果是未披露，把文本设为空字符串
             fig.add_trace(go.Scatter(x=x_axis, y=[y24_line, y25_line], mode="markers+text", marker=dict(symbol="triangle-up", size=7, color="rgb(114, 19, 214)"), text=[f"{p24:.0f}%" if not m24 else "", f"{p25:.0f}%" if not m25 else ""], textposition="top center", textfont=dict(color="rgb(114, 19, 214)", size=label_size), showlegend=False, hoverinfo="skip"), row=1, col=col_idx)                
             
             fig.update_yaxes(range=[0, global_y_top], showticklabels=False, showgrid=False, zeroline=False, row=1, col=col_idx)                
             
+            # 🌟 恢复高亮逻辑：高亮公司带深色框和浅蓝蒙版（layer="above"），普通公司透明/交替浅灰
             is_hl = (str(co).strip() == hl_co)
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else "rgba(248, 249, 250, 0.6)"
-            border_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="#E0E0E0", width=1)
-            fig.add_shape(type="rect", xref="x domain", yref="paper", x0=-0.06, x1=1.06, y0=-0.12, y1=1.05, line=border_dict, fillcolor=bg_fill, layer="below", row=1, col=col_idx)
+            bg_fill = HL_BOX_FILL   if is_hl else ("rgba(200, 200, 200, 0.12)" if i % 2 == 1 else "rgba(255,255,255,0)")
+            border_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="#EAEAEA", width=1)
+            xref_str = f"x{col_idx} domain" if col_idx > 1 else "x domain"
+            fig.add_shape(type="rect", xref=xref_str, yref="paper", x0=-0.04, x1=1.04, y0=-0.12, y1=1.12, line=border_dict, fillcolor=bg_fill, layer="above" if is_hl else "below")
 
         fig.update_layout(barmode='stack', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=50, b=100, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, font=dict(size=12), itemsizing="constant"))                
         
@@ -2020,7 +2022,7 @@ def show_step_7_content():
             
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
         r_top, r_bot = y_max + (y_max - y_min) * 0.18, y_min - (y_max - y_min) * 0.15 if y_min < 0 else 0
@@ -2108,7 +2110,7 @@ def show_step_7_content():
             
         if hl_co in [str(c).strip() for c in selected_cos]:
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
         fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
         
@@ -2177,7 +2179,7 @@ def show_step_7_content():
             fig.add_trace(go.Bar(x=x_idx, y=yl, marker_color=cl, text=tl, textposition=pl, textfont=dict(size=lab_sz, color=fl), showlegend=False, cliponaxis=False))
 
             if hl_co in [str(c).strip() for c in selected_cos]:
-                fig.add_shape(type="rect", xref="x", yref="paper", x0=selected_cos.index(hl_co)-0.46, x1=selected_cos.index(hl_co)+0.46, y0=-0.18, y1=1.05, fillcolor="rgba(0,51,141,0.05)", line=dict(color="rgba(0,51,141,0.85)", width=1.5), layer="above")
+                fig.add_shape(type="rect", xref="x", yref="paper", x0=selected_cos.index(hl_co)-0.46, x1=selected_cos.index(hl_co)+0.46, y0=-0.40, y1=1.15, fillcolor=HL_BOX_FILL, line=dict(color=HL_BOX_LINE  , width=1.5), layer="above")
 
             mb, leg_y, leg_a = 20, 1.02, "bottom"
             if not df_lat[m].dropna().empty:
@@ -2339,8 +2341,8 @@ def show_step_7_content():
             
             # 框线与背景
             is_hl = (str(co).strip() == hl_co)
-            bg_fill = "rgba(0, 51, 141, 0.05)" if is_hl else ("rgba(200, 200, 200, 0.18)" if i % 2 == 1 else "rgba(255,255,255,0)")
-            border_dict = dict(color="rgba(0, 51, 141, 0.85)", width=1.5) if is_hl else dict(color="#CCCCCC", width=1)
+            bg_fill = HL_BOX_FILL   if is_hl else ("rgba(200, 200, 200, 0.18)" if i % 2 == 1 else "rgba(255,255,255,0)")
+            border_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="#CCCCCC", width=1)
             fig.add_shape(type="rect", xref=xref_d, yref=yref_d, x0=0, x1=1, y0=-0.1, y1=1.13, line=border_dict, fillcolor=bg_fill, layer="above" if is_hl else "below", row=1, col=col_idx)
 
             fig.update_yaxes(range=[0, global_max*1.3], showticklabels=False, showgrid=False, zeroline=False, row=1, col=col_idx)
@@ -2710,7 +2712,7 @@ def show_step_7_content():
                     elif val == 0: val_str = "0"
                     else: val_str = f"{val:,.0f}"
 
-                c_bg = "#CDCDCD" if is_missing else ("rgba(0, 51, 141, 0.05)" if is_hl else row_bg)
+                c_bg = "#CDCDCD" if is_missing else (HL_BOX_FILL   if is_hl else row_bg)
                 c_color = "white" if is_missing else ("#00338D" if is_hl else ("#333333" if n_weight == "bold" else "#444444"))
                 c_weight = "bold" if (is_hl or is_total) and not is_missing else "normal"
                 borders = f"border-left: 2.5px solid #00338D; border-right: 1.5px solid #00338D; border-top: none; border-bottom: {'1.5px solid #00338D' if row_idx == total_rows - 1 else 'none'};" if is_hl else "border: 1px solid #EAEAEA;"
