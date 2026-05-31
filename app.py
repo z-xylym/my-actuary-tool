@@ -1802,7 +1802,7 @@ def show_step_7_content():
             )
             
         fig.update_layout(barmode='stack', height=300 * rows, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=60, b=80, l=50, r=20), legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08))
-        fig.update_annotations(yshift=15, font_size=12)
+        fig.update_annotations(yshift=5, font_size=12)
         return fig
 
     # --- 20.摊销前 CSM ---
