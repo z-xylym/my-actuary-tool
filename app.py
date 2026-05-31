@@ -840,7 +840,7 @@ def show_step_7_content():
     def show_chart(fig,p_mode,m_id=None):
         if not fig:return
         if p_mode:
-            H={"csm_trans":480,"oci_deep":280,"nb_struct":125,"csm_ratio_trend":450,"six_dimensional_charts":180,"nb_margin_trend":450,"csm_maturity_table":500}
+            H={"csm_trans":440,"oci_deep":280,"nb_struct":125,"csm_ratio_trend":450,"six_dimensional_charts":180,"nb_margin_trend":450,"csm_maturity_table":460}
             h=H.get(m_id,380)
             fig.update_layout(
                 autosize=False,
