@@ -3068,7 +3068,7 @@ def show_step_7_content():
             # 🌟 直接接收并渲染已经在函数内排版好的精美 HTML 表格，下面一堆旧的拼表代码全删了！
             html_table, c_y, p_y = calculate_oci_analysis_table(df_filtered, selected_cos, current_hl)
             if html_table:
-                st.markdown(f"<p style='font-size:13px; font-weight:bold; color:#00338D; margin-top:-25px; margin-bottom:6px;'>资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='font-size:13px; font-weight:bold; color:#00338D; margin-top:-30px; margin-bottom:6px;'>资负 OCI 变动分析表 ({p_y}YE - {c_y}YE)</p>", unsafe_allow_html=True)
                 st.markdown(html_table, unsafe_allow_html=True)
 
 # 13. 净资产变动与总资产变动
