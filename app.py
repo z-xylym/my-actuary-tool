@@ -67,13 +67,6 @@ def show_step_7_content():
     .print-only { display: none !important; }
     @media print {
         .print-only { display: block !important; }
-        @page{
-            size:A4 landscape;
-            margin:8mm 8mm 8mm 8mm;
-        }
-        @page :first {
-            margin-top: 5mm !important; /* 数字越小，第一页整体越靠上，甚至可以写 0mm */
-        }        
         html,body{
             width:297mm!important;
             height:210mm!important;
@@ -842,16 +835,16 @@ def show_step_7_content():
 
     def display_bottom_note(nt_text):
         if nt_text and str(nt_text).lower() != 'nan':
-            st.markdown(f'<div style="text-align: left;margin-top: 2px; margin-bottom: 25px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="text-align: left;margin-top: 1px; margin-bottom: 0px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
     def show_chart(fig,p_mode,m_id=None):
         if not fig:return
         if p_mode:
-            H={"csm_trans":520,"oci_deep":280,"nb_struct":140,"csm_ratio_trend":450,"six_dimensional_charts":180,"nb_margin_trend":450,"csm_maturity_table":500}
+            H={"csm_trans":480,"oci_deep":280,"nb_struct":125,"csm_ratio_trend":450,"six_dimensional_charts":180,"nb_margin_trend":450,"csm_maturity_table":500}
             h=H.get(m_id,380)
             fig.update_layout(
                 autosize=False,
-                width=1200,
+                width=1500,
                 height=h,
                 margin=dict(t=35,b=15,l=15,r=15)
             )
@@ -1117,7 +1110,7 @@ def show_step_7_content():
             line_dict = dict(color=HL_BOX_LINE, width=1.5) if is_hl else dict(color="rgba(0,0,0,0)", width=0)
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.1, y1=1.08, fillcolor=bg_fill, line=line_dict, layer="above", row=1, col=i+1)
                     
-        fig.update_layout(barmode='relative', height=500, margin=dict(t=50, b=80, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.17, xanchor="center", x=0.5, font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        fig.update_layout(barmode='relative', height=400, margin=dict(t=50, b=80, l=20, r=20), legend=dict(orientation="h", yanchor="top", y=-0.17, xanchor="center", x=0.5, font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
         for ann in fig.layout.annotations:
             if "<b>" in str(ann.text): ann.update(y=1, font=dict(size=co_font_size, color="#00338D"))
         return fig, df_avg
@@ -1156,56 +1149,88 @@ def show_step_7_content():
             fig.add_shape(type="rect", xref="x domain", yref="y domain", x0=-0.06, x1=1.06, y0=-0.1, y1=1.08, fillcolor=bg_fill, line=line_dict, layer="above", row=1, col=i+1)
                     
         # 原有的 layout 更新
-        fig.update_layout(barmode='relative', height=500, margin=dict(t=50, b=80, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.17, xanchor="center", x=0.5, font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        fig.update_layout(barmode='relative', height=400, margin=dict(t=50, b=80, l=10, r=10), legend=dict(orientation="h", yanchor="top", y=-0.17, xanchor="center", x=0.5, font=dict(size=10)), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
         
         # 👇 加上这行代码：在图表上方画一条“拉穿全场”的水平基准线
         fig.add_hline(y=0, line_color="orange", line_width=1.5, layer="below")
         for ann in fig.layout.annotations:
             if "<b>" in str(ann.text): ann.update(y=1, font=dict(size=co_font_size, color="#00338D"))
         return fig, df_avg
-    
-    # --- 6.利润贡献拆解 ---
+  
+    #--------利润贡献--------
     def create_profit_composition_chart(df, selected_cos, target_year, show_labels, label_size, bar_width, co_font_size, highlight_co="无"):
-        source_fields = ["合同服务边际的摊销", "非金融风险调整的变动", "亏损部分的确认及转回", "采用保费分配法计量的保险合同保险业绩", "保险利润", "再保净损益"]
-        year_str = str(target_year).replace(".0", "")
-        d_sub = df[(df['报告年份'].astype(str).str.contains(year_str)) & (df['公司'].isin(selected_cos))].copy()
-        d_sub = d_sub[d_sub['字段名'].isin(source_fields)]
+        source_fields = ["合同服务边际的摊销","非金融风险调整的变动","亏损部分的确认及转回","采用保费分配法计量的保险合同保险业绩","保险利润","再保净损益"]
+        year_str = str(target_year).replace(".0","")
+        d_sub = df[(df['报告年份'].astype(str).str.contains(year_str)) & df['公司'].isin(selected_cos) & df['字段名'].isin(source_fields)].copy()
         if d_sub.empty: return None, None
-            
+
         d_pivot = d_sub.pivot(index='公司', columns='字段名', values='(百万)人民币')
-        contrib_val = (d_pivot['合同服务边际的摊销'] / d_pivot['保险利润'] * 100)
+        contrib_val = (d_pivot.get('合同服务边际的摊销', 0) / d_pivot.get('保险利润', 1) * 100)
         contribution_df = pd.DataFrame(contrib_val).transpose()
-        contribution_df.index = ["合同服务边际释放的贡献"]            
+        contribution_df.index = ["合同服务边际释放的贡献"]
+
         for f in source_fields:
-            if f not in d_pivot.columns: d_pivot[f] = 0.0
-        d_pivot = d_pivot.reindex(selected_cos).fillna(0)
-    
-        d_pivot['营运偏差及其他_展示'] = (d_pivot['保险利润'] - d_pivot['合同服务边际的摊销'] - d_pivot['非金融风险调整的变动'] + d_pivot['亏损部分的确认及转回'] - d_pivot['采用保费分配法计量的保险合同保险业绩'] - d_pivot['再保净损益'])
+            if f not in d_pivot.columns: d_pivot[f] = np.nan  # ✅ 用 nan 而不是 0，保留未披露信息
+
+        d_pivot = d_pivot.reindex(selected_cos)
+
+        # 🌟 修复：把 .all() 改成了 .any()，实现“只要缺一个，全盘皆灰”的严格一票否决逻辑
+        no_data_cos = set(co for co in selected_cos if co in d_pivot.index and d_pivot.loc[co, source_fields].isna().any())
+
+        d_pivot = d_pivot.fillna(0)  # 填0用于后续计算
+
+        d_pivot['营运偏差及其他_展示'] = d_pivot['保险利润']-d_pivot['合同服务边际的摊销']-d_pivot['非金融风险调整的变动']+d_pivot['亏损部分的确认及转回']-d_pivot['采用保费分配法计量的保险合同保险业绩']-d_pivot['再保净损益']
         d_pivot['合同服务边际的释放_展示'] = d_pivot['合同服务边际的摊销']
         d_pivot['非金融风险调整的变动_展示'] = d_pivot['非金融风险调整的变动']
         d_pivot['亏损部分的确认及转回_展示'] = -d_pivot['亏损部分的确认及转回']
         d_pivot['保费分配法业务净损益_展示'] = d_pivot['采用保费分配法计量的保险合同保险业绩']
         d_pivot['再保净损益_展示'] = d_pivot['再保净损益']
-    
-        display_mapping = [("亏损部分的确认及转回_展示", "亏损部分的确认及转回", "rgb(190, 190, 190)"), ("合同服务边际的释放_展示", "合同服务边际的释放", "rgb(30, 73, 226)"), ("非金融风险调整的变动_展示", "非金融风险调整的变动", "rgb(118, 210, 255)"), ("营运偏差及其他_展示", "营运偏差及其他", "rgb(114, 19, 214)"), ("保费分配法业务净损益_展示", "保费分配法业务净损益", "rgb(253, 52, 156)"), ("再保净损益_展示", "再保净损益", "rgb(9, 142, 126)")]
-        d_pivot['Total'] = d_pivot[[item[0] for item in display_mapping]].abs().sum(axis=1).replace(0, 1)
-    
+
+        display_mapping = [
+            ("亏损部分的确认及转回_展示","亏损部分的确认及转回","rgb(190,190,190)"),
+            ("合同服务边际的释放_展示","合同服务边际的释放","rgb(30,73,226)"),
+            ("非金融风险调整的变动_展示","非金融风险调整的变动","rgb(118,210,255)"),
+            ("营运偏差及其他_展示","营运偏差及其他","rgb(114,19,214)"),
+            ("保费分配法业务净损益_展示","保费分配法业务净损益","rgb(253,52,156)"),
+            ("再保净损益_展示","再保净损益","rgb(9,142,126)"),
+        ]
+        d_pivot['Total'] = d_pivot[[i[0] for i in display_mapping]].abs().sum(axis=1).replace(0,1)
+
         fig = go.Figure()
         x_indices = list(range(len(d_pivot.index)))
-        
+        no_data_x = [list(d_pivot.index).index(co) for co in no_data_cos if co in d_pivot.index]
+
+        # ✅ 先画灰色未披露占位柱。高度设为 100（因为 Y 轴范围是 -45 到 +105）
+        if no_data_x:
+            fig.add_trace(go.Bar(x=no_data_x, y=[100]*len(no_data_x), marker_color="#CDCDCD", width=bar_width,
+                showlegend=False, text=["未披露"]*len(no_data_x), textposition='inside',
+                insidetextanchor='middle', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'))
+
         for col_name, legend_name, color in display_mapping:
-            vals_pct = (d_pivot[col_name] / d_pivot['Total']) * 100
-            txt_color = "white" if "30, 73, 226" in color or "114, 19, 214" in color or "9, 142, 126" in color else "black"
-            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=vals_pct, width=bar_width, marker_color=color, text=[f"{v:.0f}%" if abs(v) >= 2 else "" for v in vals_pct] if show_labels else None, textposition='inside',textangle=0, insidetextanchor='middle', textfont=dict(size=label_size, color=txt_color), constraintext='none'))
-            
-        fig.update_layout(barmode='relative', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=20, b=80, l=220, r=80), legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05, traceorder="reversed", font=dict(size=11, color="#00338D")), yaxis=dict(side='right', showgrid=False, range=[-45, 105],tickmode='array',showticklabels=True, tickvals=[-40, -20, 0, 20, 40, 60, 80, 100], ticktext=["-40%", "-20%", "0%", "20%", "40%", "60%", "80%", "100%"], zeroline=True, zerolinecolor="#F7860C"))
-        
+            vals_pct = (d_pivot[col_name] / d_pivot['Total'] * 100)
+            # ✅ 未披露公司值强制为0，不覆盖灰柱
+            vals_pct = [0 if co in no_data_cos else v for co, v in zip(d_pivot.index, vals_pct)]
+            txt_color = "white" if any(x in color for x in ["30, 73, 226","30,73,226","114, 19, 214","114,19,214","9, 142, 126","9,142,126"]) else "black"
+            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=vals_pct, width=bar_width, marker_color=color,
+                text=[f"{v:.0f}%" if abs(v)>=2 else "" for v in vals_pct] if show_labels else None,
+                textposition='inside', textangle=0, insidetextanchor='middle',
+                textfont=dict(size=label_size, color=txt_color), constraintext='none'))
+
+        fig.update_layout(barmode='relative', height=550, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=20, b=80, l=220, r=80),
+            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05, traceorder="reversed", font=dict(size=11, color="#00338D")),
+            yaxis=dict(side='right', showgrid=False, range=[-45,105], tickmode='array', showticklabels=True,
+                tickvals=[-40,-20,0,20,40,60,80,100], ticktext=["-40%","-20%","0%","20%","40%","60%","80%","100%"],
+                zeroline=True, zerolinecolor="#F7860C"))
+
         if highlight_co and highlight_co != "无" and highlight_co in d_pivot.index:
             idx = list(d_pivot.index).index(highlight_co)
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=0, y1=1.08, fillcolor=HL_BOX_FILL, line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
+            # 🌟 修复常量的缺失，直接写入颜色值
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=0, y1=1.08, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
 
-        x_labels = [f"<span style='font-size:{co_font_size}px;color:#00338D;'><b>{co}</b></span>" for co in d_pivot.index]
-        fig.update_xaxes(showgrid=False, zeroline=False, tickvals=x_indices, ticktext=x_labels, side="top")
+        fig.update_xaxes(showgrid=False, zeroline=False, tickvals=x_indices,
+            ticktext=[f"<span style='font-size:{co_font_size}px;color:#00338D;'><b>{co}</b></span>" for co in d_pivot.index], side="top")
+        
         return fig, contribution_df
 
     # --- 数据预处理补充 (7,8用) ---
@@ -1764,7 +1789,7 @@ def show_step_7_content():
             fig.update_yaxes(
                 type='category',             # 强制设为分类文本轴
                 categoryorder='array',       # 按我们指定的数组排序
-                categoryarray=y_labels,      # 锁定标签为 ['2023YE', '2024YE', '2025YE']
+                categoryarray=y_labels,      # 锁定标签为 
                 showgrid=False, ticks="", ticklen=0, tickcolor="rgba(0,0,0,0)",
                 row=r, col=c                 # 精准打击当前子图
             )
@@ -1917,7 +1942,7 @@ def show_step_7_content():
             p25 = (v25c / v25e * 100) if v25e != 0 and not m25 else 0
             x_axis = [f"{prev_year}YE", f"{latest_year}YE"]
             
-            # 画真实数据柱子（如果是未披露，传进去的是 0，自动隐形）
+            # 画真实数据柱子（如果是未披露，传进去的是 0，自动隐
             lbl = lambda v, m: f"{v:.0f}" if show_labels and pd.notna(v) and v!=0 and not m else ""
             fig.add_trace(go.Bar(x=x_axis, y=[v24c, v25c], marker_color="rgb(0, 184, 245)", width=bar_width, showlegend=False, text=[lbl(v24c,m24), lbl(v25c,m25)], textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                
             fig.add_trace(go.Bar(x=x_axis, y=[v24e, v25e], marker_color="rgb(30, 73, 226)", width=bar_width, showlegend=False, text=[lbl(v24e,m24), lbl(v25e,m25)], textposition='inside', textangle=0, textfont=dict(size=label_size, color="white"), constraintext='none'), row=1, col=col_idx)                
@@ -1972,7 +1997,7 @@ def show_step_7_content():
         for i, co in enumerate(selected_cos):
             v0 = df_old.loc[co, 'value'] if co in df_old.index else np.nan
             v1 = df_new.loc[co, 'value'] if co in df_new.index else np.nan
-            m0, m1 = (pd.isna(v0) or v0 == 0), (pd.isna(v1) or v1 == 0)
+            m0, m1 = pd.isna(v0), pd.isna(v1)
 
             # 情况1：两年都未披露 -> 双倍宽灰柱，文字居中悬浮
             if m0 and m1:
@@ -2007,11 +2032,12 @@ def show_step_7_content():
                 pos_old.append("outside"); pos_new.append("outside")
                 fc_old.append("#333"); fc_new.append("#333")
                 
-                pct = (v1 - v0) / abs(v0)
-                arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
-                y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
-                fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=8, valign=v_align)
-
+                # 🌟 修复：只有当分母 (v0) 不等于 0 时，才计算和绘制百分比箭头
+                if v0 != 0:
+                    pct = (v1 - v0) / abs(v0)
+                    arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
+                    y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
+                    fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=8, valign=v_align)
         # 🌟 增加隐形散点图例，锁定为方形和标准蓝
         fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=12, color="rgb(15, 101, 253)"), name=f"{y_old}年新业务盈利合同（CSM）"))
         fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=12, color="rgb(0, 51, 141)"), name=f"{y_new}年新业务盈利合同（CSM）"))
@@ -2065,7 +2091,7 @@ def show_step_7_content():
         for i, co in enumerate(selected_cos):
             v0 = df_old.loc[co, 'value'] if co in df_old.index else np.nan
             v1 = df_new.loc[co, 'value'] if co in df_new.index else np.nan
-            m0, m1 = (pd.isna(v0) or v0 == 0), (pd.isna(v1) or v1 == 0)
+            m0, m1 = pd.isna(v0), pd.isna(v1)
 
             # 🌟 修复了文字居中：如果两年都未披露，只在居中位置打一个标签
             if m0 and m1:
@@ -2097,11 +2123,12 @@ def show_step_7_content():
                 pos_old.append("outside"); pos_new.append("outside")
                 fc_old.append("#333"); fc_new.append("#333")
                 
-                pct = (v1 - v0) / abs(v0)
-                arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
-                y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
-                fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
-
+                # 🌟 修复：如果基数 v0 为 0，跳过百分比计算，防止 ZeroDivisionError
+                if v0 != 0:
+                    pct = (v1 - v0) / abs(v0)
+                    arr_color, arr_symbol = ("#FD349C", "↗") if pct >= 0 else ("#269924", "↘")
+                    y_pos, v_align = (max(v0, v1) + off, "bottom") if v1 >= 0 else (min(v0, v1) - off, "top")
+                    fig.add_annotation(x=i, y=y_pos, text=f"<b>{arr_symbol} {pct:.1%}</b>", showarrow=False, font=dict(color=arr_color, size=p_size), xshift=10, valign=v_align)
         fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color="rgb(15, 101, 253)"), name=f"{y_old}年新业务亏损（LC）"))
         fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color="rgb(0, 51, 141)"), name=f"{y_new}年新业务亏损（LC）"))
 
@@ -2130,14 +2157,32 @@ def show_step_7_content():
         df_clean['报告年份'] = df_clean['报告年份'].astype(str).str.replace('.0', '', regex=False)
         val_col = "(百万)人民币" if "(百万)人民币" in df_clean.columns else df_clean.columns[-1]
         req_f = ["新业务RA", "新业务亏损合同（LC）——非PAA", "新业务未来现金流入现值", "新业务未来现金流入现值（盈利）", "新业务未来现金流入现值（亏损）", "新业务CSM（集团口径）"]
+        
         df_pivot = df_clean[df_clean['字段名'].isin(req_f)].pivot_table(index=['公司', '报告年份'], columns='字段名', values=val_col, aggfunc='sum').reset_index()
         if selected_cos: df_pivot = df_pivot[df_pivot['公司'].isin(selected_cos)]
         if df_pivot.empty: return None, None, None
 
-        for c in req_f: df_pivot[c] = df_pivot.get(c, 0)
-        df_pivot['新业务CSM利润率'] = df_pivot['新业务CSM（集团口径）'] / df_pivot['新业务未来现金流入现值（盈利）'].replace(0, np.nan)
-        df_pivot['新业务LC亏损率'] = df_pivot['新业务亏损合同（LC）——非PAA'] / df_pivot['新业务未来现金流入现值（亏损）'].replace(0, np.nan)
-        df_pivot['新业务RA率'] = df_pivot['新业务RA'] / df_pivot['新业务未来现金流入现值'].replace(0, np.nan)
+        # 只补齐列名，不强填 0，保留 np.nan 以区分真实 0 和未披露
+        for c in req_f: 
+            if c not in df_pivot.columns: 
+                df_pivot[c] = np.nan
+                
+        # 🌟 终极修复：使用 np.where。如果分母是 0，直接让结果等于 0；否则正常相除。
+        # 这样既不会报错，0/0 也会变成 0%，而空值(NaN)相除依然是 NaN（触发未披露）
+        num1 = df_pivot['新业务CSM（集团口径）'].astype(float)
+        den1 = df_pivot['新业务未来现金流入现值（盈利）'].astype(float)
+        df_pivot['新业务CSM利润率'] = np.where(den1 == 0, 0.0, num1 / den1)
+        
+        num2 = df_pivot['新业务亏损合同（LC）——非PAA'].astype(float)
+        den2 = df_pivot['新业务未来现金流入现值（亏损）'].astype(float)
+        df_pivot['新业务LC亏损率'] = np.where(den2 == 0, 0.0, num2 / den2)
+        
+        num3 = df_pivot['新业务RA'].astype(float)
+        den3 = df_pivot['新业务未来现金流入现值'].astype(float)
+        df_pivot['新业务RA率'] = np.where(den3 == 0, 0.0, num3 / den3)
+        
+        # 兜底：防止任何意外产生的无穷大 (inf) 破坏图表
+        df_pivot.replace([np.inf, -np.inf], 0.0, inplace=True)
 
         configs = [("新业务CSM利润率", "rgb(30, 73, 225)", "rgb(149, 229, 255)"), ("新业务LC亏损率", "rgb(253, 52, 156)", "rgb(255, 214, 235)"), ("新业务RA率", "rgb(114, 19, 234)", "rgb(227, 207, 251)")]
         figs, hl_co, x_idx = [], str(highlight_co).strip(), list(range(len(selected_cos)))
@@ -2146,20 +2191,19 @@ def show_step_7_content():
             df_lat, df_pre = df_pivot[df_pivot['报告年份']==str(latest_year)].set_index('公司').reindex(selected_cos), df_pivot[df_pivot['报告年份']==str(prev_year)].set_index('公司').reindex(selected_cos)
             fig = go.Figure()
             
-            # 获取有效数据极值以设定灰色占位柱高度
             val_valid = pd.concat([df_lat[m], df_pre[m]]).dropna()
             val_valid = val_valid[val_valid != 0]
             ph = val_valid.abs().max() * 0.3 if not val_valid.empty else 0.05
             
-            # 🌟 核心修复：如果是LC亏损率，未披露的柱子强制向下翻转
-            if m == "新业务LC亏损率": 
-                ph = -ph
+            if m == "新业务LC亏损率": ph = -ph
             
             yp, yl, tp, tl, cp, cl, pp, pl, fp, fl = [],[],[],[],[],[],[],[],[],[]
 
             for i, co in enumerate(selected_cos):
                 vp, vl = df_pre.loc[co, m] if co in df_pre.index else np.nan, df_lat.loc[co, m] if co in df_lat.index else np.nan
-                mp, ml = (pd.isna(vp) or vp==0), (pd.isna(vl) or vl==0)
+                
+                # 判断依据严格变为 pd.isna()，彻底没数(NaN)才算未披露
+                mp, ml = pd.isna(vp), pd.isna(vl)
                 
                 if mp and ml:
                     yp.append(ph); yl.append(ph); tp.append(""); tl.append(""); cp.append("#CDCDCD"); cl.append("#CDCDCD"); pp.append("inside"); pl.append("inside"); fp.append("white"); fl.append("white")
@@ -2171,29 +2215,29 @@ def show_step_7_content():
                 else:
                     yp.append(vp); yl.append(vl); tp.append(f"{vp*100:.1f}%" if show_lab else ""); tl.append(f"{vl*100:.1f}%" if show_lab else ""); cp.append(c_pre); cl.append(c_lat); pp.append("outside"); pl.append("outside"); fp.append("#333"); fl.append("#333")
 
-            # 🌟 修复：size 从 14 改成了 10，让正方形图例更精致
             fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color=c_pre), name=f"{prev_year}年"))
             fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(symbol="square", size=10, color=c_lat), name=f"{latest_year}年"))
             
-            fig.add_trace(go.Bar(x=x_idx, y=yp, marker_color=cp, text=tp, textposition=pp, textfont=dict(size=lab_sz, color=fp), showlegend=False, cliponaxis=False))
-            fig.add_trace(go.Bar(x=x_idx, y=yl, marker_color=cl, text=tl, textposition=pl, textfont=dict(size=lab_sz, color=fl), showlegend=False, cliponaxis=False))
+            fig.add_trace(go.Bar(x=x_idx, y=yp, marker_color=cp, text=tp, textposition=pp, textfont=dict(size=lab_sz, color=fp), showlegend=False, cliponaxis=False, constraintext='none'))
+            fig.add_trace(go.Bar(x=x_idx, y=yl, marker_color=cl, text=tl, textposition=pl, textfont=dict(size=lab_sz, color=fl), showlegend=False, cliponaxis=False, constraintext='none'))
 
             if hl_co in [str(c).strip() for c in selected_cos]:
-                fig.add_shape(type="rect", xref="x", yref="paper", x0=selected_cos.index(hl_co)-0.46, x1=selected_cos.index(hl_co)+0.46, y0=-0.40, y1=1.15, fillcolor=HL_BOX_FILL, line=dict(color=HL_BOX_LINE  , width=1.5), layer="above")
+                idx = [str(c).strip() for c in selected_cos].index(hl_co)
+                fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.40, y1=1.15, fillcolor="rgba(0, 51, 141, 0.05)", line=dict(color="rgba(0, 51, 141, 0.85)", width=1.5), layer="above")
 
-            mb, leg_y, leg_a = 20, 1.02, "bottom"
+            mb, leg_y, leg_a = 17, 1.02, "bottom"
             if not df_lat[m].dropna().empty:
                 avg, y_r = df_lat[m].mean(), (max(val_valid) - min(val_valid)) if not val_valid.empty else 1
                 if avg < 0: mb, leg_y, leg_a = 60, -0.15, "top"
                 
-                if m == "新业务LC亏损率" and avg < 0: leg_y -= 0.11; mb += 20
+                if m == "新业务LC亏损率" and avg < 0: leg_y -= 0.11; mb += 17
                 
                 fig.add_hline(y=avg, line_dash="dash", line_color=c_lat, line_width=1.5)
                 l_m = max((df_pre[m].iloc[-1] if not pd.isna(df_pre[m].iloc[-1]) else 0), (df_lat[m].iloc[-1] if not pd.isna(df_lat[m].iloc[-1]) else 0))
                 dyn_a, dyn_y = ("bottom", 2) if abs(avg - l_m) >= (y_r * 0.15) else (("bottom", 15) if avg >= l_m else ("top", -15))
                 fig.add_annotation(x=0.98, xref="paper", y=avg, yref="y", xanchor="right", yanchor=dyn_a, yshift=dyn_y, text=f"{str(latest_year)[-2:]}年平均 {avg*100:.1f}%", showarrow=False, bgcolor="rgba(255,255,255,0.85)", bordercolor=c_lat, borderwidth=1, borderpad=2, font=dict(color=c_lat, size=max(lab_sz-3, 8)))
 
-            fig.update_layout(title=dict(text=f"<b>{m}</b>", x=0.5, xanchor='center', y=0.98 if is_print_mode else 0.95, font=dict(size=14, color="#00338D", family="Microsoft YaHei")), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", barmode='group', bargroupgap=0, bargap=max(0, 1.0 - bar_width), margin=dict(t=50, b=mb, l=20, r=40), height=250 if is_print_mode else 360, yaxis=dict(tickformat=".0%", showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02), legend=dict(orientation="h", yanchor=leg_a, y=leg_y-0.1, xanchor="right", x=1,font=dict(size=11) ))
+            fig.update_layout(title=dict(text=f"<b>{m}</b>", x=0.5, xanchor='center', y=0.98 if is_print_mode else 0.95, font=dict(size=11, color="#00338D", family="Microsoft YaHei")), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", barmode='group', bargroupgap=0, bargap=max(0, 1.0 - bar_width), margin=dict(t=30 if is_print_mode else 50, b=0 if is_print_mode else mb, l=20, r=40),height=210 if is_print_mode else 360, yaxis=dict(tickformat=".0%", showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02), legend=dict(orientation="h", yanchor=leg_a, y=leg_y-0.5, xanchor="right", x=1,font=dict(size=11) ))
             fig.update_xaxes(showgrid=False, zeroline=False, ticktext=[f"<span style='font-size:{co_sz}px; color:#00338D;'><b>{c}</b></span>" for c in selected_cos], tickvals=x_idx, ticks="", ticklen=0)
             figs.append(fig)
 
@@ -2224,7 +2268,7 @@ def show_step_7_content():
 
         for co in cos:
             d_co = df_plot[df_plot['公司'] == co].sort_values('year_num')
-            is_missing = d_co.empty or (d_co['value'] == 0).all() or d_co['value'].isna().all()
+            is_missing = d_co.empty or d_co['value'].isna().all()
             
             if is_missing:
                 fig.add_trace(go.Scatter(
@@ -2258,7 +2302,7 @@ def show_step_7_content():
                     showlegend=True
                 ))
                 
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=40, l=40, r=40), height=450, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=legend_font_size)), xaxis=dict(showgrid=False, showline=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False, tickformat=".1%"))
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=40, l=70, r=70), height=450, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=legend_font_size)), width=600,  xaxis=dict(showgrid=False, showline=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False, tickformat=".1%"))
         fig.update_xaxes(type='category', categoryorder='array', categoryarray=x_categories)
         
         valid_vals = df_plot['value'].dropna()
@@ -2826,49 +2870,56 @@ def show_step_7_content():
             fig = create_kpmg_composition_chart(df_filtered, comp_fields, "", lab, lsz, wid, cfs, current_hl)
             show_chart(fig, print_mode,m_id=m_id)
             
-        # 5. 收入结构分析 2/2 (多组成带表格)
+# 5. 收入结构分析 2/2 (多组成带表格)
         elif m_id == "comp_2":
             if not print_mode:
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: lab = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
-                with c2: lsz = st.slider("标签大小", 5, 20, 12, key=f"lsz_{m_id}")
+                with c2: lsz = st.slider("标签大小", 5, 20, 10, key=f"lsz_{m_id}") # 🌟 默认值调到10
                 with c3: wid = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
-                with c4: cfs = st.slider("公司名称大小", 10, 20, 12, key=f"cfs_{m_id}")
+                with c4: cfs = st.slider("公司名称大小", 10, 20, 11, key=f"cfs_{m_id}") # 🌟 默认值调到11
             else:
                 lab = st.session_state.get(f"lab_{m_id}", True)
-                lsz = st.session_state.get(f"lsz_{m_id}", 12)
+                lsz = st.session_state.get(f"lsz_{m_id}", 10)
                 wid = st.session_state.get(f"wid_{m_id}", 0.6)
-                cfs = st.session_state.get(f"cfs_{m_id}", 12)
+                cfs = st.session_state.get(f"cfs_{m_id}", 11)
+                
             f_m2 = {"合同服务边际的摊销":"合同服务边际的释放", "非金融风险调整的变动":"非金融风险调整的变动", "预计当期发生的保险服务费用":"预期当期发生的保险服务费用", "保险获取现金流的摊销（保险服务收入）":"保险获取现金流的摊销", "与当期服务或过去服务相关得保费经验调整":"与当期服务或过去服务相关的保费经验调整", "其他收入调整":"其他"}
             c_m2 = {"合同服务边际的摊销":"rgb(30, 73, 226)", "非金融风险调整的变动":"rgb(254, 174, 215)", "预计当期发生的保险服务费用":"rgb(0, 163, 161)", "保险获取现金流的摊销（保险服务收入）":"rgb(1, 184, 245)", "与当期服务或过去服务相关得保费经验调整":"rgb(0, 219, 214)", "其他收入调整":"rgb(114, 19, 234)"}
+            
             fig, df_avg = create_kpmg_multi_composition_chart(df_filtered, f_m2, c_m2, "", lab, lsz, wid, cfs, current_hl)
+            
+            # 🌟 修复：极致压缩表格体积，防止 PDF 换页
             if fig and not df_avg.empty:
-                st.markdown("<div style='font-size: 13px; font-weight: bold; margin-bottom: 8px; color:#333;'>各公司平均占比情况 </div>", unsafe_allow_html=True)
-                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 10px;'><tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'><th style='padding: 4px 6px; border: 1px solid white;'>报告年份</th>"
-                for orig_k, display_name in f_m2.items(): html += f"<th style='padding: 4px 6px; background-color: {c_m2[orig_k]}; color: white; border: 1px solid white;'>{display_name}</th>"
+                st.markdown("<div style='margin-bottom: 2px;'><div style='font-size: 12px; font-weight: bold; margin-bottom: 4px; color:#333;'>各公司平均占比情况 </div>", unsafe_allow_html=True)
+                html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 10px; margin-bottom: 4px;'><tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'><th style='padding: 2px 4px; border: 1px solid white;'>报告年份</th>"
+                for orig_k, display_name in f_m2.items(): 
+                    html += f"<th style='padding: 2px 4px; background-color: {c_m2[orig_k]}; color: white; border: 1px solid white;'>{display_name}</th>"
                 html += "</tr>"
                 for yr, row in df_avg.iterrows():
-                    html += f"<tr><td style='padding: 4px 6px; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>{yr}</td>"
-                    for orig_k, display_name in f_m2.items(): html += f"<td style='padding: 4px 6px; text-align: center; background-color: white; border: 1px solid #EAEAEA;'>{row[display_name]:.1f}%</td>"
+                    html += f"<tr><td style='padding: 2px 4px; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>{yr}</td>"
+                    for orig_k, display_name in f_m2.items(): 
+                        html += f"<td style='padding: 2px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA;'>{row[display_name]:.1f}%</td>"
                     html += "</tr>"
-                html += "</table>"
+                html += "</table></div>"
                 st.markdown(html, unsafe_allow_html=True)
+                
             show_chart(fig, print_mode,m_id=m_id)
 
 
-        #6.新加费用的图
+# 6.新加费用的图
         elif m_id == "exp_1":
             if not print_mode:
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: lab = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
-                with c2: lsz = st.slider("标签大小", 5, 20, 12, key=f"lsz_{m_id}")
+                with c2: lsz = st.slider("标签大小", 5, 20, 10, key=f"lsz_{m_id}") # 默认值调小点
                 with c3: wid = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
-                with c4: cfs = st.slider("公司名称大小", 10, 20, 12, key=f"cfs_{m_id}")
+                with c4: cfs = st.slider("公司名称大小", 10, 20, 11, key=f"cfs_{m_id}")
             else:
                 lab = st.session_state.get(f"lab_{m_id}", True)
-                lsz = st.session_state.get(f"lsz_{m_id}", 12)
+                lsz = st.session_state.get(f"lsz_{m_id}", 10)
                 wid = st.session_state.get(f"wid_{m_id}", 0.6)
-                cfs = st.session_state.get(f"cfs_{m_id}", 12)
+                cfs = st.session_state.get(f"cfs_{m_id}", 11)
         
             f_m2 = {
                 "保险获取现金流的摊销（保险服务费用）": "保险获取现金流的摊销",
@@ -2884,20 +2935,23 @@ def show_step_7_content():
             }
         
             fig, df_avg = create_kpmg_exp_chart(df_filtered, f_m2, c_m2, "", lab, lsz, wid, cfs, current_hl)
+            
+            # 🌟 修复：将表格包裹在一个 div 中，防止 margin 溢出导致打印换页。同时极大地压缩表格字体和 padding
             if fig and not df_avg.empty:
-                st.markdown("<div style='font-size:13px; font-weight:bold; margin-bottom:8px; color:#333;'>各公司平均占比情况 </div>", unsafe_allow_html=True)
-                html = "<table style='width:100%; border-collapse:collapse; font-family:sans-serif; font-size:11px; margin-bottom:10px;'><tr style='background-color:#00338D; color:white; text-align:center; font-weight:bold;'><th style='padding:4px 6px; border:1px solid white;'>报告年份</th>"
+                st.markdown("<div style='margin-bottom: 2px;'><div style='font-size:12px; font-weight:bold; margin-bottom:4px; color:#333;'>各公司平均占比情况 </div>", unsafe_allow_html=True)
+                html = "<table style='width:100%; border-collapse:collapse; font-family:sans-serif; font-size:10px; margin-bottom:4px;'><tr style='background-color:#00338D; color:white; text-align:center; font-weight:bold;'><th style='padding:2px 4px; border:1px solid white;'>报告年份</th>"
                 for orig_k, display_name in f_m2.items():
-                    html += f"<th style='padding:4px 6px; background-color:{c_m2[orig_k]}; color:white; border:1px solid white;'>{display_name}</th>"
+                    html += f"<th style='padding:2px 4px; background-color:{c_m2[orig_k]}; color:white; border:1px solid white;'>{display_name}</th>"
                 html += "</tr>"
                 for yr, row in df_avg.iterrows():
-                    html += f"<tr><td style='padding:4px 6px; font-weight:bold; background-color:#F8F9FA; border:1px solid #EAEAEA;'>{yr}</td>"
+                    html += f"<tr><td style='padding:2px 4px; font-weight:bold; background-color:#F8F9FA; border:1px solid #EAEAEA;'>{yr}</td>"
                     for orig_k, display_name in f_m2.items():
-                        html += f"<td style='padding:4px 6px; text-align:center; background-color:white; border:1px solid #EAEAEA;'>{row[display_name]:.1f}%</td>"
+                        html += f"<td style='padding:2px 4px; text-align:center; background-color:white; border:1px solid #EAEAEA;'>{row[display_name]:.1f}%</td>"
                     html += "</tr>"
-                html += "</table>"
+                html += "</table></div>"
                 st.markdown(html, unsafe_allow_html=True)
-            show_chart(fig, print_mode, m_id=m_id)   
+                
+            show_chart(fig, print_mode, m_id=m_id)
             
             
         # 6. 利润构成拆解
@@ -3291,12 +3345,15 @@ def show_step_7_content():
                 lab = st.session_state.get(f"lab_{m_id}", True)
                 mk = st.session_state.get(f"mk_{m_id}", 6)
                 fs = st.session_state.get(f"fs_{m_id}", 12)
+                
             color_map = get_color_map(selected_cos)
             fig = create_nb_margin_trend_chart(df_filtered, selected_cos, "", color_map, lab, mk, fs, current_hl)  
+            
+            # 🌟 修复：去掉 col_l 和 col_r 的分列，直接渲染，它就会自动居中并撑满页面！
             if fig:
-                col_l, col_r = st.columns([1.1, 1]) 
-                with col_l: 
-                    show_chart(fig, print_mode,m_id=m_id)
+                col_left, col_center, col_right = st.columns([1, 8, 1]) 
+                with col_center:
+                    show_chart(fig, print_mode, m_id=m_id)
 
         # 24. 费用结构及HTML统计表
         elif m_id == "exp_struct":
@@ -3371,16 +3428,23 @@ def show_step_7_content():
             if fig:
                 show_chart(fig, print_mode,m_id=m_id)
                 
-        # 26. 附录：业绩明细表与新业务明细表 (双表同打)
+# 26. 附录：业绩明细表与新业务明细表 (双表同打)
         elif m_id == "report_detail":  
             try: cy_int = int(latest_year)
             except: cy_int = 2011 # 兜底最新年份
             py_int = cy_int - 1
             
             # ====== 第一页：渲染最新一年 (cy_int) ======
-            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 5px;'>▪ {cy_int}年度分析表</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#00338D; margin-bottom: 0px;'>▪ {cy_int}年度分析表</div>", unsafe_allow_html=True)
             html_cy = create_financial_report_table(df_filtered, cy_int, selected_cos, divisor, unit_label, current_hl)
-            if html_cy: st.markdown(html_cy, unsafe_allow_html=True)
+            
+            if html_cy: 
+                # 🌟 核心技巧：只对最新年的表进行“极致压缩”，强行削减 padding 和 行高，防止 PDF 跨页
+                html_cy = html_cy.replace("padding: 3px 4px;", "padding: 3px 4px; line-height: 1.1;") # 压扁数据行
+                html_cy = html_cy.replace("padding: 4px 3px;", "padding: 4px 3px;") # 压扁表头
+                html_cy = html_cy.replace("font-size: 10.5px;", "font-size: 10.5px;") # 字号微缩
+                html_cy = html_cy.replace("margin-bottom: 10px;", "margin-bottom: 2px;") # 去掉底部留白
+                st.markdown(html_cy, unsafe_allow_html=True)
             
             # ====== 第二页：强制断页，并渲染去年 (py_int) ======
             # 引入专业的 pdf-page-break 强行另起一页
@@ -3392,7 +3456,10 @@ def show_step_7_content():
             """, unsafe_allow_html=True)
             
             html_py = create_financial_report_table(df_filtered, py_int, selected_cos, divisor, unit_label, current_hl)
-            if html_py: st.markdown(html_py, unsafe_allow_html=True)
+            
+            if html_py: 
+                # 🌟 去年的表不做任何替换，原汁原味渲染，保持原有大小
+                st.markdown(html_py, unsafe_allow_html=True)
 
         elif m_id == "nbv_table":
             try: cy_int = int(latest_year)
@@ -3634,37 +3701,44 @@ DEFAULT_COMPANIES = [
 ]
 
 
-# --- 全局配置：勾稽校验规则 ---
-# 说明：'check_type' 为 'cross' 表示跨年，'single' 表示年度内自校
+# ==========================================
+# 全局配置：勾稽校验规则（动态年份版）
+# ==========================================
+
 DEFAULT_RULES = [
-    # 跨年规则
-    {"规则名称": "1. 股东权益期初平衡", "公式": "y25['期初股东权益'] == y24['期末股东权益']", "类型": "cross", "描述": "25期初=24期末"},
-    {"规则名称": "2. CSM期初平衡", "公式": "y25['CSM期初余额'] == y24['CSM期末余额']", "类型": "cross", "描述": "25期初=24期末"},
+    # === 跨年规则 ===
+    {"规则名称": "1. 股东权益期初平衡", "公式": "curr_year['期初股东权益'] == prev_year['期末股东权益']", "类型": "cross", "描述": "本期期初=上期期末"},
+    {"规则名称": "2. CSM期初平衡", "公式": "curr_year['CSM期初余额'] == prev_year['CSM期末余额']", "类型": "cross", "描述": "本期期初=上期期末"},
     
-    # 年度内规则 (程序会自动为 2024 和 2025 各跑一次)
-    {"规则名称": "3. CSM余额勾稽", "公式": "abs(curr['CSM期末余额'] - (curr['CSM期初余额'] + curr['新业务CSM（集团口径）'] + curr['CSM计息'] + curr['CSM调整'] + curr['CSM摊销'] + curr['CSM其他'])) < 5", "类型": "single"},
-    {"规则名称": "4. 新业务现值拆分", "公式": "abs(curr['新业务未来现金流入现值'] - (curr['新业务未来现金流入现值（盈利）'] + curr['新业务未来现金流入现值（亏损）'])) < 1", "类型": "single"},
-    {"规则名称": "5. 保险服务收入合计", "公式": "abs(curr['保险服务收入合计'] - (curr['未采用保费分配法计量的保险合同保险服务收入'] + curr['采用保费分配法计量的保险合同保险服务收入'])) < 1", "类型": "single"},
-    {"规则名称": "6. 非PAA收入拆分", "公式": "abs(curr['未采用保费分配法计量的保险合同保险服务收入'] - (curr['合同服务边际的摊销'] + curr['非金融风险调整的变动'] + curr['预计当期发生的保险服务费用'] + curr['与当期服务或过去服务相关得保费经验调整'] + curr['其他收入调整'] + curr['保险获取现金流的摊销（保险服务收入）'])) < 5", "类型": "single"},
-    {"规则名称": "7. 保险服务费用合计", "公式": "abs(curr['保险服务费用合计'] - (curr['未采用保费分配法计量的保险合同保险服务费用'] + curr['采用保费分配法计量的保险合同保险服务费用'])) < 1", "类型": "single"},
-    {"规则名称": "8. 非PAA费用拆分", "公式": "abs(curr['未采用保费分配法计量的保险合同保险服务费用'] - (curr['保险获取现金流的摊销（保险服务费用）'] + curr['亏损部分的确认及转回'] + curr['当期发生的赔款及其他相关费用'] + curr['已发生赔款负债相关的履约现金流量变动'])) < 5", "类型": "single"},
-    {"规则名称": "9. 获取费用摊销一致性", "公式": "curr['保险获取现金流的摊销（保险服务收入）'] == curr['保险获取现金流的摊销（保险服务费用）']", "类型": "single"},
-    {"规则名称": "10. PAA保险业绩", "公式": "abs(curr['采用保费分配法计量的保险合同保险业绩'] - (curr['采用保费分配法计量的保险合同保险服务收入'] - curr['采用保费分配法计量的保险合同保险服务费用'])) < 1", "类型": "single"},
-    {"规则名称": "11. 服务收入总表一致性", "公式": "curr['保险服务收入'] == curr['保险服务收入合计']", "类型": "single"},
-    {"规则名称": "12. 税前利润勾稽", "公式": "abs(curr['税前利润总额'] - (curr['保险利润'] + curr['投资利润'] + curr['其他利润'])) < 5", "类型": "single"},
-    {"规则名称": "13. 分出保费的分摊相等", "公式": "curr['分出保费的分摊'] == curr['分出保费的分摊']", "类型": "single"},
-    {"规则名称": "14. 摊回保险服务费用相等", "公式": "curr['减：摊回保险服务费用'] == curr['减：摊回保险服务费用']", "类型": "single"},
-    {"规则名称": "15. 承保财务损益相等", "公式": "curr['承保财务损益'] == curr['承保财务损益']", "类型": "single"},
-    {"规则名称": "16. 投资利润勾稽", "公式": "abs(curr['投资利润'] - (curr['净投资回报'] + curr['承保财务损益'] + curr['分出再保险财务损益'])) < 5", "类型": "single"},
-    {"规则名称": "17. 净利润相等", "公式": "curr['净利润'] == curr['净利润']", "类型": "single"},
-    {"规则名称": "18. 综合收益总额相等", "公式": "curr['综合收益总额'] == curr['综合收益总额']", "类型": "single"},
-    {"规则名称": "19. 费用分类一致性", "公式": "abs((curr['获取费用'] + curr['维持费用'] + curr['非履约费用']) - (curr['职工薪酬'] + curr['物业及设备支出'] + curr['业务投入及监管费用支出'] + curr['行政办公支出'] + curr['其他支出'])) < 10", "类型": "single"},
-    {"规则名称": "20. 期初保险合同负债总额", "公式": "abs(curr['期初保险合同负债总额'] - (curr['CSM期初余额'] + curr['BEL期初余额'] + curr['RA期初余额'])) < 1", "类型": "single"},
-    {"规则名称": "21. 期末保险合同负债总额", "公式": "abs(curr['期末保险合同负债总额'] - (curr['CSM期末余额'] + curr['BEL期末余额'] + curr['RA期末余额'])) < 1", "类型": "single"},
-    {"规则名称": "22. 非PAA期初余额合计", "公式": "abs(curr['非PAA期初余额合计'] - (curr['LRC非亏损部分期初余额（非PAA）'] + curr['LRC亏损部分期初余额（非PAA）'] + curr['LIC期初余额（非PAA）'])) < 1", "类型": "single"},
-    {"规则名称": "23. 非PAA期末余额合计", "公式": "abs(curr['非PAA期末余额合计'] - (curr['LRC非亏损部分期末余额（非PAA）'] + curr['LRC亏损部分期末余额（非PAA）'] + curr['LIC期末余额（非PAA）'])) < 1", "类型": "single"},
-    {"规则名称": "24. PAA期初余额合计", "公式": "abs(curr['PAA期初余额合计'] - (curr['LRC非亏损部分期初余额（PAA）'] + curr['LRC亏损部分期初余额（PAA）'] + curr['LIC期初BEL余额（PAA）'] + curr['LIC期初RA余额（PAA）'])) < 1", "类型": "single"},
-    {"规则名称": "25. PAA期末余额合计", "公式": "abs(curr['PAA期末余额合计'] - (curr['LRC非亏损部分期末余额（PAA）'] + curr['LRC亏损部分期末余额（PAA）'] + curr['LIC期末BEL余额（PAA）'] + curr['LIC期末RA余额（PAA）'])) < 1", "类型": "single"}
+    # === 年度内规则 ===
+    {"规则名称": "3. CSM余额勾稽", "公式": "abs(curr['CSM期末余额']-(curr['CSM期初余额']+curr['新业务CSM（集团口径）']+curr['CSM计息']+curr['CSM调整']+curr['CSM摊销']+curr['CSM其他']))<5", "类型": "single"},
+    {"规则名称": "4. 新业务现值拆分", "公式": "abs(curr['新业务未来现金流入现值']-(curr['新业务未来现金流入现值（盈利）']+curr['新业务未来现金流入现值（亏损）']))<1", "类型": "single"},
+    {"规则名称": "5. 保险服务收入合计", "公式": "abs(curr['保险服务收入合计']-(curr['未采用保费分配法计量的保险合同保险服务收入']+curr['采用保费分配法计量的保险合同保险服务收入']))<1", "类型": "single"},
+    {"规则名称": "6. 非PAA收入拆分", "公式": "abs(curr['未采用保费分配法计量的保险合同保险服务收入']-(curr['合同服务边际的摊销']+curr['非金融风险调整的变动']+curr['预计当期发生的保险服务费用']+curr['与当期服务或过去服务相关得保费经验调整']+curr['其他收入调整']+curr['保险获取现金流的摊销（保险服务收入）']))<5", "类型": "single"},
+    {"规则名称": "7. 保险服务费用合计", "公式": "abs(curr['保险服务费用合计']-(curr['未采用保费分配法计量的保险合同保险服务费用']+curr['采用保费分配法计量的保险合同保险服务费用']))<1", "类型": "single"},
+    {"规则名称": "8. 非PAA费用拆分", "公式": "abs(curr['未采用保费分配法计量的保险合同保险服务费用']-(curr['保险获取现金流的摊销（保险服务费用）']+curr['亏损部分的确认及转回']+curr['当期发生的赔款及其他相关费用']+curr['已发生赔款负债相关的履约现金流量变动']))<5", "类型": "single"},
+    {"规则名称": "9. 获取费用摊销一致性", "公式": "curr['保险获取现金流的摊销（保险服务收入）']==curr['保险获取现金流的摊销（保险服务费用）']", "类型": "single"},
+    {"规则名称": "10. PAA保险业绩", "公式": "abs(curr['采用保费分配法计量的保险合同保险业绩']-(curr['采用保费分配法计量的保险合同保险服务收入']-curr['采用保费分配法计量的保险合同保险服务费用']))<1", "类型": "single"},
+    {"规则名称": "11. 服务收入总表一致性", "公式": "curr['保险服务收入']==curr['保险服务收入合计']", "类型": "single"},
+    {"规则名称": "12. 税前利润勾稽", "公式": "abs(curr['税前利润总额']-(curr['保险利润']+curr['投资利润']+curr['其他利润']))<5", "类型": "single"},
+    {"规则名称": "13. 投资利润勾稽", "公式": "abs(curr['投资利润']-(curr['净投资回报']+curr['承保财务损益']+curr['分出再保险财务损益']))<5", "类型": "single"},
+    {"规则名称": "14. 费用分类一致性", "公式": "abs((curr['获取费用']+curr['维持费用']+curr['非履约费用'])-(curr['职工薪酬']+curr['物业及设备支出']+curr['业务投入及监管费用支出']+curr['行政办公支出']+curr['其他支出']))<10", "类型": "single"},
+    {"规则名称": "15. 期初保险合同负债总额", "公式": "abs(curr['期初保险合同负债总额']-(curr['CSM期初余额']+curr['BEL期初余额']+curr['RA期初余额']))<1", "类型": "single"},
+    {"规则名称": "16. 期末保险合同负债总额", "公式": "abs(curr['期末保险合同负债总额']-(curr['CSM期末余额']+curr['BEL期末余额']+curr['RA期末余额']))<1", "类型": "single"},
+    {"规则名称": "17. 非PAA期初余额合计", "公式": "abs(curr['非PAA期初余额合计']-(curr['LRC非亏损部分期初余额（非PAA）']+curr['LRC亏损部分期初余额（非PAA）']+curr['LIC期初余额（非PAA）']))<1", "类型": "single"},
+    {"规则名称": "18. 非PAA期末余额合计", "公式": "abs(curr['非PAA期末余额合计']-(curr['LRC非亏损部分期末余额（非PAA）']+curr['LRC亏损部分期末余额（非PAA）']+curr['LIC期末余额（非PAA）']))<1", "类型": "single"},
+    {"规则名称": "19. PAA期初余额合计", "公式": "abs(curr['PAA期初余额合计']-(curr['LRC非亏损部分期初余额（PAA）']+curr['LRC亏损部分期初余额（PAA）']+curr['LIC期初BEL余额（PAA）']+curr['LIC期初RA余额（PAA）']))<1", "类型": "single"},
+    {"规则名称": "20. PAA期末余额合计", "公式": "abs(curr['PAA期末余额合计']-(curr['LRC非亏损部分期末余额（PAA）']+curr['LRC亏损部分期末余额（PAA）']+curr['LIC期末BEL余额（PAA）']+curr['LIC期末RA余额（PAA）']))<1", "类型": "single"},
+    
+    # === 合同服务边际来源校验 ===
+    {"规则名称": "21. CSM期初余额来源校验", "公式": "abs(curr['CSM期初余额']-(curr['采用公允价值法计量的合同期初负债']+curr['采用修正追溯调整法计量的合同期初负债']+curr['其他合同期初负债']))<1", "类型": "single"},
+    {"规则名称": "22. CSM期末余额来源校验", "公式": "abs(curr['CSM期末余额']-(curr['采用公允价值法计量的合同期末负债']+curr['采用修正追溯调整法计量的合同期末负债']+curr['其他合同期末负债']))<1", "类型": "single"},
+    
+    # === 投资资产勾稽 ===
+    {"规则名称": "23. 投资资产勾稽", "公式": "abs(curr['投资资产']-(curr['现金及其他']+curr['投资性房地产']+curr['固定收益类金融资产']+curr['权益类金融资产']+curr['联营及合营企业投资']))<1", "类型": "single"},
+    {"规则名称": "26. CSM期初余额来源校验", "公式": "abs(curr['CSM期初余额']-(curr['采用公允价值法计量的合同期初负债']+curr['采用修正追溯调整法计量的合同期初负债']+curr['其他合同期初负债']))<1", "类型": "single"},
+    {"规则名称": "27. CSM期末余额来源校验", "公式": "abs(curr['CSM期末余额']-(curr['采用公允价值法计量的合同期末负债']+curr['采用修正追溯调整法计量的合同期末负债']+curr['其他合同期末负债']))<1", "类型": "single"},
+    {"规则名称": "28. 投资资产勾稽", "公式": "abs(curr['投资资产']-(curr['现金及其他']+curr['投资性房地产']+curr['固定收益类金融资产']+curr['权益类金融资产']+curr['联营及合营企业投资']))<1", "类型": "single"}
 ]
 # ==================== 1. 页面基础配置 (必须在最顶端且仅此一份) ====================
 st.set_page_config(
@@ -3871,7 +3945,26 @@ def ai_find_pages(pdf_bytes, api_key, target_tables, base_url, model_name):
         ],
         "评估假设-折现率假设": [
             ["折现率假设", "折现率曲线","精算假设"]
-        ]
+        ],
+        "投资资产": [
+            [
+                "投资组合情况",
+                "投资资产",
+                "投资组合",
+                "投资资产组合",
+                "按投资对象分类"
+            ],
+            [
+                "现金及现金等价物",
+                "定期存款",
+                "债券",
+                "债务",
+                "股票",
+                "基金",
+                "长期股权投资",
+                "投资性房地产"
+            ]
+        ],
     }
     
     simple_title_OR = {
@@ -3960,11 +4053,31 @@ def ai_find_pages(pdf_bytes, api_key, target_tables, base_url, model_name):
 - 例如：若在 `---第8页---` 下方看到“合并利润表”，则物理页码即为 8。
 
 【通用执行准则】
-1. 🎯 三大主表（资产负债表、利润表、现金流量表）：优先寻找“合并”版本。
-2. 🎯 跨页逻辑：由于财务报表通常包含“(续)”，请务必返回所有相关的物理页码数组。
+1. 🎯 如果需求表单名称包含“（合并）”，优先寻找：
+   合并资产负债表
+   合并利润表
+   合并现金流量表
+   合并股东权益变动表
+
+2. 🎯 如果需求表单名称包含“（公司）”，优先寻找：
+   公司资产负债表
+   公司利润表
+   公司现金流量表
+   公司股东权益变动表
+
+3. 🎯 如果年报中没有区分“合并”和“公司”，仅出现：
+   资产负债表
+   利润表
+   现金流量表
+   股东权益变动表
+
+则同一页码同时返回给：
+   对应的（合并）
+   对应的（公司）
+4. 🎯 跨页逻辑：由于财务报表通常包含“(续)”，请务必返回所有相关的物理页码数组。
    - 示例：若第 3 页是资产负债表，第 4 页是其负债部分的续表，返回 [3, 4]。
-3. 🎯 附注表线索（最高优先级）：对于带有“(附注)”或“保险合同”字样的复杂底表，请【无脑完全信任】下方提供的【Python程序附注雷达线索】，直接返回线索中的页码。
-4. 🎯 特别提醒：现金流量表有时在目录中比较隐蔽，请仔细搜寻；若无目录，请在资产负债表和利润表之后的 5-10 页内搜寻其标题。
+5. 🎯 附注表线索（最高优先级）：对于带有“(附注)”或“保险合同”字样的复杂底表，请【无脑完全信任】下方提供的【Python程序附注雷达线索】，直接返回线索中的页码。
+6. 🎯 特别提醒：现金流量表有时在目录中比较隐蔽，请仔细搜寻；若无目录，请在资产负债表和利润表之后的 5-10 页内搜寻其标题。
 
 需求表单列表：
 {json.dumps(target_tables, ensure_ascii=False)}
@@ -4083,7 +4196,9 @@ if not st.session_state['logged_in']:
         st.markdown("<div style='text-align:center; margin-bottom:30px;'><h1 style='font-size:32px; margin:0;'><span class='title-glow'>寿研数智年报平台</span></h1><p style='color:#76D2FF; font-size:11px; letter-spacing:4px; margin-top:8px; font-weight:bold;'>ACTUARIAL INTELLIGENCE</p></div>", unsafe_allow_html=True)
         
         u_type = st.radio("访问权限", ["普通用户", "项目组成员"], label_visibility="collapsed", horizontal=True)
-        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") if u_type == "项目组成员" else ""
+        
+        # 🌟 修改 1：不管选什么角色，都显示密码输入框
+        sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") 
         
         # 字典映射压缩代码体积
         ai_map = {"阿里云百炼 (通义千问)": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"), "DeepSeek (深度求索)": ("https://api.deepseek.com", "deepseek-chat"), "月之暗面 (Kimi)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"), "智谱AI (GLM-4)": ("https://open.bigmodel.cn/api/paas/v4", "glm-4"), "OpenAI (ChatGPT)": ("https://api.openai.com/v1", "gpt-4o")}
@@ -4105,7 +4220,11 @@ if not st.session_state['logged_in']:
 
         # 启动大按钮
         if st.button("启 动 系 统", type="primary", use_container_width=True):
-            if u_type == "项目组成员" and sec_code != "KPMG666": st.error("❌ 拒绝访问：安全码错误")
+            # 🌟 修改 2：分别校验普通用户和项目组成员的密码
+            if u_type == "普通用户" and sec_code != "KPMG1234": 
+                st.error("❌ 拒绝访问：普通用户安全码错误")
+            elif u_type == "项目组成员" and sec_code != "KPMG666": 
+                st.error("❌ 拒绝访问：项目组成员安全码错误")
             else: 
                 st.session_state.update({'logged_in':True, 'user_role':u_type, 'api_key':api_input, 'base_url':d_url, 'model_name':d_mod})
                 st.rerun()
@@ -4118,17 +4237,15 @@ if not st.session_state['logged_in']:
 # 📊 3. 主系统界面 (根据角色分发权限)
 # ==========================================
 else:
-    # 👇 解决报错的核心：把存进 session_state 里的变量提出来，放在 else 里面！
     # 代码规范锁：0123456789
     api_key = st.session_state.get('api_key', "")
     base_url = st.session_state.get('base_url', "https://api.deepseek.com")
     model_name = st.session_state.get('model_name', "deepseek-chat")
-    user_role = st.session_state.get('user_role', "普通用户")  # 👈 修正了这里，删掉了多余
+    user_role = st.session_state.get('user_role', "普通用户") 
 
     # 顶部状态栏与退出按钮
     top_col1, top_col2 = st.columns([8, 1])
     with top_col1:
-        # 👇 穿上 'no-print' 隐身斗篷
         st.markdown(
             f"<div class='no-print' style='color: #6c757d; font-size: 14px; margin-top: 8px;'>"
             f"当前身份：<b>{user_role}</b> | 欢迎使用寿研数智分析平台"
@@ -4139,8 +4256,9 @@ else:
         if st.button("退出登录"):
             st.session_state['logged_in'] = False
             st.rerun()
-
+            
     # ==================== 主界面标题 ====================
+    st.markdown("<hr style='margin-top: 5px; margin-bottom: 15px;'>", unsafe_allow_html=True)
     st.markdown("<h1 class='no-print' style='font-weight:700; padding-top:10px;'>寿研数智・年报处理平台</h1>", unsafe_allow_html=True)
 
     # ---------------- 核心权限控制 ----------------
@@ -4306,12 +4424,12 @@ else:
                     target_tables = st.multiselect(
                         "请选择需要定位的报表：",
                         [
-                            "资产负债表 (合并优先)", "利润表 (合并优先)", "现金流量表 (合并优先)", "股东/所有者权益变动表 (合并优先)",
-                            "保险服务收入表 (附注)", "保险服务支出/费用表 (附注)", "其他综合收益/损益表 (附注)", "业务及管理费 (附注)",
-                            "保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)", "保险合同-PAA按未到期责任负债和已发生赔款负债分析 (原保险)",
-                            "保险合同-未采用保费分配法按计量组成部分分析 (原保险)", "保险合同-当期初始确认对资产负债表的影响", "评估假设-折现率假设"
+                            "资产负债表（合并）", "利润表（合并）","现金流量表（合并）", "股东/所有者权益变动表（合并）", "资产负债表（公司）", "利润表（公司）",
+                            "现金流量表（公司）", "股东/所有者权益变动表（公司）", "保险服务收入表 (附注)", "保险服务支出/费用表 (附注)", "其他综合收益/损益表 (附注)", "业务及管理费 (附注)",
+                            "保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)","保险合同-PAA按未到期责任负债和已发生赔款负债分析 (原保险)", "保险合同-未采用保费分配法按计量组成部分分析 (原保险)","保险合同-当期初始确认对资产负债表的影响",
+                            "评估假设-折现率假设","投资资产"
                         ],
-                        default=["资产负债表 (合并优先)", "利润表 (合并优先)", "保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)"]
+                        default=[   "资产负债表（合并）","利润表（合并）", "保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)"]
                     )
                     
                     st.markdown("")  
@@ -4330,6 +4448,25 @@ else:
                                 try:
                                     # 这里的传参也要换成刚刚取出来的 current_api_key
                                     result = ai_find_pages(pdf_bytes, current_api_key, target_tables, base_url, model_name)
+                                    main_table_pairs = [
+                                        ("资产负债表（合并）","资产负债表（公司）"),
+                                        ("利润表（合并）","利润表（公司）"),
+                                        ("现金流量表（合并）","现金流量表（公司）"),
+                                        ("股东/所有者权益变动表（合并）","股东/所有者权益变动表（公司）")
+                                    ]
+                                    
+                                    for merge_key, company_key in main_table_pairs:
+                                    
+                                        merge_pages = result.get(merge_key, [0])
+                                        company_pages = result.get(company_key, [0])
+                                    
+                                        # AI只找到合并
+                                        if merge_pages != [0] and company_pages == [0]:
+                                            result[company_key] = merge_pages
+                                    
+                                        # AI只找到公司
+                                        elif company_pages != [0] and merge_pages == [0]:
+                                            result[merge_key] = company_pages
                                     st.session_state['found_pages'] = result
                                     st.success("检索完成！请在下方核对物理页码。")
                                 except Exception as e:
@@ -4434,7 +4571,7 @@ else:
                     if not valid_tasks:
                         st.warning("⚠️ 没有找到任何有效的页码，无需提取。")
                     else:
-                        if st.button("🚀 开始极速提取", use_container_width=True):
+                        if st.button("开始提取", use_container_width=True):
                             with st.spinner("☕ 趁现在喝口水吧，正在后台拼命打工中..."):
                                 extracted_sheets = {}
                                 global_unit = "未能自动提取，需人工核对"
@@ -4553,307 +4690,285 @@ else:
                         with tab:
                             st.dataframe(extracted_data[sheet_names[i]], use_container_width=True)
          
-            # ─────────── Step 3：目标表标准填报 ───────────
+# ─────────── Step 3：目标表标准填报 ───────────
         with tab3:
             st.markdown("### 📝 目标表标准填报")
+            st.markdown('<div class="info-card pink"><h4>功能说明</h4><p>AI 将自动寻找科目数据填充数值，生成 Excel 计算公式。支持内置模板或上传自定义模板。</p></div>', unsafe_allow_html=True)
             
-            # 1. 功能说明卡片
-            st.markdown("""
-            <div class="info-card pink">
-                <h4>功能说明</h4>
-                <p>AI 将自动寻找科目数据填充数值，生成 Excel 计算公式。支持内置模板或上传自定义模板。</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-            # 2. 建立公司类型映射字典
             COMPANY_TYPE_MAP = {item["公司"]: item["类别"] for item in DEFAULT_COMPANIES}
             
-            # 3. 模板选择逻辑 (内置 vs 上传)
             col_t1, col_t2 = st.columns([1, 1])
-            with col_t1:
-                use_default = st.toggle("使用系统默认模板", value=True, help="开启后将直接使用内置的 default_template.xlsx")
+            with col_t1: use_default = st.toggle("使用系统默认模板", value=True, help="开启后直接使用内置的新华样例表")
             
-            template_file = None
-            default_path = "default_template.xlsx" 
+            template_file = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E6%96%B0%E5%8D%8E%E6%A0%B7%E4%BE%8B%E8%A1%A8.xlsx" if use_default else st.file_uploader("上传自定义目标表模板 (.xlsx)", type="xlsx", key="unique_template_uploader")
         
-            if use_default:
-                import os
-                if os.path.exists(default_path):
-                    template_file = default_path
-                    st.info(f"💡 当前正在使用：系统内置模板 ({default_path})")
-                else:
-                    st.error("❌ 未找到默认模板文件，请切换为上传模式！")
-                    use_default = False 
-        
-            if not use_default:
-                # 这里只保留一个 file_uploader
-                template_file = st.file_uploader("上传自定义目标表模板 (.xlsx)", type="xlsx", key="unique_template_uploader")
-        
-            # 4. 核心填报逻辑
             if template_file:
-                # 定义标准列名
-                COL_COMPANY, COL_CATEGORY, COL_FIELD_NAME, COL_FIELD_TYPE, COL_NOTE, COL_RULE = "公司", "类别", "字段名", "字段类型", "注释", "计算规则"
-                COL_CO_TYPE = "公司类型"
+                COL_COMPANY, COL_CATEGORY, COL_FIELD_NAME, COL_FIELD_TYPE, COL_NOTE, COL_RULE, COL_CO_TYPE = "公司", "类别", "字段名", "字段类型", "注释", "计算规则", "公司类型"
         
                 if 'extracted_data' not in st.session_state:
                     st.warning("⚠️ 尚未找到提取的数据，请先完成 Step 1 和 Step 2。")
-                else:
-                    if st.button("启动智能填报与公式生成", use_container_width=True):
-                        # 使用你想要的友好等待语
-                        status_box = st.status("此过程略慢，请稍等~", expanded=True)
+                elif st.button("启动智能填报与公式生成", use_container_width=True):
+                    with st.status("此过程略慢，请稍等~", expanded=True) as status_box:
+                        st.write("📄 正在获取并解析模板表结构...")
                         
-                        with status_box:
-                            st.write("📄 正在解析模板表结构...")
-                            template_df = pd.read_excel(template_file)
-                            
-                            # 识别年份列
-                            col_2024 = next((c for c in template_df.columns if '2024' in str(c)), None)
-                            col_2025 = next((c for c in template_df.columns if '2025' in str(c)), None)
-                            
-                            if not col_2024 or not col_2025:
-                                st.error("❌ 错误：模板中未找到包含 2024 或 2025 的列头！")
+                        # 1. 尝试读取文件并解析基础结构
+                        try:
+                            if use_default:
+                                import requests, io
+                                res = requests.get(template_file, timeout=15)
+                                res.raise_for_status()
+                                template_df = pd.read_excel(io.BytesIO(res.content))
                             else:
-                                # --- 🚀 A. 公司名与公司类型自动匹配 ---
-                                raw_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
-                                company_short = re.sub(r'202\d年.*', '', raw_name).strip()
-                                
-                                # 模糊匹配公司类型
-                                matched_type = "其他"
-                                for c_name, c_type in COMPANY_TYPE_MAP.items():
-                                    if c_name[:2] in company_short or company_short[:2] in c_name:
-                                        matched_type = c_type
-                                        break
-                                
-                                working_df = template_df.copy()
-                                if COL_COMPANY in working_df.columns:
-                                    working_df[COL_COMPANY] = company_short
-                                if COL_CO_TYPE in working_df.columns:
-                                    working_df[COL_CO_TYPE] = matched_type
-                                
-                                # --- B. 准备 AI 任务 ---
-                                st.write("正在准备目标指标清单...")
-                                input_items = working_df[working_df[COL_FIELD_TYPE].astype(str).str.strip() == "输入"]
-                                ai_target_list = [{"类别": str(r.get(COL_CATEGORY, "")), "标准字段名": str(r.get(COL_FIELD_NAME, "")), "别名参考": str(r.get(COL_NOTE, "")) if pd.notna(r.get(COL_NOTE)) else ""} for _, r in input_items.drop_duplicates(subset=[COL_FIELD_NAME]).iterrows()]
-                                    
-                                st.write("正在分析上下文...")
-                                extracted_data = st.session_state['extracted_data']
-                                context_text = "".join([f"\n[表名: {name}]\n{df.to_csv(index=False, sep='|')}\n" for name, df in extracted_data.items()])
-                                
-        
-                                    
-                                SYSTEM_PROMPT = """你是一个资深的寿险精算审计专家。任务：将 PDF 提取的财务明细精准填入目标底稿，并严格区分 2024 和 2025 年度。
-        
-        【通用执行准则：绝对原样提取】
-        1. ⚠️ 绝对指令：除了下述特殊的加总需求外，所有指标必须【原封不动地照抄】原文里的文本！
-           - 必须保留括号（表示负数）、逗号、正负号。例如原文是 "(295,992.00)"，必须输出为 "(295,992.00)"。
-           - 严禁擅自删除符号、严禁自行进行四舍五入。
-        2. 别名匹配：若标准名找不到，请查看“别名参考”列，或利用你的精算知识寻找同义词。
-        3. 报表锁定：提取“新业务相关指标”时，务必在包含“当期确认”、“初始确认”或“新业务价值”字样的表格中查找。
-        4. 空值处理：若原文为“—”或“无”请输出 "0"。若完全找不到该指标，请输出 null。
-        
-        【特殊指令：业务及管理费（业管费）科目拆分】
-        业务及管理费附注表通常包含“小计/明细”和“减项”。请按以下精算逻辑进行识别：
-        1. 【获取费用】：必须提取“减：与保险合同履约直接相关的支出”下方，明确标注为“计入...保险获取现金流量”或“保险获取”字样的数值。
-        2. 【维持费用】：必须提取“减：与保险合同履约直接相关的支出”下方，明确标注为“计入保险服务费用”或“维持费用”字样的数值。
-        3. 【非履约费用】：提取该附注表最底部的“合计”项数值。逻辑上，该合计 = 总支出 - 获取费用 - 维持费用。
-        4. 【二级明细归类】（若目标字段属于明细科目且无汇总）：
-           - 【职工薪酬】：加总 工资, 奖金, 补贴, 社保, 福利, 公积金, 辞退福利等。
-           - 【物业及设备】：加总 折旧, 摊销, 租赁费, 物业费, 维修费等。
-           - 【业务投入及监管】：加总 宣传费, 招待费, 保障基金, 监管费, 服务费, 咨询审计费。
-           - 【行政办公】：加总 差旅费, 办公费, 邮电印刷, 会议费等。
-        
-        【特殊指令：保险合同负债新准则科目映射（最高寻址优先级）】
-        为了防止名称混淆，当提取以下指标时，【必须严格锁定对应的表名】，并应用精算缩写翻译规则：
-        1. 锁定表名：[表名: 保险合同-未采用保费分配法按计量组成部分分析 (原保险)]
-           - 映射字典：BEL = 未来现金流量现值；RA = 非金融风险调整；总额 = 合计。
-           - 目标字段限定：当遇到【BEL期初余额、BEL期末余额、RA期初余额、RA期末余额、期初保险合同负债总额、期末保险合同负债总额】时，仅在此表中寻址取数。
-        
-        2. 锁定表名：[表名: 保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)]
-           - 映射字典：LRC = 未到期责任负债；LIC = 已发生赔款负债。
-           - 目标字段限定：当遇到任何带有【（非PAA）】后缀的字段（如LRC非亏损部分期初余额（非PAA）、LIC期末余额（非PAA）、非PAA期末余额合计等）时，仅在此表中寻址。
-        
-        3. 锁定表名：[表名: 保险合同-PAA按未到期责任负债和已发生赔款负债分析 (原保险)]
-           - 映射字典：LRC = 未到期责任负债；LIC = 已发生赔款负债。
-           - 目标字段限定：当遇到任何带有【（PAA）】后缀的字段（如LRC非亏损部分期初余额（PAA）、LIC期初BEL余额（PAA）、PAA期初余额合计等）时，仅在此表中寻址。
-        4.【时间维度与排版防反转绝对指令（适用任意年份）】
-        中国企业财报的标准排版规则是：【左边的数据列为当期（最新年份），右边的数据列为上期（历史年份）】。
-        - 当填报要求中包含“较晚/最新年份”（如当期/本年/年末）的键时：必须从原表表头的“本期”、“本年”、“年末”或【最左侧的数据列】取数。
-        - 当填报要求中包含“较早/历史年份”（如上期/上年/年初）的键时：必须从原表表头的“上期”、“上年”、“年初”或【紧挨着它的右侧数据列】取数。
-        ⚠️ 警告：大语言模型极易犯“线性思维”错误（误以为小年份排在左边，大年份排在右边）。要求你必须打破定势，仔细核对表头！永远记住：左边的列才是最新当期！
-        例如：若输出键包含 y24 和 y25，则 y25 (最新年) 取报表左侧当期列，y24 (历史年) 取报表右侧上期列。
-        仅输出合法的 JSON 格式，严禁带有任何 Markdown 标记或文字说明。
-        格式示例：{"字段名": {"y24": "(1,234.0) + 500.0", "y25": "9,876.54"}}"""
-                                st.write("正在呼叫大模型进行语义映射与精准取数...")
-                                
-                                # 🌟 从全局内存中拿取你登录时选择的所有配置！
-                                current_api_key = st.session_state.get('api_key', "").strip()
-                                current_base_url = st.session_state.get('base_url', "https://api.deepseek.com")
-                                current_model_name = st.session_state.get('model_name', "deepseek-chat")
-                                
-                                client = OpenAI(api_key=current_api_key, base_url=current_base_url)
+                                template_df = pd.read_excel(template_file)
+                        except Exception as e:
+                            st.error(f"❌ 读取模板失败，请检查网络连接或文件格式：{e}")
+                            st.stop() # 🌟 发生异常直接强行停止，不再向下执行避免报错
+                        
+                        # 2. 动态识别年份列
+                        year_cols = sorted([c for c in template_df.columns if __import__("re").search(r'20\d{2}', str(c))])
+                        if len(year_cols) < 2:
+                            st.error("❌ 错误：模板中未能自动识别出两个或以上的年份数据列！请检查表头规范。")
+                            st.stop() # 🌟 年份不够也直接停止
+                        
+                        col_prev, col_curr = year_cols[-2], year_cols[-1]
+                        st.session_state['col_prev'] = col_prev
+                        st.session_state['col_curr'] = col_curr
+                        
+                        # 🌟 修复后的正常路径：此时已确保成功拿到 template_df, col_prev, col_curr
+                        # --- 🚀 A. 公司名与公司类型自动匹配 ---
+                        raw_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
+                        company_short = __import__("re").sub(r'202\d年.*', '', raw_name).strip()
+                        
+                        matched_type = next((c_type for c_name, c_type in COMPANY_TYPE_MAP.items() if c_name[:2] in company_short or company_short[:2] in c_name), "其他")
+                        
+                        working_df = template_df.copy()
+                        if COL_COMPANY in working_df.columns: working_df[COL_COMPANY] = company_short
+                        if COL_CO_TYPE in working_df.columns: working_df[COL_CO_TYPE] = matched_type
+                        
+                        # --- B. 准备 AI 任务 ---
+                        st.write("正在准备目标指标清单...")
+                        input_items = working_df[working_df[COL_FIELD_TYPE].astype(str).str.strip() == "输入"]
+                        ai_target_list = [{"类别": str(r.get(COL_CATEGORY, "")), "标准字段名": str(r.get(COL_FIELD_NAME, "")), "别名参考": str(r.get(COL_NOTE, "")) if pd.notna(r.get(COL_NOTE)) else ""} for _, r in input_items.drop_duplicates(subset=[COL_FIELD_NAME]).iterrows()]
+                            
+                        st.write("正在分析上下文...")
+                        extracted_data = st.session_state['extracted_data']
+                        context_text = "".join([f"\n[表名: {name}]\n{df.to_csv(index=False, sep='|')}\n" for name, df in extracted_data.items()])
+
+                            
+                        SYSTEM_PROMPT = """你是一个资深的寿险精算审计专家。任务：将 PDF 提取的财务明细精准填入目标底稿，并严格区分上一年度和最新年份。
+
+【通用执行准则：绝对原样提取】
+1. ⚠️ 绝对指令：除了下述特殊的加总需求外，所有指标必须【原封不动地照抄】原文里的文本！
+   - 必须保留括号（表示负数）、逗号、正负号。例如原文是 "(295,992.00)"，必须输出为 "(295,992.00)"。
+   - 严禁擅自删除符号、严禁自行进行四舍五入。
+2. 别名匹配：若标准名找不到，请查看“别名参考”列，或利用你的精算知识寻找同义词。
+3. 报表锁定：提取“新业务相关指标”时，务必在包含“当期确认”、“初始确认”或“新业务价值”字样的表格中查找。
+4. 空值处理：若原文为“—”或“无”请输出 "0"。若完全找不到该指标，请输出 null。
+
+【特殊指令：业务及管理费（业管费）科目拆分】
+业务及管理费附注表通常包含“小计/明细”和“减项”。请按以下精算逻辑进行识别：
+1. 【获取费用】：必须提取“减：与保险合同履约直接相关的支出”下方，明确标注为“计入...保险获取现金流量”或“保险获取”字样的数值。
+2. 【维持费用】：必须提取“减：与保险合同履约直接相关的支出”下方，明确标注为“计入保险服务费用”或“维持费用”字样的数值。
+3. 【非履约费用】：提取该附注表最底部的“合计”项数值。逻辑上，该合计 = 总支出 - 获取费用 - 维持费用。
+4. 【二级明细归类】（若目标字段属于明细科目且无汇总）：
+   - 【职工薪酬】：加总 工资, 奖金, 补贴, 社保, 福利, 公积金, 辞退福利等。
+   - 【物业及设备】：加总 折旧, 摊销, 租赁费, 物业费, 维修费等。
+   - 【业务投入及监管】：加总 宣传费, 招待费, 保障基金, 监管费, 服务费, 咨询审计费。
+   - 【行政办公】：加总 差旅费, 办公费, 邮电印刷, 会议费等。
+
+【特殊指令：投资资产表优先映射】
+当目标字段属于“投资资产”类别时：
+1. 优先从 [表名: 投资资产] 中寻找最接近的项目名称。
+2. 若投资资产表存在对应项目，则禁止使用资产负债表数据覆盖。
+3. 若投资资产表不存在该项目，再尝试从资产负债表寻找对应科目。
+4. 优先依据目标表中的“别名参考”进行匹配。
+
+【特殊指令：保险合同负债新准则科目映射（最高寻址优先级）】
+为了防止名称混淆，当提取以下指标时，【必须严格锁定对应的表名】，并应用精算缩写翻译规则：
+1. 锁定表名：[表名: 保险合同-未采用保费分配法按计量组成部分分析 (原保险)]
+   - 映射字典：BEL = 未来现金流量现值；RA = 非金融风险调整；总额 = 合计。
+   - 目标字段限定：当遇到【BEL期初余额、BEL期末余额、RA期初余额、RA期末余额、期初保险合同负债总额、期末保险合同负债总额】时，仅在此表中寻址取数。
+
+2. 锁定表名：[表名: 保险合同-非PAA按未到期责任负债和已发生赔款负债分析 (原保险)]
+   - 映射字典：LRC = 未到期责任负债；LIC = 已发生赔款负债。
+   - 目标字段限定：当遇到任何带有【（非PAA）】后缀的字段（如LRC非亏损部分期初余额（非PAA）、LIC期末余额（非PAA）、非PAA期末余额合计等）时，仅在此表中寻址。
+
+3. 锁定表名：[表名: 保险合同-PAA按未到期责任负债和已发生赔款负债分析 (原保险)]
+   - 映射字典：LRC = 未到期责任负债；LIC = 已发生赔款负债。
+   - 目标字段限定：当遇到任何带有【（PAA）】后缀的字段（如LRC非亏损部分期初余额（PAA）、LIC期初BEL余额（PAA）、PAA期初余额合计等）时，仅在此表中寻址。
+4.【时间维度与排版防反转绝对指令（适用任意年份）】
+中国企业财报的标准排版规则是：【左边的数据列为当期（最新年份），右边的数据列为上期（历史年份）】。
+- 当填报要求中包含“较晚/最新年份”（如当期/本年/年末）的键时：必须从原表表头的“本期”、“本年”、“年末”或【最左侧的数据列】取数。
+- 当填报要求中包含“较早/历史年份”（如上期/上年/年初）的键时：必须从原表表头的“上期”、“上年”、“年初”或【紧挨着它的右侧数据列】取数。
+⚠️ 警告：大语言模型极易犯“线性思维”错误（误以为小年份排在左边，大年份排在右边）。要求你必须打破定势，仔细核对表头！永远记住：左边的列才是最新当期！
+例如：若输出键包含 prev 和 curr，则 curr (最新年) 取报表左侧当期列，prev (历史年) 取报表右侧上期列。
+仅输出合法的 JSON 格式，严禁带有任何 Markdown 标记或文字说明。
+格式示例：{"字段名": {"prev": "(1,234.0) + 500.0", "curr": "9,876.54"}}"""
+                        st.write("正在呼叫大模型进行语义映射与精准取数...")
+                        
+                        # 🌟 从全局内存中拿取你登录时选择的所有配置！
+                        current_api_key = st.session_state.get('api_key', "").strip()
+                        current_base_url = st.session_state.get('base_url', "https://api.deepseek.com")
+                        current_model_name = st.session_state.get('model_name', "deepseek-chat")
+                        
+                        client = OpenAI(api_key=current_api_key, base_url=current_base_url)
+                        try:
+                            response = client.chat.completions.create(
+                                model=current_model_name, # 👈 这里也变成了动态的！
+                                messages=[
+                                    {"role": "system", "content": SYSTEM_PROMPT},
+                                    {"role": "user", "content": f"目标指标:\n{json.dumps(ai_target_list, ensure_ascii=False)}\n\n数据:\n{context_text}"}
+                                ],
+                                temperature=0.0
+                            )
+                            ai_res = response.choices[0].message.content.strip()
+                            ai_res = re.sub(r'^```(json)?\n?', '', ai_res, flags=re.MULTILINE).replace("```", "").strip()
+                            ai_data = json.loads(ai_res)
+                            st.write("✅ 数据映射成功！正在回填表格...")
+                            working_df = template_df.copy()
+                            
+                            raw_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
+                            company_short = re.sub(r'202\d年.*', '', raw_name).strip()
+                            
+                            matched_type = "其他"
+                            for c_name, c_type in COMPANY_TYPE_MAP.items():
+                                if c_name[:2] in company_short or company_short[:2] in c_name:
+                                    matched_type = c_type
+                                    break
+                            
+                            if COL_COMPANY in working_df.columns:
+                                working_df[COL_COMPANY] = company_short
+                            
+                            if COL_CO_TYPE in working_df.columns:
+                                working_df[COL_CO_TYPE] = matched_type
+                            
+                            def process_final_val(v):
+                                if v is None or str(v).lower() in ["null","none","","—","无"]:
+                                    return 0.0
+                            
+                                s = str(v).strip()
+                            
+                                def to_calc_str(x):
+                                    tmp = str(x).replace(',','').strip()
+                                    if (tmp.startswith('(') and tmp.endswith(')')) or (tmp.startswith('（') and tmp.endswith('）')):
+                                        return "-" + tmp[1:-1].strip()
+                                    return tmp
+                            
+                                if "+" in s:
+                                    return "=" + "+".join([to_calc_str(i) for i in s.split("+")])
+                            
                                 try:
-                                    response = client.chat.completions.create(
-                                        model=current_model_name, # 👈 这里也变成了动态的！
-                                        messages=[
-                                            {"role": "system", "content": SYSTEM_PROMPT},
-                                            {"role": "user", "content": f"目标指标:\n{json.dumps(ai_target_list, ensure_ascii=False)}\n\n数据:\n{context_text}"}
-                                        ],
-                                        temperature=0.0
-                                    )
-                                    ai_res = response.choices[0].message.content.strip()
-                                    ai_res = re.sub(r'^```(json)?\n?', '', ai_res, flags=re.MULTILINE).replace("```", "").strip()
-                                    ai_data = json.loads(ai_res)
-                                    st.write("✅ 数据映射成功！正在回填表格...")
-                                    
-                                    working_df = template_df.copy()
-                                    # --- 🚀 新增：公司类型自动匹配逻辑 ---
-                                    raw_name = st.session_state.get('pdf_name', '未命名').replace(".pdf", "")
-                                    # 提取公司简称，如 "新华保险"
-                                    company_short = re.sub(r'202\d年.*', '', raw_name).strip()
-                                    
-                                    # 匹配公司类型
-                                    matched_type = "其他" # 默认值
-                                    # 模糊匹配逻辑：遍历大名单，看识别出的名字是否包含在大名单里，或者大名单里的名字是否在识别名里
-                                    for c_name, c_type in COMPANY_TYPE_MAP.items():
-                                        # 比如 "新华保险" 和 "新华人寿"，只要前两个字对上通常就对了
-                                        if c_name[:2] in company_short or company_short[:2] in c_name:
-                                            matched_type = c_type
-                                            break
-                                    
-                                    # 回填“公司”列
-                                    if COL_COMPANY in working_df.columns:
-                                        working_df[COL_COMPANY] = company_short
-                                    
-                                    # 回填“公司类型”列（根据你的截图，第一列是“公司类型”）
-                                    COL_CO_TYPE = "公司类型"
-                                    if COL_CO_TYPE in working_df.columns:
-                                        working_df[COL_CO_TYPE] = matched_type
-                                    # ----------------------------------------
-                                        
-                                    # --- 兼容“绝对原样”与“公式回放”的回填引擎 ---
-                                    for idx, row in working_df.iterrows():
-                                        fname = str(row.get(COL_FIELD_NAME, "")).strip()
-                                        if fname in ai_data:
-                                            item_data = ai_data[fname]
-                                            def process_final_val(v):
-                                                if v is None or str(v).lower() in ["null", "none", "", "—", "无"]: 
-                                                    return 0.0
-                                                
-                                                s = str(v).strip()
-                                                
-                                                # 内部函数：把财务括号 "(1,234)" 转为可计算的 "-1234"
-                                                def to_calc_str(val_str):
-                                                    tmp = val_str.replace(',', '').strip()
-                                                    if (tmp.startswith('(') and tmp.endswith(')')) or (tmp.startswith('（') and tmp.endswith('）')):
-                                                        return "-" + tmp[1:-1].strip()
-                                                    return tmp
-        
-                                                # 情况 1：如果是业务及管理费的加总公式
-                                                if "+" in s:
-                                                    parts = s.split("+")
-                                                    # 处理每一项的括号和逗号，转化为标准数字字符串
-                                                    cleaned_parts = [to_calc_str(p) for p in parts]
-                                                    # 返回 Excel 公式格式：=-100+200
-                                                    return "=" + "+".join(cleaned_parts)
-                                                
-                                                # 情况 2：如果是通用项目的原样提取
-                                                # 先处理掉括号和逗号看能不能转成数字
-                                                num_candidate = to_calc_str(s)
-                                                try:
-                                                    return float(num_candidate)
-                                                except:
-                                                    return s # 如果是文字，保留文字原样
-        
-                                            if isinstance(item_data, dict):
-                                                val_24 = item_data.get("y24")
-                                                val_25 = item_data.get("y25")
-                                                working_df.at[idx, col_2024] = process_final_val(val_24)
-                                                working_df.at[idx, col_2025] = process_final_val(val_25)
-                                            else:
-                                                # 如果 AI 返回的是 null 或其他非字典内容，直接填充 0
-                                                working_df.at[idx, col_2024] = 0.0
-                                                working_df.at[idx, col_2025] = 0.0
-                                    # --- 🚀 注入 Excel 单元格公式引擎 ---
-                                    st.write("⚙️ 正在生成可追溯的单元格公式...")
-                                    temp_buffer = io.BytesIO()
-                                    working_df.to_excel(temp_buffer, index=False)
-                                    temp_buffer.seek(0)
-                                    
-                                    wb = openpyxl.load_workbook(temp_buffer)
-                                    ws = wb.active
-                                    
-                                    # 获取列索引
-                                    cols = {cell.value: cell.column for cell in ws[1]}
-                                    c24_idx = cols.get(col_2024)
-                                    c25_idx = cols.get(col_2025)
-                                    
-                                    # 1. 激活“输入项”中的 AI 相加公式 (例如：=-123+456)
-                                    for r in range(2, ws.max_row + 1):
-                                        for c_idx in [c24_idx, c25_idx]:
-                                            if c_idx:
-                                                cell = ws.cell(row=r, column=c_idx)
-                                                # 如果格子里是字符串且以 = 开头，openpyxl 会自动将其识别为公式
-                                                if isinstance(cell.value, str) and cell.value.startswith('='):
-                                                    # 无需特殊操作，重新赋值即可触发 openpyxl 的公式识别
-                                                    cell.value = cell.value 
-        
-                                    # 2. 执行原本的针对“计算”类型字段的公式生成逻辑 (例如：A+B 变 A2+B2)
-                                    # 这里是你原本的代码逻辑...
-                                    field_to_row = {str(ws.cell(row=r, column=cols[COL_FIELD_NAME]).value).strip(): r 
-                                                    for r in range(2, ws.max_row + 1) 
-                                                    if ws.cell(row=r, column=cols[COL_FIELD_NAME]).value}
-                                    sorted_fields = sorted(field_to_row.keys(), key=len, reverse=True)
-                                    
-                                    c24_let = get_column_letter(c24_idx) if c24_idx else ""
-                                    c25_let = get_column_letter(c25_idx) if c25_idx else ""
-        
-                                    for r in range(2, ws.max_row + 1):
-                                        ftype = str(ws.cell(row=r, column=cols[COL_FIELD_TYPE]).value).strip()
-                                        rule = str(ws.cell(row=r, column=cols[COL_RULE]).value).strip()
-                                        if ftype == "计算" and rule not in ["nan", "None", ""]:
-                                            f24, f25 = rule, rule
-                                            for f in sorted_fields:
-                                                if f in rule:
-                                                    row_num = field_to_row[f]
-                                                    if c24_let: f24 = f24.replace(f, f"{c24_let}{row_num}")
-                                                    if c25_let: f25 = f25.replace(f, f"{c25_let}{row_num}")
-                                            
-                                            # 写入计算项公式
-                                            try:
-                                                if c24_idx: ws.cell(row=r, column=c24_idx).value = f"={f24}"
-                                                if c25_idx: ws.cell(row=r, column=c25_idx).value = f"={f25}"
-                                            except: pass
-                                      # 遍历所有数据格，设置格式并确保数字类型正确
-                                    for r in range(2, ws.max_row + 1):
-                                        for c_idx in [c24_idx, c25_idx]:
-                                            if c_idx:
-                                                cell = ws.cell(row=r, column=c_idx)
-                                                # 1. 财务格式定义：正数千分位，负数括号，零显示为横杠
-                                                cell.number_format = '#,##0_ ;(#,##0);"-"'
-                                                
-                                                # 2. 数据类型微调：确保数字不是以字符串形式存在
-                                                # 如果单元格不是公式且能转成数字，强制转成 float
-                                                if cell.value and not str(cell.value).startswith('='):
-                                                    try:
-                                                        # 先清洗掉可能存在的干扰字符
-                                                        clean_val = str(cell.value).replace(',','').replace('(','-').replace(')','')
-                                                        cell.value = float(clean_val)
-                                                    except:
-                                                        pass
-        
-                                    # 最后保存到最终的二进制流
-                                    final_buffer = io.BytesIO()
-                                    wb.save(final_buffer)
-        
-                                    final_buffer.seek(0)
-                                    st.session_state['filled_excel'] = final_buffer.getvalue()
-                                    st.session_state['final_df'] = working_df 
-                                    status_box.update(label="🎉 填报与公式生成完毕！", state="complete", expanded=False)
-        
-                                except Exception as e:
-                                    st.error(f"❌ 流程中断: {str(e)}")
-                                    status_box.update(label="处理失败", state="error", expanded=True)
-        
+                                    return float(to_calc_str(s))
+                                except:
+                                    return s
+                            
+                            for idx,row in working_df.iterrows():
+                                fname = str(row.get(COL_FIELD_NAME,"")).strip()
+                            
+                                if fname not in ai_data:
+                                    continue
+                            
+                                item_data = ai_data[fname]
+                            
+                                if isinstance(item_data,dict):
+                                    working_df.at[idx,col_prev] = process_final_val(item_data.get("prev"))
+                                    working_df.at[idx,col_curr] = process_final_val(item_data.get("curr"))
+                                else:
+                                    working_df.at[idx,col_prev] = 0.0
+                                    working_df.at[idx,col_curr] = 0.0
+                            
+                            st.write("⚙️ 正在生成可追溯的单元格公式...")
+                            
+                            temp_buffer = io.BytesIO()
+                            working_df.to_excel(temp_buffer,index=False)
+                            temp_buffer.seek(0)
+                            
+                            wb = openpyxl.load_workbook(temp_buffer)
+                            ws = wb.active
+                            
+                            cols = {cell.value:cell.column for cell in ws[1]}
+                            
+                            prev_idx = cols.get(col_prev)
+                            curr_idx = cols.get(col_curr)
+                            
+                            for r in range(2,ws.max_row+1):
+                                for c_idx in [prev_idx,curr_idx]:
+                                    if not c_idx:
+                                        continue
+                                    cell = ws.cell(r,c_idx)
+                                    if isinstance(cell.value,str) and cell.value.startswith("="):
+                                        cell.value = cell.value
+                            
+                            field_to_row = {
+                                str(ws.cell(r,cols[COL_FIELD_NAME]).value).strip():r
+                                for r in range(2,ws.max_row+1)
+                                if ws.cell(r,cols[COL_FIELD_NAME]).value
+                            }
+                            
+                            sorted_fields = sorted(field_to_row.keys(),key=len,reverse=True)
+                            
+                            prev_letter = get_column_letter(prev_idx) if prev_idx else ""
+                            curr_letter = get_column_letter(curr_idx) if curr_idx else ""
+                            
+                            for r in range(2,ws.max_row+1):
+                            
+                                ftype = str(ws.cell(r,cols[COL_FIELD_TYPE]).value).strip()
+                                rule = str(ws.cell(r,cols[COL_RULE]).value).strip()
+                            
+                                if ftype!="计算" or rule in ["nan","None",""]:
+                                    continue
+                            
+                                prev_formula = rule
+                                curr_formula = rule
+                            
+                                for f in sorted_fields:
+                                    if f in rule:
+                                        row_num = field_to_row[f]
+                            
+                                        if prev_letter:
+                                            prev_formula = prev_formula.replace(f,f"{prev_letter}{row_num}")
+                            
+                                        if curr_letter:
+                                            curr_formula = curr_formula.replace(f,f"{curr_letter}{row_num}")
+                            
+                                try:
+                                    if prev_idx:
+                                        ws.cell(r,prev_idx).value = f"={prev_formula}"
+                            
+                                    if curr_idx:
+                                        ws.cell(r,curr_idx).value = f"={curr_formula}"
+                                except:
+                                    pass
+                            
+                            for r in range(2,ws.max_row+1):
+                                for c_idx in [prev_idx,curr_idx]:
+                            
+                                    if not c_idx:
+                                        continue
+                            
+                                    cell = ws.cell(r,c_idx)
+                                    cell.number_format = '#,##0_ ;(#,##0);"-"'
+                            
+                                    if cell.value and not str(cell.value).startswith("="):
+                                        try:
+                                            clean_val = str(cell.value).replace(',','').replace('(','-').replace(')','')
+                                            cell.value = float(clean_val)
+                                        except:
+                                            pass
+                            
+                            final_buffer = io.BytesIO()
+                            wb.save(final_buffer)
+                            final_buffer.seek(0)
+                            
+                            st.session_state['filled_excel'] = final_buffer.getvalue()
+                            st.session_state['final_df'] = working_df
+                            st.session_state['col_prev'] = col_prev
+                            st.session_state['col_curr'] = col_curr
+
+                        except Exception as e:
+                            st.error(f"❌ 流程中断: {str(e)}")
+                            status_box.update(label="处理失败", state="error", expanded=True)
+
             if 'filled_excel' in st.session_state:
                 st.markdown("---")
                 st.markdown("#### 📋 智能填报结果预览")
@@ -4910,12 +5025,27 @@ else:
                 # 使用弹窗容纳下载按钮，保持界面 CSS 高度一致
                 with st.popover("校验表获取", use_container_width=True):
                     st.caption("将人工校验两列复制到需要校对的表格对应位置")
+                    
+                    # 🌟 修复：改为从 Github 链接动态获取文件
+                    import requests
+                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/%E6%96%B0%E5%8D%8E%E6%A0%B7%E4%BE%8B%E8%A1%A8.xlsx"
+                    
                     try:
-                        # 🎈 去掉了 assets/，直接读取当前目录的文件
-                        with open("新华样例.xlsx", "rb") as f:
-                            st.download_button("⬇️ 下载样例文件", f, file_name="新华人工校验样例.xlsx", use_container_width=True)
-                    except FileNotFoundError:
-                        st.error("找不到文件，请确认新华样例.xlsx和app.py在一起")
+                        # 添加一个 spinner 防止网络慢的时候用户以为卡死了
+                        with st.spinner("获取中..."):
+                            response = requests.get(url, timeout=10)
+                            response.raise_for_status()  # 检查请求是否成功
+                            
+                        # 把网络请求拿到的二进制内容直接塞给下载按钮
+                        st.download_button(
+                            label="⬇️ 下载样例文件", 
+                            data=response.content, 
+                            file_name="新华人工校验样例.xlsx", 
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error("网络请求失败，请检查网络或 GitHub 链接是否有效！")
             
             with col_btn_refresh:
                 if st.button("🔄 刷新", use_container_width=True):
@@ -4931,7 +5061,7 @@ else:
                 精算数据人工核对指南
                 
                 1. 模板准备： 请将新华样例中的“人工校验”两列手动复制到当前需要核对的表格中。
-                2. 年度对齐： 重点检查 2024 年和 2025 年的数据是否有填反现象。
+                2. 年度对齐： 重点检查 最新年 和 上一年 的数据是否有填反现象。
                 3. PAA 计算： 采用保费分配法保险业绩 = 保费分配法下的服务收入 - 服务费用。
                 4. 符号修正： 部分公司利润表营业支出披露为正，需人工对每一项添加负号（原本负号变正）。
                 5. 费用拆解： 业务及管理费中，职工薪酬等项有时需人工尝试加总核对，维持费用、获取费用应为正数，保证进出项总和相等。
@@ -4954,7 +5084,7 @@ else:
                 </p>
                 <p style="margin-bottom: 8px;">
                     <strong style="color: #d32f2f;">2. 年度对齐：</strong> 
-                    检查 <span style="background-color: #fff3cd; padding: 1px 3px;">2024</span> 和 <span style="background-color: #fff3cd; padding: 1px 3px;">2025</span> 数据是否有填反。
+                    检查 <span style="background-color: #fff3cd; padding: 1px 3px;">去年</span> 和 <span style="background-color: #fff3cd; padding: 1px 3px;">最新年</span> 数据是否有填反。
                 </p>
                 <p style="margin-bottom: 8px;">
                     <strong style="color: #d32f2f;">3. PAA 计算：</strong> 
@@ -5029,18 +5159,27 @@ else:
                 df = st.session_state['final_df'].copy()
                 
                 with st.expander("🛠️ 勾稽规则配置 (点击展开/修改公式)"):
-                    st.info("可以在此处修改勾稽公式。'curr' 代表当前年度数据，'y24/y25' 代表特定年度。")
+                    st.info("curr代表当前年度数据；prev_year代表上一年度；curr_year代表当前年度。")
                     rules_df = st.data_editor(pd.DataFrame(DEFAULT_RULES), num_rows="dynamic", key="rules_editor_v3")
         
-                target_24 = str(st.session_state.get('col_2024', '2024'))
-                target_25 = str(st.session_state.get('col_2025', '2025'))
-                
-                col_24_name = next((col for col in df.columns if target_24 in str(col)), None)
-                col_25_name = next((col for col in df.columns if target_25 in str(col)), None)
-                
-                if not col_24_name or not col_25_name:
-                    st.error(f"❌ 表格中找不到包含 '{target_24}' 和 '{target_25}' 的列。当前列名: {list(df.columns)}")
-                    st.stop()
+                    target_prev = str(st.session_state.get('col_prev'))
+                    target_curr = str(st.session_state.get('col_curr'))
+                    
+                    col_prev_name = next(
+                        (col for col in df.columns if str(target_prev) in str(col)),
+                        None
+                    )
+                    
+                    col_curr_name = next(
+                        (col for col in df.columns if str(target_curr) in str(col)),
+                        None
+                    )
+                    
+                    if not col_prev_name or not col_curr_name:
+                        st.error(
+                            f"❌ 表格中找不到包含 '{target_prev}' 和 '{target_curr}' 的列。"
+                        )
+                        st.stop()
         
                 def parse_finance_num(val):
                     if pd.isnull(val): return 0.0
@@ -5071,42 +5210,67 @@ else:
                         raise KeyError(k) # 如果连清洗后都找不到，才报错原名
                 # ————————————————————————————————
         
-                # 3. 提取数据，并使用 SmartDict 包装！
-                base_y24 = {str(k).strip(): parse_finance_num(v) for k, v in zip(df['字段名'], df[col_24_name])}
-                base_y25 = {str(k).strip(): parse_finance_num(v) for k, v in zip(df['字段名'], df[col_25_name])}
+                # 3. 提取数据，并使用 SmartDict 包装
+                base_prev = {
+                    str(k).strip(): parse_finance_num(v)
+                    for k, v in zip(df['字段名'], df[col_prev_name])
+                }
                 
-                y24_map = SmartDict(base_y24)
-                y25_map = SmartDict(base_y25)
+                base_curr = {
+                    str(k).strip(): parse_finance_num(v)
+                    for k, v in zip(df['字段名'], df[col_curr_name])
+                }
+                
+                prev_year_map = SmartDict(base_prev)
+                curr_year_map = SmartDict(base_curr)
                 
                 check_results = []
-        
+                
                 # 4. 执行校验与智能诊断
                 for _, rule in rules_df.iterrows():
-                    rule_name = rule['规则名称']
-                    formula = rule['公式']
-                    rule_type = rule.get('类型', 'single')
-        
-                    targets = [("2024-2025", None)] if rule_type == "cross" else [("2024", y24_map), ("2025", y25_map)]
-        
+                    rule_name = str(rule.get('规则名称', ''))
+                    formula = str(rule.get('公式', ''))
+                    rule_type = str(rule.get('类型', 'single')).strip().lower()
+                
+                    targets = (
+                        [(f"{target_prev}-{target_curr}", None)]
+                        if rule_type == "cross"
+                        else [
+                            (target_prev, prev_year_map),
+                            (target_curr, curr_year_map)
+                        ]
+                    )
+                
                     for year_label, curr_map in targets:
-                        ctx = {'curr': curr_map, 'y24': y24_map, 'y25': y25_map, 'abs': abs}
+                
+                        ctx = {
+                            'curr': curr_map,
+                            'prev': prev_year_map,
+                            'prev_year': prev_year_map,
+                            'curr_year': curr_year_map,
+                            'abs': abs,
+                            'min': min,
+                            'max': max,
+                            'round': round
+                        }
+                
                         try:
-                            is_pass = eval(formula, {"__builtins__": None}, ctx)
+                            is_pass = bool(eval(formula, {"__builtins__": None}, ctx))
                             status = "✅ PASS" if is_pass else "❌ FALSE"
                             detail = "勾稽无误" if is_pass else "差额超过允许阈值"
+                
                         except KeyError as e:
                             status = "⚠️ ERROR"
-                            detail = f"缺失字段: 找不到 {str(e)}"
-                            is_pass = False
+                            detail = f"缺失字段: {str(e)}"
+                
                         except Exception as e:
                             status = "⚠️ ERROR"
-                            detail = "公式语法错误"
-                            is_pass = False
-        
+                            detail = f"公式错误: {str(e)}"
+                
                         check_results.append({
-                            "年度": year_label, 
-                            "规则名称": rule_name, 
-                            "检查结果": status, 
+                            "年度": year_label,
+                            "规则名称": rule_name,
+                            "检查结果": status,
                             "诊断详情": detail
                         })
         
@@ -5211,7 +5375,7 @@ else:
                     df_single, comp_name = item["df"], item["comp"]
                     rate, unit_mult = rate_cfg[comp_name], unit_cfg[comp_name]
         
-                    # ✅ 动态识别年份列（不写死2024/2025）
+                 
                     year_cols = {}
                     for c in df_single.columns:
                         import re
