@@ -99,8 +99,8 @@ def show_step_7_content():
     @media print {
         .print-only { display: block !important; }
         html,body{
-            width:297mm!important;
-            height:210mm!important;
+            width:338.67mm!important;
+            height:190.5mm!important;
             overflow:hidden!important;
             zoom:100%!important;
         }
@@ -723,9 +723,11 @@ def show_step_7_content():
                         const style = doc.createElement('style');
                         style.id = 'dynamic-print-style';
                         if (mode === 'widescreen') {
-                            style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; } @page :first { margin: 0mm !important; } @page :last { margin: 0mm !important; }';
+                            style.innerHTML =
+                            '@page { size: landscape; margin: 5mm; }';
                         } else {
-                            style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; } @page :first { margin: 0mm !important; } @page :last { margin: 0mm !important; }';
+                            style.innerHTML =
+                            '@page { size: A4 portrait; margin: 10mm; }';
                         }
                         doc.head.appendChild(style);
                         setTimeout(() => window.parent.print(), 150);
@@ -877,7 +879,7 @@ def show_step_7_content():
             h=H.get(m_id,380)
             fig.update_layout(
                 autosize=False,
-                width=1300,
+                width=1500,
                 height=h,
                 margin=dict(t=35,b=15,l=15,r=15)
             )
@@ -3660,7 +3662,7 @@ def show_step_7_content():
     # ==========================================
     if not print_mode:
         st.markdown(
-            "<hr class='no-print' style='border:none;border-top:1px solid #EAEAEA;margin:20px 0;'>",
+            "<hr class='no-print' style='border:none;border-top:1px solid #EAEAEA;margin:10px 0;'>",
             unsafe_allow_html=True
         )
     if print_mode:
