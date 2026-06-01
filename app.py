@@ -56,7 +56,7 @@ def show_step_7_content():
     st.markdown("""
     <style>
     [data-testid="stSidebar"] { background: rgba(255,255,255,0.95) !important; border-right: 1px solid #EAEAEA !important; box-shadow: 2px 0px 15px rgba(0,0,0,0.08) !important; }
-    .nav-floating-sign { position: fixed; left: 0; top: 50%; transform: translateY(-50%); background: rgba(0, 51, 141, 0.85); color: white; padding: 20px 8px; border-radius: 0 12px 12px 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 15px; font-weight: bold; letter-spacing: 3px; z-index: 9999; cursor: pointer; box-shadow: 3px 3px 12px rgba(0,0,0,0.25); transition: all 0.2s; }
+    .nav-floating-sign { position: fixed; left: 0; top: 50%; transform: translateY(-50%); background: rgba(0, 51, 141, 0.85); color: white; padding: 20px 8px; border-radius: 0 12px 12px 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 22px; font-weight: bold; letter-spacing: 3px; z-index: 9999; cursor: pointer; box-shadow: 3px 3px 12px rgba(0,0,0,0.25); transition: all 0.2s; }
     .nav-floating-sign:hover { background: rgba(0, 51, 141, 1); padding-left: 15px; }
    
     /* 放在 @media print { } 块的外面 */
@@ -65,6 +65,37 @@ def show_step_7_content():
         min-width: 0 !important;
     }
     .print-only { display: none !important; }
+    /* 🌟 新增：专门给封面封底用的样式类 */
+    .cover-page {
+        position: relative !important;
+        width: 338.67mm !important;
+        height: 190.5mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        page-break-after: always !important;
+        overflow: hidden !important;
+        background: transparent !important;
+    }
+    .cover-page img { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block !important; }
+    /* Streamlit网页模式去掉container两侧padding */
+    .block-container {
+        padding-top:0 !important;
+        padding-right:10px !important;
+        padding-left:10px !important;
+        margin-top:0 !important;
+    }
+    /* 封面封底强制颜色不被浏览器覆盖 */
+    .cover-text {
+        forced-color-adjust: none !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color: white !important;
+        -webkit-text-fill-color: white !important;
+    }
+    .element-container:first-child{
+        margin-top:0 !important;
+        padding-top:0 !important;
+    }
     @media print {
         .print-only { display: block !important; }
         html,body{
@@ -142,7 +173,7 @@ def show_step_7_content():
             display: block !important;
             text-align: left !important;
             color: #00338D !important;
-            font-size: 18px !important;
+            font-size: 30px !important;
             font-weight: bold !important;
             border-bottom: 2px solid #00338D !important;
             padding-bottom: 6px !important;
@@ -152,7 +183,7 @@ def show_step_7_content():
             display: block !important;
             text-align: left !important;
             color: #00338D !important;
-            font-size: 16px !important;
+            font-size: 30px !important;
             font-weight: bold !important;
             margin: 10px 0 8px 0 !important;
             page-break-after: avoid !important;
@@ -661,44 +692,46 @@ def show_step_7_content():
 
             if main_nav == "🖨️ 一键显示全部 (打印/导出)":
                 print_mode = True
-                st.info('竖版适合文字多的页面，横版适合宽图表。勾选"背景图形"以保留颜色。')
-                components.html("""
-                <div style="display:flex; flex-direction:column; gap:8px;">
-                    <button onclick="printAs('portrait')" style="width:100%; padding:11px; background:#00338D; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
-                        🖨️ 导出竖版 A4 PDF
-                    </button>
-                    <button onclick="printAs('widescreen')" style="width:100%; padding:11px; background:#008578; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
-                        🖨️ 导出横版 16:9 PDF
-                    </button>
-                </div>
-                <script>
-                // 页面加载时就注入默认横版 16:9，不等用户点
-                (function() {
-                    const doc = window.parent.document;
-                    const old = doc.getElementById('dynamic-print-style');
-                    if (old) old.remove();
-                    const style = doc.createElement('style');
-                    style.id = 'dynamic-print-style';
-                    style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; }';
-                    doc.head.appendChild(style);
-                })();
-                
-                function printAs(mode) {
-                    const doc = window.parent.document;
-                    const old = doc.getElementById('dynamic-print-style');
-                    if (old) old.remove();
-                    const style = doc.createElement('style');
-                    style.id = 'dynamic-print-style';
-                    if (mode === 'widescreen') {
-                        style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; }';
-                    } else {
-                        style.innerHTML = '@page { size: A4 portrait; margin: 10mm 12mm; }';
+                if not st.session_state.get("pdf_export_mode", False):
+                    st.info('竖版适合文字多的页面，横版适合宽图表。勾选"背景图形"以保留颜色。')
+                    components.html("""
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <button onclick="printAs('portrait')" style="width:100%; padding:11px; background:#00338D; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
+                            🖨️ 导出竖版 A4 PDF
+                        </button>
+                        <button onclick="printAs('widescreen')" style="width:100%; padding:11px; background:#008578; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:13px;">
+                            🖨️ 导出横版 16:9 PDF
+                        </button>
+                    </div>
+                    <script>
+                    // 页面加载时就注入默认横版 16:9，不等用户点
+                    (function() {
+                        const doc = window.parent.document;
+                        const old = doc.getElementById('dynamic-print-style');
+                        if (old) old.remove();
+                        const style = doc.createElement('style');
+                        style.id = 'dynamic-print-style';
+                        // 把 widescreen 那个改成
+                        style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; } @page :first { margin: 0mm; } @page :last { margin: 0mm; }';
+                        doc.head.appendChild(style);
+                    })();
+                    
+                    function printAs(mode) {
+                        const doc = window.parent.document;
+                        const old = doc.getElementById('dynamic-print-style');
+                        if (old) old.remove();
+                        const style = doc.createElement('style');
+                        style.id = 'dynamic-print-style';
+                        if (mode === 'widescreen') {
+                            style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; } @page :first { margin: 0mm !important; } @page :last { margin: 0mm !important; }';
+                        } else {
+                            style.innerHTML = '@page { size: 338.67mm 190.5mm; margin: 8mm 12mm; } @page :first { margin: 0mm !important; } @page :last { margin: 0mm !important; }';
+                        }
+                        doc.head.appendChild(style);
+                        setTimeout(() => window.parent.print(), 150);
                     }
-                    doc.head.appendChild(style);
-                    setTimeout(() => window.parent.print(), 150);
-                }
-                </script>
-                """, height=100)         
+                    </script>
+                    """, height=100)         
             else:
                 df_sub1 = df_n[df_n['一级分类'] == main_nav]
                 
@@ -824,9 +857,9 @@ def show_step_7_content():
         if an_default or an_custom or ai_txt:
             html = '<div style="text-align:left; background:#F0F4FA; border-left:4px solid #00338D; padding:3px 10px; margin-bottom:6px; border-radius:4px; font-family:Microsoft YaHei, 微软雅黑, sans-serif;">'
             if an_default:
-                html += f'<p style="margin:2px 0; color:#0A1F5C; font-size:13px; line-height:1.4;">{an_default}</p>'
+                html += f'<p style="margin:2px 0; color:#0A1F5C; font-size:14px; line-height:1.4;">{an_default}</p>'
             if an_custom:
-                html += f'<p style="margin:2px 0; color:#7A9CC5; font-size:13px; line-height:1.4;">{an_custom}</p>'
+                html += f'<p style="margin:2px 0; color:#7A9CC5; font-size:14px; line-height:1.4;">{an_custom}</p>'
             if ai_txt:
                 html += f'<p style="margin:2px 0; color:#D84315; font-size:12px; line-height:1.4;">{ai_txt}</p>'
             st.markdown(html + "</div>", unsafe_allow_html=True)
@@ -2139,7 +2172,7 @@ def show_step_7_content():
             idx = [str(c).strip() for c in selected_cos].index(hl_co)
             fig.add_shape(type="rect", xref="x", yref="paper", x0=idx-0.46, x1=idx+0.46, y0=-0.12, y1=1.05, fillcolor=HL_BOX_FILL  , line=dict(color=HL_BOX_LINE, width=1.5), layer="above")
 
-        fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.1, xanchor="right", x=1.0))
+        fig.update_layout(barmode='group', bargroupgap=0, bargap=g_gap, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=40, b=60, l=40, r=40), height=500, legend=dict(orientation="v", yanchor="top", y=1.15, xanchor="right", x=1.0))
         
         # 🌟 修复 Y 轴范围保护，同时适应正数和负数的扩展
         r_top = y_max + (y_max - y_min) * 0.18
@@ -2167,19 +2200,18 @@ def show_step_7_content():
             if c not in df_pivot.columns: 
                 df_pivot[c] = np.nan
                 
-        # 🌟 终极修复：使用 np.where。如果分母是 0，直接让结果等于 0；否则正常相除。
-        # 这样既不会报错，0/0 也会变成 0%，而空值(NaN)相除依然是 NaN（触发未披露）
+# 🌟 终极修复：使用 np.where。只要分母是 0，直接让结果等于 np.nan（空值，触发未披露）
         num1 = df_pivot['新业务CSM（集团口径）'].astype(float)
         den1 = df_pivot['新业务未来现金流入现值（盈利）'].astype(float)
-        df_pivot['新业务CSM利润率'] = np.where(den1 == 0, 0.0, num1 / den1)
+        df_pivot['新业务CSM利润率'] = np.where(den1 == 0, np.nan, num1 / den1) # 👈 0.0 改成 np.nan
         
         num2 = df_pivot['新业务亏损合同（LC）——非PAA'].astype(float)
         den2 = df_pivot['新业务未来现金流入现值（亏损）'].astype(float)
-        df_pivot['新业务LC亏损率'] = np.where(den2 == 0, 0.0, num2 / den2)
+        df_pivot['新业务LC亏损率'] = np.where(den2 == 0, np.nan, num2 / den2) # 👈 0.0 改成 np.nan
         
         num3 = df_pivot['新业务RA'].astype(float)
         den3 = df_pivot['新业务未来现金流入现值'].astype(float)
-        df_pivot['新业务RA率'] = np.where(den3 == 0, 0.0, num3 / den3)
+        df_pivot['新业务RA率'] = np.where(den3 == 0, np.nan, num3 / den3) # 👈 0.0 改成 np.nan
         
         # 兜底：防止任何意外产生的无穷大 (inf) 破坏图表
         df_pivot.replace([np.inf, -np.inf], 0.0, inplace=True)
@@ -2237,7 +2269,7 @@ def show_step_7_content():
                 dyn_a, dyn_y = ("bottom", 2) if abs(avg - l_m) >= (y_r * 0.15) else (("bottom", 15) if avg >= l_m else ("top", -15))
                 fig.add_annotation(x=0.98, xref="paper", y=avg, yref="y", xanchor="right", yanchor=dyn_a, yshift=dyn_y, text=f"{str(latest_year)[-2:]}年平均 {avg*100:.1f}%", showarrow=False, bgcolor="rgba(255,255,255,0.85)", bordercolor=c_lat, borderwidth=1, borderpad=2, font=dict(color=c_lat, size=max(lab_sz-3, 8)))
 
-            fig.update_layout(title=dict(text=f"<b>{m}</b>", x=0.5, xanchor='center', y=0.98 if is_print_mode else 0.95, font=dict(size=11, color="#00338D", family="Microsoft YaHei")), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", barmode='group', bargroupgap=0, bargap=max(0, 1.0 - bar_width), margin=dict(t=30 if is_print_mode else 50, b=0 if is_print_mode else mb, l=20, r=40),height=210 if is_print_mode else 360, yaxis=dict(tickformat=".0%", showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02), legend=dict(orientation="h", yanchor=leg_a, y=leg_y-0.5, xanchor="right", x=1,font=dict(size=11) ))
+            fig.update_layout(title=dict(text=f"<b>{m}</b>", x=0.5, xanchor='center', y=0.98 if is_print_mode else 0.95, font=dict(size=11, color="#00338D", family="Microsoft YaHei")), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", barmode='group', bargroupgap=0, bargap=max(0, 1.0 - bar_width), margin=dict(t=30 if is_print_mode else 50, b=0 if is_print_mode else mb, l=20, r=40),height=210 if is_print_mode else 360, yaxis=dict(tickformat=".0%", showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1.02), legend=dict(orientation="h", yanchor=leg_a, y=leg_y-0.15, xanchor="right", x=1,font=dict(size=11) ))
             fig.update_xaxes(showgrid=False, zeroline=False, ticktext=[f"<span style='font-size:{co_sz}px; color:#00338D;'><b>{c}</b></span>" for c in selected_cos], tickvals=x_idx, ticks="", ticklen=0)
             figs.append(fig)
 
@@ -2246,8 +2278,7 @@ def show_step_7_content():
     # --- 25.新业务利润率指标趋势 ---   
     def create_nb_margin_trend_chart(df, cos, title, color_map, show_labels, marker_size, legend_font_size, highlight_co="无"):
         years = sorted(df['报告年份'].unique())
-        x_categories = [f"{y}YE" for y in years] 
-        
+        x_categories = [f"{y}YE" for y in years]        
         plot_data = []
         for co in cos:
             for y in years:
@@ -3550,16 +3581,20 @@ def show_step_7_content():
     
         if print_mode:
             st.markdown("<div class='page-break-container' style='margin:0;padding:0;'>", unsafe_allow_html=True)
-        st.markdown("<div class='no-print' style='height:2px; background:linear-gradient(to right, transparent, #D0D9EE 20%, #D0D9EE 80%, transparent); margin:30px 0 0 0;'></div>", unsafe_allow_html=True)
-    
+        if not print_mode:
+            st.markdown(
+                "<div class='no-print' style='height:2px; background:linear-gradient(...)'></div>",
+                unsafe_allow_html=True
+            )    
         # ====== 第 1 步：标题 ======（移出else，打印和网页都执行）
         title_cls = "page-break-title" if (print_mode and not is_first) else ""
-        mt = "-200px" if (print_mode and is_first) else "20px"
+        mt = "0px" if (print_mode and is_first) else "20px"
+        font_size = "35px" if print_mode else "30px"
         st.markdown(
             f"<h3 class='{title_cls}' style='"
-            f"text-align:left; color:#00338D; font-size:42px; font-weight:900; "
+            f"text-align:left; color:#00338D; font-size:{font_size}; font-weight:900; "
             f"font-family:Microsoft YaHei, 微软雅黑, sans-serif; "
-            f"margin-top:{mt}; margin-bottom:15px; border:none; padding-bottom:0px;'>"
+            f"margin-top:{mt}; margin-bottom:20px; border:none; padding-bottom:0px;'>"
             f"{full_title}</h3>",
             unsafe_allow_html=True
         )
@@ -3623,16 +3658,61 @@ def show_step_7_content():
     # ==========================================
     # 🌐 网页模式 / 🖨️ 打印模式 的最终执行器
     # ==========================================
-    st.markdown("<hr class='no-print' style='border:none; border-top:1px solid #EAEAEA; margin:10px 0;'>", unsafe_allow_html=True)
+    if not print_mode:
+        st.markdown(
+            "<hr class='no-print' style='border:none;border-top:1px solid #EAEAEA;margin:10px 0;'>",
+            unsafe_allow_html=True
+        )
     if print_mode:
-        # 如果点了一键打印按钮，直接遍历所有的 Excel 配置表行顺序，暴力冲锋！
         if 'ordered_modules' not in locals() or not ordered_modules:
-            st.warning("⚠️ 报告顺序未加载，请先在上方加载配置文件。")
+            st.warning("⚠️ 报告顺序由【模块ID】的先后顺序决定，请先在上方传入有模块ID的注释表文件。")
         else:
-            # 👇 变化在这里：用 enumerate 加上序号 i
+            import datetime
+            today = datetime.date.today()
+            date_str = f"{today.year}年{today.month}月"
+            type_str = f"（{selected_type}系）" if selected_type and selected_type != "全部" else ""
+            
+            cover_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E6%A0%87%E9%A2%98%E9%A1%B5.png"
+            back_url  = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E5%B0%81%E5%BA%95%E9%A1%B5.png"
+            
+            # ✅ 封面：用st.image撑满，components.html叠加绝对定位文字
+            st.markdown(f"""
+            <div style="position:relative; width:100%; aspect-ratio:16/9;
+                page-break-after:always; overflow:hidden; margin:0; padding:0;
+                -webkit-print-color-adjust:exact; print-color-adjust:exact; forced-color-adjust:none;">
+                <img src="{cover_url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
+                <div style="position:absolute; top:0; left:0; width:100%; height:100%;
+                    display:flex; flex-direction:column; justify-content:center; align-items:flex-start;
+                    padding:0 8%; box-sizing:border-box; margin-top:-30px; z-index:10;
+                    forced-color-adjust:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+                    <div style="font-size:52px; font-weight:900; line-height:1.4; margin-bottom:16px;
+                        font-family:Microsoft YaHei,微软雅黑,sans-serif;
+                        color:white; -webkit-text-fill-color:white;
+                        text-shadow:2px 2px 4px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.3);
+                        forced-color-adjust:none; -webkit-print-color-adjust:exact;">
+                        保险公司{latest_year}年{type_str}<br>新会计准则业绩表现和洞察
+                    </div>
+                    <div style="font-size:22px; font-weight:500; margin:0;
+                        font-family:Microsoft YaHei,微软雅黑,sans-serif;
+                        color:white; -webkit-text-fill-color:white;
+                        text-shadow:1px 1px 3px rgba(0,0,0,0.5);
+                        forced-color-adjust:none; -webkit-print-color-adjust:exact;">{date_str}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            
+            # ✅ 图表
             for i, mod in enumerate(ordered_modules):
-                # 👇 变化在这里：告诉函数，如果 i == 0，说明它是第一个！
                 render_report_module(mod, print_mode=True, is_first=(i == 0))
+            
+            st.markdown(f"""
+            <div style="position:relative; width:100%; aspect-ratio:16/9;
+                page-break-before:always; overflow:hidden; margin:0; padding:0;
+                -webkit-print-color-adjust:exact; print-color-adjust:exact; forced-color-adjust:none;">
+                <img src="{back_url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         # 如果是网页查看模式，只渲染侧边栏选中的那一个图表！
         if active_m_id:
