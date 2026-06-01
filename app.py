@@ -3660,7 +3660,7 @@ def show_step_7_content():
     # ==========================================
     if not print_mode:
         st.markdown(
-            "<hr class='no-print' style='border:none;border-top:1px solid #EAEAEA;margin:10px 0;'>",
+            "<hr class='no-print' style='border:none;border-top:1px solid #EAEAEA;margin:20px 0;'>",
             unsafe_allow_html=True
         )
     if print_mode:
