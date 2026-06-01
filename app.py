@@ -877,7 +877,7 @@ def show_step_7_content():
             h=H.get(m_id,380)
             fig.update_layout(
                 autosize=False,
-                width=1500,
+                width=1300,
                 height=h,
                 margin=dict(t=35,b=15,l=15,r=15)
             )
