@@ -3506,6 +3506,7 @@ def show_step_7_content():
             html_py = create_nbv_summary_table(df_filtered, selected_cos, divisor, unit_label, py_int, ppy_int, current_hl)
             if html_py: st.markdown(html_py, unsafe_allow_html=True)
 
+
         elif m_id == "six_dimensional_charts":
             figs = create_six_dimensional_charts(
                 df_raw=df_filtered, target_year=latest_year, cos=selected_cos,
@@ -3513,54 +3514,48 @@ def show_step_7_content():
                 label_size=11, show_labels=False, dot_size=11
             )
             valid_figs = [f for f in figs if f is not None]
-        
-            if valid_figs:
-                legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
-                st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False}, key=f"main_legend_{m_id}_{print_mode}")
-        
-                from plotly.subplots import make_subplots
-                pairs = [(valid_figs[i], valid_figs[i+1] if i+1 < len(valid_figs) else None)
-                         for i in range(0, len(valid_figs), 2)]
-        
-                for pair_idx, (left_fig, right_fig) in enumerate(pairs):
-                    # ✅ 只在第二对（pair_idx==1）前加续标题，后面不再重复
-                    if print_mode and pair_idx == 1:
-                        render_continue_title(m_id)
-                        st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False}, key=f"main_legend_{m_id}_{print_mode}")
-                    if right_fig is None:
-                        left_fig.update_layout(
-                            height=260 if print_mode else 300,  # ✅ 同步缩小
-                            margin=dict(t=60, b=10, l=20, r=15),
-                            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                        st.plotly_chart(left_fig, use_container_width=False, config={"displayModeBar": False})
-                        continue
-                
-                    combined = make_subplots(rows=1, cols=2, horizontal_spacing=0.08,
-                        subplot_titles=[
-                            left_fig.layout.title.text if left_fig.layout.title.text else "",
-                            right_fig.layout.title.text if right_fig.layout.title.text else ""
-                        ])
-                    for trace in left_fig.data:
-                        trace.showlegend = False
-                        combined.add_trace(trace, row=1, col=1)
-                    for trace in right_fig.data:
-                        trace.showlegend = False
-                        combined.add_trace(trace, row=1, col=2)
-                    combined.update_xaxes(left_fig.layout.xaxis.to_plotly_json(), row=1, col=1)
-                    combined.update_xaxes(right_fig.layout.xaxis.to_plotly_json(), row=1, col=2)
-                    combined.update_yaxes(left_fig.layout.yaxis.to_plotly_json(), row=1, col=1)
-                    combined.update_yaxes(right_fig.layout.yaxis.to_plotly_json(), row=1, col=2)
-                    combined.update_layout(
-                        height=260 if print_mode else 320,  # ✅ 同步缩小
-                        margin=dict(t=60, b=30, l=20, r=15),
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                        showlegend=False
-                    )
-                    st.plotly_chart(combined, use_container_width=True, config={"displayModeBar": False})
-            else:
+            if not valid_figs:
                 st.info("暂无可用于绘制六维图的数据。")
-
-
+                return
+                
+            # ⭐ 统一生成图例
+            legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
+            
+            # 🌟 修复核心 1：无论是网页模式还是打印模式，最顶端都【无条件】渲染一次主图例！
+            # (去掉了 if not print_mode，保证第一页绝不缺图例)
+            st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False}, key=f"legend_main_{m_id}_{print_mode}")
+            
+            from plotly.subplots import make_subplots
+            pairs = [(valid_figs[i], valid_figs[i+1] if i+1 < len(valid_figs) else None)
+                     for i in range(0, len(valid_figs), 2)]
+                     
+            for pair_idx, (left_fig, right_fig) in enumerate(pairs):
+                # 🌟 修复核心 2：仅在打印模式的跨页处（第二对图前），伴随续标题再补打一次图例
+                if print_mode and pair_idx == 1:
+                    render_continue_title(m_id)
+                    st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False}, key=f"legend_copy_{m_id}_{pair_idx}")
+                
+                # === 下面画图的逻辑保持原样 ===
+                if right_fig is None:
+                    left_fig.update_layout(height=260 if print_mode else 300,
+                        margin=dict(t=60, b=10, l=20, r=15),
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(left_fig, use_container_width=False, config={"displayModeBar": False}, key=f"chart_{m_id}_left_{pair_idx}")
+                    continue
+                    
+                combined = make_subplots(rows=1, cols=2, horizontal_spacing=0.08,
+                    subplot_titles=[left_fig.layout.title.text, right_fig.layout.title.text])
+                for trace in left_fig.data: trace.showlegend = False; combined.add_trace(trace, row=1, col=1)
+                for trace in right_fig.data: trace.showlegend = False; combined.add_trace(trace, row=1, col=2)
+                combined.update_xaxes(left_fig.layout.xaxis.to_plotly_json(), row=1, col=1)
+                combined.update_xaxes(right_fig.layout.xaxis.to_plotly_json(), row=1, col=2)
+                combined.update_yaxes(left_fig.layout.yaxis.to_plotly_json(), row=1, col=1)
+                combined.update_yaxes(right_fig.layout.yaxis.to_plotly_json(), row=1, col=2)
+                combined.update_layout(height=260 if print_mode else 320,
+                    margin=dict(t=60, b=30, l=20, r=15),
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    showlegend=False)
+                st.plotly_chart(combined, use_container_width=True, config={"displayModeBar": False}, key=f"chart_combined_{m_id}_{pair_idx}")
     # ==========================================
     # 🌟 统一调用出口：根据 m_id 自动组装全部零配件
     # ==========================================
