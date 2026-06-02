@@ -3516,7 +3516,7 @@ def show_step_7_content():
         
             if valid_figs:
                 legend_fig = create_six_dimensional_legend(cos=selected_cos, highlight_co=current_hl)
-                st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False}, key=f"main_legend_{m_id}_{print_mode}")
         
                 from plotly.subplots import make_subplots
                 pairs = [(valid_figs[i], valid_figs[i+1] if i+1 < len(valid_figs) else None)
@@ -3526,7 +3526,7 @@ def show_step_7_content():
                     # ✅ 只在第二对（pair_idx==1）前加续标题，后面不再重复
                     if print_mode and pair_idx == 1:
                         render_continue_title(m_id)
-                        st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False})
+                        st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False}, key=f"main_legend_{m_id}_{print_mode}")
                     if right_fig is None:
                         left_fig.update_layout(
                             height=260 if print_mode else 300,  # ✅ 同步缩小
