@@ -586,7 +586,7 @@ def show_step_7_content():
                     from io import BytesIO
                     import openpyxl
         
-                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E5%8F%AA%E5%90%AB%E9%BB%98%E8%AE%A4.xlsx"
+                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_0601.xlsx"
                     r = requests.get(url, timeout=15)
         
                     if r.status_code == 200:
@@ -641,7 +641,7 @@ def show_step_7_content():
         df_notes = None
         if use_default:
             try:
-                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF%E5%8F%AA%E5%90%AB%E9%BB%98%E8%AE%A4.xlsx")
+                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_0601.xlsx")
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
                 st.error(f"❌ 加载失败：{e}")
@@ -924,7 +924,7 @@ def show_step_7_content():
             # 🌟 核心修改：c8 加入 PAA期末余额合计 的加总
             c8.append(calc(liab_cy + paa_cy, liab_py + paa_py, True))
     
-        headers = ["公司名称", f"净资产<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"净利润<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"{cy}年12月31日<br>%CSM增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"%NB CSM<br>增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)", f"CSM持续率<br>(新业务CSM/<br>CSM摊销)", f"保险服务收入<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"保险合同净负债余额<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1"]
+        headers = ["公司名称", f"净资产<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"净利润<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"<br>%CSM增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"%NB CSM<br>增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)", f"CSM持续率<br>(新业务CSM/<br>CSM摊销)", f"保险服务收入<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"保险合同净负债余额<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1"]
         current_hl = str(highlight_co).strip()
         
         html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 15px;'>"
@@ -1773,7 +1773,7 @@ def show_step_7_content():
                 v = vs.iloc[0] if not vs.empty else 0
                 
                 # 🌟 核心拦截：缺失或为 0 则变灰写“未披露”
-                if pd.isna(v) or v == 0:
+                if pd.isna(v):
                     html += "<td style='padding:4px; border:1px solid #EAEAEA; background-color:#CDCDCD; color:white;'>未披露</td>"
                 else:
                     v_div = v / divisor
@@ -2692,8 +2692,9 @@ def show_step_7_content():
         c = lambda n: pd.to_numeric(df_p[n], errors="coerce") if n in df_p.columns else pd.Series(np.nan, index=df_p.index)
 
         np_val, eq_b, eq_e, csm_b, csm_e, ta, ir, sr = c("净利润"), c("期初股东权益"), c("期末股东权益"), c("CSM期初余额"), c("CSM期末余额"), c("总资产"), c("投资收益率"), c("综合偿付能力充足率")
+        sr = sr * 100
         pd_data = pd.DataFrame({"公司": df_p.index, "净利润": np_val, "CSM期末余额": csm_e, "期末股东权益": eq_e, "投资收益率": ir, "综合偿付能力充足率": sr})
-        
+       
         pd_data["利润率"] = np.where((eq_b+eq_e)!=0, np_val / ((eq_b+eq_e)/2), np.nan)
         pd_data["CSM增长率"] = np.where(csm_b!=0, (csm_e-csm_b)/csm_b, np.nan)
         pd_data["财务杠杆率"] = np.where(ta!=0, eq_e/ta, np.nan)
@@ -3525,7 +3526,7 @@ def show_step_7_content():
                     # ✅ 只在第二对（pair_idx==1）前加续标题，后面不再重复
                     if print_mode and pair_idx == 1:
                         render_continue_title(m_id)
-                
+                        st.plotly_chart(legend_fig, use_container_width=True, config={"displayModeBar": False})
                     if right_fig is None:
                         left_fig.update_layout(
                             height=260 if print_mode else 300,  # ✅ 同步缩小
@@ -3672,7 +3673,7 @@ def show_step_7_content():
             import datetime
             today = datetime.date.today()
             date_str = f"{today.year}年{today.month}月"
-            type_str = f"（{selected_type}系）" if selected_type and selected_type != "全部" else ""
+            type_str = f"{selected_type}" if selected_type and selected_type != "全部" else ""
             
             cover_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E6%A0%87%E9%A2%98%E9%A1%B5.png"
             back_url  = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E5%B0%81%E5%BA%95%E9%A1%B5.png"
@@ -3692,7 +3693,7 @@ def show_step_7_content():
                         color:white; -webkit-text-fill-color:white;
                         text-shadow:2px 2px 4px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.3);
                         forced-color-adjust:none; -webkit-print-color-adjust:exact;">
-                        保险公司{latest_year}年{type_str}<br>新会计准则业绩表现和洞察
+                        {latest_year}年新会计准则业绩表现和洞察<br>{type_str}保险公司<br>
                     </div>
                     <div style="font-size:22px; font-weight:500; margin:0;
                         font-family:Microsoft YaHei,微软雅黑,sans-serif;
@@ -5640,7 +5641,7 @@ else:
                 )
         
                 # 提取选项列表
-                all_fields   = sorted(df_clean['字段名'].unique().tolist())
+                all_fields = sorted([x for x in df_clean['字段名'].unique().tolist() if isinstance(x, str) and x.strip()])
                 all_types    = sorted(df_clean['类别'].dropna().astype(str).unique().tolist()) if '类别'    in df_clean.columns else []
                 all_co_types = sorted(df_clean['公司类型'].dropna().astype(str).unique().tolist()) if '公司类型' in df_clean.columns else []
         
@@ -6448,8 +6449,4 @@ else:
  
 
 # ==================== 页脚 ====================
-st.markdown("""
-<div style="text-align: center; color: #94A3B8; font-size: 13px; letter-spacing: 1px; margin-top: 50px; padding: 20px; border-top: 1px solid #CBD5E1;">
-    Actuarial Data Intelligence · Built for KPMG Actuary Team
-</div>
-""", unsafe_allow_html=True)
+st.markdown("")
