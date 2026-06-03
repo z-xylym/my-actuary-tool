@@ -99,7 +99,7 @@ def show_step_7_content():
     @media print {
         @page {
             size: 338.67mm 190.5mm;
-            margin: 6;
+            margin: 10mm;
         }
         .print-only { display: block !important; }
         html,body{
