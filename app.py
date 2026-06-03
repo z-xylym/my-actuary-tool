@@ -586,7 +586,7 @@ def show_step_7_content():
                     from io import BytesIO
                     import openpyxl
         
-                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_0601.xlsx"
+                    url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_0603.xlsx"
                     r = requests.get(url, timeout=15)
         
                     if r.status_code == 200:
@@ -641,7 +641,7 @@ def show_step_7_content():
         df_notes = None
         if use_default:
             try:
-                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_0601.xlsx")
+                df_notes = pd.read_excel("https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step7%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF_0603.xlsx")
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
                 st.error(f"❌ 加载失败：{e}")
@@ -899,48 +899,114 @@ def show_step_7_content():
         col_names, c1, c2, c3, c4, c5, c6, c7, c8 = [], [], [], [], [], [], [], [], []
         for co in cos:
             df_co = df[df['公司'] == co]
-            get_val = lambda y, kw: df_co[(df_co['报告年份'].astype(str)==str(y)) & (df_co['字段名']==kw)].drop_duplicates(subset=['公司', '报告年份', '字段名'])['(百万)人民币'].sum()
-            calc = lambda n, d, ig=False: "-" if d==0 or pd.isna(d) or pd.isna(n) else f"{(n/d)-1 if ig else (n/d):.0%}"
-            
-            eq_cy, eq_py, np_cy, np_py = get_val(cy, '期末股东权益'), get_val(py, '期末股东权益'), get_val(cy, '净利润'), get_val(py, '净利润')
-            csm_end, csm_beg, nb_cy, nb_py = get_val(cy, 'CSM期末余额'), get_val(cy, 'CSM期初余额'), get_val(cy, '新业务CSM（集团口径）'), get_val(py, '新业务CSM（集团口径）')
-            
-            # 🌟 获取当期和上期的 CSM摊销、保险服务收入、保险合同负债
-            amort_cy, rev_cy, rev_py = get_val(cy, 'CSM摊销'), get_val(cy, '保险服务收入合计'), get_val(py, '保险服务收入合计')
-            liab_cy, liab_py = get_val(cy, '期末保险合同负债总额'), get_val(py, '期末保险合同负债总额')
-            
-            # 🌟 新增：获取当期和上期的 PAA期末余额合计
-            paa_cy, paa_py = get_val(cy, 'PAA期末余额合计'), get_val(py, 'PAA期末余额合计')
-            
+    
+            def get_val(y, kw):
+                s = df_co[(df_co['报告年份'].astype(str)==str(y)) & (df_co['字段名']==kw)].drop_duplicates(subset=['公司','报告年份','字段名'])['(百万)人民币']
+                if s.empty: return None  # ✅ 返回None表示未披露
+                v = s.sum(min_count=1)
+                return None if pd.isna(v) else v
+    
+            def calc(n, d, is_growth=False):
+                # ✅ 分子或分母为None（未披露）则返回未披露标记
+                if n is None or d is None: return "未披露"
+                if d == 0: return "-"
+                ratio = (n / d) - 1 if is_growth else (n / d)
+                # ✅ 核心修复：用今年>去年判断正负，不依赖ratio的数学符号
+                if is_growth:
+                    # 增长率：今年>去年为正，今年<去年为负
+                    is_positive = n > d  # n=今年值, d=去年值（is_growth时n/d-1）
+                else:
+                    # 比率：直接用ratio正负
+                    is_positive = ratio >= 0
+                return f"{abs(ratio):.0%}" if is_positive else f"-{abs(ratio):.0%}"
+    
+            eq_cy  = get_val(cy, '期末股东权益')
+            eq_py  = get_val(py, '期末股东权益')
+            np_cy  = get_val(cy, '净利润')
+            np_py  = get_val(py, '净利润')
+            csm_end = get_val(cy, 'CSM期末余额')
+            csm_beg = get_val(cy, 'CSM期初余额')
+            nb_cy  = get_val(cy, '新业务CSM（集团口径）')
+            nb_py  = get_val(py, '新业务CSM（集团口径）')
+            amort_cy = get_val(cy, 'CSM摊销')
+            rev_cy = get_val(cy, '保险服务收入合计')
+            rev_py = get_val(py, '保险服务收入合计')
+            liab_cy = get_val(cy, '期末保险合同负债总额')
+            liab_py = get_val(py, '期末保险合同负债总额')
+            paa_cy  = get_val(cy, 'PAA期末余额合计')
+            paa_py  = get_val(py, 'PAA期末余额合计')
+    
             col_names.append(co)
             c1.append(calc(eq_cy, eq_py, True))
             c2.append(calc(np_cy, np_py, True))
             c3.append(calc(csm_end, csm_beg, True))
             c4.append(calc(nb_cy, nb_py, True))
-            c5.append(calc(-amort_cy, csm_end - amort_cy, False))
-            c6.append(calc(-nb_cy, amort_cy, False))
-            c7.append(calc(rev_cy, rev_py, True))
-            
-            # 🌟 核心修改：c8 加入 PAA期末余额合计 的加总
-            c8.append(calc(liab_cy + paa_cy, liab_py + paa_py, True))
     
-        headers = ["公司名称", f"净资产<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"净利润<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"<br>%CSM增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"%NB CSM<br>增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)", f"CSM持续率<br>(新业务CSM/<br>CSM摊销)", f"保险服务收入<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1", f"保险合同净负债余额<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1"]
+            # ✅ c5：分子=-amort_cy, 分母=csm_end-amort_cy，任一None则未披露
+            if amort_cy is None or csm_end is None:
+                c5.append("未披露")
+            else:
+                denom5 = csm_end - amort_cy
+                c5.append("-" if denom5 == 0 else f"{abs(-amort_cy / denom5):.0%}")
+    
+            # ✅ c6：分子=-nb_cy, 分母=amort_cy，任一None则未披露
+            if nb_cy is None or amort_cy is None:
+                c6.append("未披露")
+            else:
+                c6.append("-" if amort_cy == 0 else f"{abs(-nb_cy / amort_cy):.0%}")
+    
+            c7.append(calc(rev_cy, rev_py, True))
+    
+            # ✅ c8：分子分母各含两项，任一None则未披露
+            if any(v is None for v in [liab_cy, paa_cy, liab_py, paa_py]):
+                c8.append("未披露")
+            else:
+                c8.append(calc(liab_cy + paa_cy, liab_py + paa_py, True))
+    
+        headers = ["公司名称",
+            f"净资产<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1",
+            f"净利润<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1",
+            f"<br>%CSM增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1",
+            f"%NB CSM<br>增长率<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1",
+            f"CSM摊销比例<br>(CSM摊销/<br>摊销前的期末CSM)",
+            f"CSM持续率<br>(新业务CSM/<br>CSM摊销)",
+            f"保险服务收入<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1",
+            f"保险合同净负债余额<br>%变化<br>{str(cy)[-2:]}YE/{str(py)[-2:]}YE-1"]
         current_hl = str(highlight_co).strip()
-        
-        html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 15px;'>"
-        html += "<tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'>"
+    
+        html = "<table style='width:100%; border-collapse:collapse; font-family:sans-serif; font-size:11px; margin-bottom:15px;'>"
+        html += "<tr style='background-color:#00338D; color:white; text-align:center; font-weight:bold;'>"
         for idx, h in enumerate(headers):
-            b_bottom = "border-bottom: none;" if (idx > 0 and (idx - 1) < len(col_names) and str(col_names[idx-1]).strip() == current_hl) else "border-bottom: 1.5px solid white;"
-            html += f"<th style='padding: 6px 4px; { 'text-align: left;' if idx == 0 else 'text-align: center;' } border: 1.5px solid white; {b_bottom}'>{h}</th>"
+            html += f"<th style='padding:6px 4px; {'text-align:left;' if idx==0 else 'text-align:center;'} border:1.5px solid white;'>{h}</th>"
         html += "</tr>"
-        
+    
         for i, co in enumerate(col_names):
             row_vals = [c1[i], c2[i], c3[i], c4[i], c5[i], c6[i], c7[i], c8[i]]
             is_hl = (str(co).strip() == current_hl)
-            bg = HL_BOX_FILL   if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
-            base = f"background-color: {bg}; padding: 4px 4px; font-size: 11px; " + ("border-top: 1.5px solid #00338D; border-bottom: 1.5px solid #00338D; font-weight: bold;" if is_hl else "border: 1px solid #EAEAEA;")
-            s_first, s_mid, s_last = base + f"text-align: left; color: #333333; { 'border-left: 1.5px solid #00338D;' if is_hl else '' }", base + f"text-align: center; { 'color: #00338D; border-left: none; border-right: none;' if is_hl else 'color: #444444;' }", base + f"text-align: center; { 'color: #00338D; border-right: 1.5px solid #00338D; border-left: none;' if is_hl else 'color: #444444;' }"
-            html += f"<tr><td style='{s_first}'>{co}</td>" + "".join([f"<td style='{s_last if idx==len(row_vals)-1 else s_mid}'>{v}</td>" for idx, v in enumerate(row_vals)]) + "</tr>"        
+            bg = HL_BOX_FILL if is_hl else ("white" if i % 2 == 0 else "#F8F9FA")
+            base = (f"background-color:{bg}; padding:4px; font-size:11px; "
+                    + ("border-top:1.5px solid #00338D; border-bottom:1.5px solid #00338D; font-weight:bold;"
+                       if is_hl else "border:1px solid #EAEAEA;"))
+            s_first = base + f"text-align:left; color:#333333; {'border-left:1.5px solid #00338D;' if is_hl else ''}"
+            s_mid   = base + f"text-align:center; {'color:#00338D; border-left:none; border-right:none;' if is_hl else 'color:#444444;'}"
+            s_last  = base + f"text-align:center; {'color:#00338D; border-right:1.5px solid #00338D; border-left:none;' if is_hl else 'color:#444444;'}"
+    
+            html += f"<tr><td style='{s_first}'>{co}</td>"
+            for idx, v in enumerate(row_vals):
+                style = s_last if idx == len(row_vals)-1 else s_mid
+                
+                if v == "未披露":
+                    # 🌟 核心修复：不使用追加，而是直接利用 replace 把原本的底色和字体颜色给暴力替换掉
+                    # 这样就保证了这一个单元格绝对只有一个 background-color 属性
+                    # 这里使用了 #EBEBEB（浅灰底）和 #888888（深灰字），你可以自己改喜欢的色号
+                    cell_style = style.replace(f"background-color:{bg};", "background-color:#CDCDCD;") \
+                                      .replace("color:#444444;", "color:white;") \
+                                      .replace("color:#00338D;", "color:white;") 
+                    html += f"<td style='{cell_style}'>未披露</td>"
+                else:
+                    html += f"<td style='{style}'>{v}</td>"
+            html += "</tr>"
+    
         return html + "</table>"
 
     # --- 2.柱状图和比例环 ---
