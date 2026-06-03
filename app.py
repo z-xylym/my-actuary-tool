@@ -97,6 +97,10 @@ def show_step_7_content():
         padding-top:0 !important;
     }
     @media print {
+        @page {
+            size: 338.67mm 190.5mm;
+            margin: 0;
+        }
         .print-only { display: block !important; }
         html,body{
             width:338.67mm!important;
@@ -105,9 +109,12 @@ def show_step_7_content():
             zoom:100%!important;
         }
         .main .block-container{
-            max-width:100%!important;
+            width:338.67mm !important;
+            max-width:338.67mm !important;
+            min-width:338.67mm !important;
             padding-top:0!important;
             padding-bottom:0!important;
+            margin:0 auto !important;
         }   
         .block-container {
             padding-top: 0rem !important;
