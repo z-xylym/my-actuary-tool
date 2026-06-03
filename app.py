@@ -3749,7 +3749,7 @@ def show_step_7_content():
             
             # ✅ 封面：用st.image撑满，components.html叠加绝对定位文字
             st.markdown(f"""
-            <div style="position:relative; width:338.67mm;  height:190.5mm;  
+            <div style="position:relative; width:338.67mm;  height:170.5mm;  
                 page-break-after:always; overflow:hidden; margin:0; padding:0;
                 -webkit-print-color-adjust:exact; print-color-adjust:exact; forced-color-adjust:none;">
                 <img src="{cover_url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
