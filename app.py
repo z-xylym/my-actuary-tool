@@ -114,7 +114,8 @@ def show_step_7_content():
             min-width:338.67mm !important;
             padding-top:0!important;
             padding-bottom:0!important;
-            margin:0 auto !important;
+            padding-left:10mm!important;
+            padding-right:10mm!important;
         }   
         .block-container {
             padding-top: 0rem !important;
