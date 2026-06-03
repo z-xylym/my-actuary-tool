@@ -3755,7 +3755,7 @@ def show_step_7_content():
                 <img src="{cover_url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
                 <div style="position:absolute; top:0; left:0; width:100%; height:100%;
                     display:flex; flex-direction:column; justify-content:center; align-items:flex-start;
-                    padding:0 8%; box-sizing:border-box; margin-top:-30px; z-index:10;
+                    padding:0 5%; box-sizing:border-box; margin-top:-30px; z-index:10;
                     forced-color-adjust:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
                     <div style="font-size:52px; font-weight:900; line-height:1.4; margin-bottom:16px;
                         font-family:Microsoft YaHei,微软雅黑,sans-serif;
