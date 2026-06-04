@@ -3631,7 +3631,7 @@ def show_step_7_content():
                 combined.update_xaxes(right_fig.layout.xaxis.to_plotly_json(), row=1, col=2)
                 combined.update_yaxes(left_fig.layout.yaxis.to_plotly_json(), row=1, col=1)
                 combined.update_yaxes(right_fig.layout.yaxis.to_plotly_json(), row=1, col=2)
-                combined.update_layout(height=260 if print_mode else 320,
+                combined.update_layout(height=230 if print_mode else 320,
                     margin=dict(t=60, b=30, l=20, r=15),
                     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                     showlegend=False)
