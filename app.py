@@ -100,6 +100,12 @@ def show_step_7_content():
         @page {
             size: 338.67mm 190.5mm;
             margin: 10mm;
+            @bottom-center {
+                content: counter(page);
+                font-size: 12px;
+                color: #666;
+                font-family: Microsoft YaHei, sans-serif;
+            }     
         }
         .print-only { display: block !important; }
         html,body{
