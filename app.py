@@ -6173,7 +6173,7 @@ else:
                 )
         
                 # 提取选项列表
-                all_fields   = sorted(df_clean['字段名'].unique().tolist())
+                all_fields = sorted(df_clean['字段名'].dropna().astype(str).unique().tolist())
                 all_types    = sorted(df_clean['类别'].dropna().astype(str).unique().tolist()) if '类别'    in df_clean.columns else []
                 all_co_types = sorted(df_clean['公司类型'].dropna().astype(str).unique().tolist()) if '公司类型' in df_clean.columns else []
         
