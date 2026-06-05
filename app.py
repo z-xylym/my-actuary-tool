@@ -1873,7 +1873,16 @@ def show_step_7_content():
         cols, m = 3, [("采用公允价值法计量的合同", "rgb(0, 51, 141)", "采用公允价值法计量的合同"), ("采用修正追溯法计量的合同", "rgb(1, 176, 234)", "采用修正追溯调整法计量的合同"), ("其他保险合同", "#7213Ea", "其他合同")]
         rows = (len(selected_cos) + cols - 1) // cols
         titles = [f"<b><span style='color:#00338D;'>{co}</span></b>" for co in selected_cos]
-        fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles, horizontal_spacing=0.08, vertical_spacing=0.15)
+        # 动态计算安全间距：如果只有1行，间距设为0；否则在 0.15 和 (0.8 / 行数) 之间取最小值
+        safe_v_spacing = 0 if rows <= 1 else min(0.15, 0.8 / rows)
+        
+        fig = make_subplots(
+            rows=rows, 
+            cols=cols, 
+            subplot_titles=titles, 
+            horizontal_spacing=0.08, 
+            vertical_spacing=safe_v_spacing
+        )
         ym, hl_co = latest_year, str(highlight_co).strip()
         
         # 准备统一的 Y 轴标签（强行锁定，防止变成 0, 2, 4）
