@@ -2801,7 +2801,12 @@ def show_step_7_content():
         for t, y_c, x_c, y_fmt in cfgs:
             d_plt = pd_data[["公司", y_c, x_c]].copy().replace([np.inf, -np.inf], np.nan).dropna()
             fig = go.Figure()
-            title_html = f"<span style='font-size:14px'><b>{t}</b></span><br><span style='font-size:11px;color:#666'>Y轴={y_c}，X轴={x_c}（单位：{unit_label}）</span>"
+            display_y = y_c
+            if y_c == "利润率":
+                display_y = "利润率（净利润/期初期末净资产平均值）"
+            elif y_c == "财务杠杆率":
+                display_y = "财务杠杆率（期末股东权益/期末总资产）"      
+            title_html = f"<span style='font-size:14px'><b>{t}</b></span><br><span style='font-size:11px;color:#666'>Y轴={display_y}，X轴={x_c}</span>"
             
             if d_plt.empty:
                 fig.update_layout(title=dict(text=title_html, x=0.02), height=250, margin=dict(l=20, r=15, t=40, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
