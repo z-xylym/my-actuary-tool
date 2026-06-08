@@ -4117,7 +4117,7 @@ def show_step_8_content():
             if analysis_custom:
                 # 自定义内容：亮蓝色 (#1E49E2)，加粗
                 mt_space = "4px" if analysis_default else "0px" # 如果上面有默认文字，中间空出8像素距
-                html += f'<p style="margin:{mt_space} 0 0 0; color:#002678; font-size:13px; font-weight:bold; line-height:1.4;">{analysis_custom}</p>'
+                html += f'<p style="margin:{mt_space} 0 0 0; color:#002678; font-size:13px; line-height:1.4;">{analysis_custom}</p>'
                 
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
