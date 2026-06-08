@@ -886,8 +886,14 @@ def show_step_7_content():
         if nt_text and str(nt_text).lower() != 'nan':
             st.markdown(f'<div style="text-align: left;margin-top: 1px; margin-bottom: 0px; padding-left: 5px;text-align: left;"><p style="margin: 0; color: #888; font-size: 12px; font-style: italic;">* 注释：{nt_text}</p></div>', unsafe_allow_html=True)
 
-    def show_chart(fig,p_mode,m_id=None):
-        if not fig:return
+    import uuid  # 🌟 放在文件头部，或者直接放这里也行
+    
+    def show_chart(fig, p_mode, m_id=None):
+        if not fig: return
+        
+        # 🌟 核心修复：生成一个绝对不重复的随机身份证号
+        unique_key = f"chart_{m_id}_{p_mode}_{uuid.uuid4().hex[:8]}"
+        
         if p_mode:
             H={"csm_trans":440,"oci_deep":280,"nb_struct":125,"csm_ratio_trend":450,"six_dimensional_charts":180,"nb_margin_trend":450,"csm_maturity_table":460}
             h=H.get(m_id,380)
@@ -897,10 +903,12 @@ def show_step_7_content():
                 height=h,
                 margin=dict(t=35,b=15,l=15,r=15)
             )
-            st.plotly_chart(fig,use_container_width=False,config={"displayModeBar":False})
+            # 👇 加上 key=unique_key
+            st.plotly_chart(fig, use_container_width=False, config={"displayModeBar":False}, key=unique_key)
         else:
             fig.update_layout(autosize=True)
-            st.plotly_chart(fig,use_container_width=True,config={"displayModeBar":False})
+            # 👇 加上 key=unique_key
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False}, key=unique_key)
 
 
     # ==========================================
