@@ -740,7 +740,7 @@ def show_step_8_content():
     
 
     with st.expander("📥 行业分析注释输入", expanded=False):
-        # 1. 上传自定义坐标轴刻度表
+        # 1. 上传自定义坐标轴刻度表 (保持不变)
         uploaded_bins_file = st.file_uploader(
             "📊 上传自定义坐标轴刻度表（Excel）",
             type=["xlsx", "xls"], key="custom_bins_uploader",
@@ -754,29 +754,30 @@ def show_step_8_content():
             except Exception as e:
                 st.error(f"❌ 刻度表读取失败：{e}")
     
-        # 清除按钮
         if st.session_state.get("custom_bins_map"):
             if st.button("清除自定义刻度配置", key="clear_custom_bins"):
                 del st.session_state["custom_bins_map"]
                 st.success("已清除自定义刻度配置，恢复默认")
     
+        # ==========================================
         # 2. 注释表来源选择
-        use_default = st.toggle("使用默认注释表", value=False, key="step8_use_default")
+        # 🌟 核心修改 1：把 value=False 改成 value=True，让它默认就是打开状态！
+        # ==========================================
+        use_default = st.toggle("使用默认注释表", value=True, key="step8_use_default")
     
-        # 初始化 df_notes 为 None，防止后续代码因变量未定义而报错
         df_notes = None
 
         if use_default:
-            # ==========================================
-            # 🌟 已经替换为 GitHub 上的真实在线链接
-            # ==========================================
             try:
                 with st.spinner("🚀 正在从云端加载默认注释表，请稍候..."):
-                    default_url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF-step8.xlsx"
+                    # 🌟 核心修改 2：替换为 raw.githubusercontent.com 的原生读取链接
+                    default_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF-step8.xlsx"
                     df_notes = pd.read_excel(default_url)
                 st.success("✅ 内置默认注释表从云端加载成功！")
             except Exception as e:
-                st.error(f"❌ 云端下载失败，请检查网络或稍后重试。报错原因: {e}")
+                st.error(f"❌ 云端下载失败，报错原因: {e}")
+                # 贴心加上排错提示
+                st.info("💡 排错指南：\n1. 请确认你的 GitHub 仓库是 Public（公开）的，如果是 Private 则代码无法直接读取。\n2. 请确认文件已经成功 Push 到 GitHub，且没有拼写错误。")
         else:
             notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'], key="step8_notes")
             if notes_file:
