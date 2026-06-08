@@ -790,6 +790,14 @@ def show_step_8_content():
         # 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
     
         if df_notes is not None:
+            # ==========================================
+            # 🌟 核心防崩溃修复：强制把要塞文本的列变成 object 类型
+            # ==========================================
+            if '分析内容-自定义' in df_notes.columns:
+                df_notes['分析内容-自定义'] = df_notes['分析内容-自定义'].astype(object)
+            if '分析内容-默认' in df_notes.columns:
+                df_notes['分析内容-默认'] = df_notes['分析内容-默认'].astype(object)
+
             if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
                 for idx, row in df_notes.iterrows():
                     mid = str(row.get('模块ID', '')).strip()
@@ -804,6 +812,7 @@ def show_step_8_content():
                             latest_year, prev_year
                         )
                         if generated:
+                            # 穿上防护服后，这里塞入字符串就绝对不会再报 TypeError 了！
                             df_notes.at[idx, '分析内容-自定义'] = generated
             
             # 1. 清洗所有列（去除前后空格）
