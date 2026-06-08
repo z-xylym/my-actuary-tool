@@ -3925,7 +3925,15 @@ st.set_page_config(
     page_icon="Digi.png",  # ✨ 修改点：加上 .png 后缀
     layout="wide"
 )
-
+# ==========================================
+components.html("""
+<script>
+    // 600000 毫秒 = 10 分钟 (建议改成 5 分钟 300000 更稳)
+    setInterval(() => {
+        window.parent.document.dispatchEvent(new Event('mousemove'));
+    }, 300000);
+</script>
+""", height=0, width=0)
 # ==================== 2. 设置左上角 Logo ====================
 # 注意：确保 Digi.png 文件和 app.py 在同一个文件夹里
 try:
