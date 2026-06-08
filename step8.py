@@ -740,7 +740,7 @@ def show_step_8_content():
     
 
     with st.expander("📥 行业分析注释输入", expanded=False):
-        # 上传自定义坐标轴刻度表
+        # 1. 上传自定义坐标轴刻度表
         uploaded_bins_file = st.file_uploader(
             "📊 上传自定义坐标轴刻度表（Excel）",
             type=["xlsx", "xls"], key="custom_bins_uploader",
@@ -760,30 +760,33 @@ def show_step_8_content():
                 del st.session_state["custom_bins_map"]
                 st.success("已清除自定义刻度配置，恢复默认")
     
+        # 2. 注释表来源选择
         use_default = st.toggle("使用默认注释表", value=False, key="step8_use_default")
     
+        # 初始化 df_notes 为 None，防止后续代码因变量未定义而报错
+        df_notes = None
+
         if use_default:
             # ==========================================
-            # 🔥 TODO: 待上传 GitHub 后，替换为实际链接
-            # 预计上传后的链接格式：
-            # https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step8_注释表模板.xlsx
+            # 🌟 已经替换为 GitHub 上的真实在线链接
             # ==========================================
-            st.info("📌 默认注释表功能正在开发中，请先使用【上传 Excel 分析注释表】功能")
-            
-            # ⬇️ 以下代码待 GitHub 文件上传后取消注释即可使用 ⬇️
-            """
             try:
-                df_notes = pd.read_excel(
-                    "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/step8_注释表模板.xlsx"
-                )
-                st.success("✅ 内置默认注释表加载成功")
+                with st.spinner("🚀 正在从云端加载默认注释表，请稍候..."):
+                    default_url = "https://github.com/z-xylym/my-actuary-tool/raw/refs/heads/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF-step8.xlsx"
+                    df_notes = pd.read_excel(default_url)
+                st.success("✅ 内置默认注释表从云端加载成功！")
             except Exception as e:
-                st.error(f"❌ 加载失败：{e}")
-            """
+                st.error(f"❌ 云端下载失败，请检查网络或稍后重试。报错原因: {e}")
         else:
             notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'], key="step8_notes")
             if notes_file:
-                df_notes = pd.read_excel(notes_file)
+                try:
+                    df_notes = pd.read_excel(notes_file)
+                    st.success("✅ 自定义注释表上传成功！")
+                except Exception as e:
+                    st.error(f"❌ 上传文件解析失败: {e}")
+
+        # 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
     
         if df_notes is not None:
             if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
