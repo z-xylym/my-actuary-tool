@@ -4050,8 +4050,8 @@ def show_step_8_content():
     # 第5层：报告包装器
     # ==========================================
 
-    def render_report_module(m_id, print_mode):
-        """完整报告模块渲染（标题 + 分析框 + 图表 + 注释）- 与 Step 7 风格一致"""
+    def render_report_module(m_id, print_mode, is_first=False):
+        """完整报告模块渲染（标题 + 分析框 + 图表 + 注释）- 样式与 Step 7 绝对同步"""
         mod_data = notes_dict_8.get(m_id, {})
         
         full_title = mod_data.get('title', m_id)
@@ -4069,48 +4069,134 @@ def show_step_8_content():
                     if title_parts:
                         full_title = " - ".join(title_parts)
 
-        title_class = "page-break-title" if print_mode else ""
+        # ====== 打印容器 & 网页分割线 (与 Step 7 同步) ======
+        if print_mode:
+            st.markdown("<div class='page-break-container' style='margin:0;padding:0;'>", unsafe_allow_html=True)
+        if not print_mode:
+            st.markdown(
+                "<div class='no-print' style='height:2px; background:linear-gradient(to right, #00338D, #005EBB, #FFFFFF); margin-bottom:15px;'></div>",
+                unsafe_allow_html=True
+            )   
+            
+        # ====== 第 1 步：大标题 (与 Step 7 同步字号与间距) ======
+        title_cls = "page-break-title" if (print_mode and not is_first) else ""
+        mt = "0px" if (print_mode and is_first) else "20px"
+        font_size = "35px" if print_mode else "30px"
         st.markdown(
-            f"<h3 class='{title_class}' style='color:#00338D; font-size:18px; margin-top:20px; margin-bottom:15px; border-bottom:2px solid #00338D; padding-bottom:8px;'>{full_title}</h3>",
+            f"<h3 class='{title_cls}' style='"
+            f"text-align:left; color:#00338D; font-size:{font_size}; font-weight:900; "
+            f"font-family:Microsoft YaHei, 微软雅黑, sans-serif; "
+            f"margin-top:{mt}; margin-bottom:20px; border:none; padding-bottom:0px;'>"
+            f"{full_title}</h3>",
             unsafe_allow_html=True
         )
 
-        # ========== 与 Step 7 完全一致的分析内容显示 ==========
+        # ====== 第 2 步：分析内容框 / 注释 (模仿 Step 7 的展示格式) ======
         analysis_default = mod_data.get('analysis_default', '')
         analysis_custom = mod_data.get('analysis_custom', '')
         
-        # 构建分析内容（模仿 Step 7 的 display_notes 样式）
+        # 为了保持一致，我们将 step8 原有的浅色背景框，稍微向 step7 的严谨风格靠拢，
+        # 但保留 step8 特有的 custom 和 default 两段展示能力。
         if analysis_default or analysis_custom:
-            html = '<div style="text-align:left; background:#F0F4FA; border-left:4px solid #00338D; padding:12px 15px; margin-bottom:20px; border-radius:4px;">'
+            html = '<div style="margin-bottom:10px; text-align:left;">'
             if analysis_default:
-                html += f'<p style="margin:2px 0; color:#0A1F5C; font-size:14px; line-height:1.4;">{analysis_default}</p>'
+                html += f'<p style="margin:4px 0; color:#333; font-size:14px; line-height:1.6;">{analysis_default}</p>'
             if analysis_custom:
-                html += f'<p style="margin:2px 0; color:#7A9CC5; font-size:14px; line-height:1.4;">{analysis_custom}</p>'
+                # 蓝色高亮显示自定义补充内容
+                html += f'<p style="margin:4px 0; color:#00338D; font-size:14px; font-weight:bold; line-height:1.6;">💡 补充洞察：{analysis_custom}</p>'
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
-        render_pure_chart_entity(m_id, print_mode)
+        # ====== 第 3 步：图表与顶部单位提示 (与 Step 7 同步) ======
+        if print_mode:
+            # 统一加上单位标注
+            unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "csm_trans"in m_id or "struct" in m_id else f"{unit_label}人民币"
+            st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
+            render_pure_chart_entity(m_id, print_mode)
+        else:
+            chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
+            with chart_col_center:
+                unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "csm_trans"in m_id or "struct" in m_id else f"{unit_label}人民币"
+                st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
+                render_pure_chart_entity(m_id, print_mode)
 
-        # ========== 底部注释（与 Step 7 一致） ==========
+        # ====== 第 4 步：底部注释 (与 Step 7 底部样式同步) ======
         note_text = mod_data.get('note', '')
         if note_text and str(note_text).lower() != 'nan':
+            # 使用与 step7 相同的字体颜色、字号和间距
             st.markdown(
-                f'<div style="margin-top:5px; margin-bottom:25px; padding-left:5px; text-align:left;">'
-                f'<p style="margin:0; color:#888; font-size:12px; font-style:italic;">* 注释：{note_text}</p>'
+                f'<div style="margin-top:10px; margin-bottom:20px; text-align:left;">'
+                f'<p style="margin:0; color:#888; font-size:12px; font-style:italic; line-height:1.4;">注：{note_text}</p>'
                 f'</div>',
                 unsafe_allow_html=True
             )
 
-    # ==========================================
-    # 第6层：主分发逻辑
-    # ==========================================
+        if print_mode:
+            st.markdown("</div>", unsafe_allow_html=True)
 
+    # ==========================================
+    # 🌐 网页模式 / 🖨️ 打印模式 的最终执行器 (带封面与封底，与 Step 7 逻辑一致)
+    # ==========================================
+    if not print_mode:
+        st.markdown(
+            "<hr class='no-print' style='border:none;border-top:1px solid #EAEAEA;margin:10px 0;'>",
+            unsafe_allow_html=True
+        )
     if print_mode:
-        for m_id in ordered_modules:
-            render_report_module(m_id, print_mode=True)
+        if 'ordered_modules' not in locals() or not ordered_modules:
+            st.warning("⚠️ 报告顺序由【模块ID】的先后顺序决定，请先在上方传入有模块ID的注释表文件。")
+        else:
+            import datetime
+            today = datetime.date.today()
+            date_str = f"{today.year}年{today.month}月"
+            type_str = f"{selected_type}" if selected_type and selected_type != "全部" else ""
+            
+            cover_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E6%A0%87%E9%A2%98%E9%A1%B5.png"
+            back_url  = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E5%B0%81%E5%BA%95%E9%A1%B5.png"
+            
+            # ✅ 封面
+            st.markdown(f"""
+            <div style="position:relative; width:338.67mm;  height:175.5mm;    
+                page-break-after:always; overflow:hidden; margin:0; padding:0;
+                -webkit-print-color-adjust:exact; print-color-adjust:exact; forced-color-adjust:none;">
+                <img src="{cover_url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
+                <div style="position:absolute; top:0; left:0; width:100%; height:100%;
+                    display:flex; flex-direction:column; justify-content:center; align-items:flex-start;
+                    padding:0 8%; box-sizing:border-box; margin-top:-30px; z-index:10;
+                    forced-color-adjust:none; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+                    <div style="font-size:52px; font-weight:900; line-height:1.4; margin-bottom:16px;
+                        font-family:Microsoft YaHei,微软雅黑,sans-serif;
+                        color:white; -webkit-text-fill-color:white;
+                        text-shadow:2px 2px 4px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.3);
+                        forced-color-adjust:none; -webkit-print-color-adjust:exact;">
+                        {latest_year}年新会计准则行业表现和洞察<br>{type_str}保险公司<br>
+                    </div>
+                    <div style="font-size:22px; font-weight:500; margin:0;
+                        font-family:Microsoft YaHei,微软雅黑,sans-serif;
+                        color:white; -webkit-text-fill-color:white;
+                        text-shadow:1px 1px 3px rgba(0,0,0,0.5);
+                        forced-color-adjust:none; -webkit-print-color-adjust:exact;">{date_str}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # --------渲染图表和页码-------
+            for i, mod in enumerate(ordered_modules):
+                render_report_module(mod, print_mode=True, is_first=(i == 0))
+                
+            # ✅ 封底
+            st.markdown(f"""
+            <div style="position:relative; width:338.67mm;  height:175.5mm;
+                page-break-before:always; overflow:hidden; margin:0; padding:0;
+                -webkit-print-color-adjust:exact; print-color-adjust:exact; forced-color-adjust:none;">
+                <img src="{back_url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         if active_m_id:
-            render_report_module(active_m_id, print_mode=False)
+            render_report_module(active_m_id, print_mode=False, is_first=True)
         else:
             st.info("💡 请从左侧导航栏选择要查看的行业分析模块")
+
+
 
