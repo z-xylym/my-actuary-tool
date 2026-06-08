@@ -4108,16 +4108,16 @@ def show_step_8_content():
         # 2. 只有当两者至少有一个有真实文字时，才渲染这个带底色的框！
         if analysis_default or analysis_custom:
             # 🌟 完美复刻图1：浅灰蓝底色 + KPMG深蓝左侧粗边框
-            html = '<div style="background-color:#F4F7FC; border-left:4px solid #00338D; padding:12px 15px; margin-bottom:20px; text-align:left; border-radius:3px;">'
+            html = '<div style="background-color:#F4F7FC; border-left:4px solid #00338D; padding:5px 5px; margin-bottom:5px; text-align:left; border-radius:3px;">'
             
             if analysis_default:
                 # 默认内容：深蓝色 (#0A1F5C)
-                html += f'<p style="margin:0; color:#0A1F5C; font-size:13px; line-height:1.6;">{analysis_default}</p>'
+                html += f'<p style="margin:0; color:#0A1F5C; font-size:12px; line-height:1.4;">{analysis_default}</p>'
                 
             if analysis_custom:
                 # 自定义内容：亮蓝色 (#1E49E2)，加粗
-                mt_space = "8px" if analysis_default else "0px" # 如果上面有默认文字，中间空出8像素距
-                html += f'<p style="margin:{mt_space} 0 0 0; color:#1E49E2; font-size:13px; font-weight:bold; line-height:1.6;">{analysis_custom}</p>'
+                mt_space = "4px" if analysis_default else "0px" # 如果上面有默认文字，中间空出8像素距
+                html += f'<p style="margin:{mt_space} 0 0 0; color:#002678; font-size:13px; font-weight:bold; line-height:1.4;">{analysis_custom}</p>'
                 
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
