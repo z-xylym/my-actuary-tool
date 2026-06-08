@@ -4049,9 +4049,8 @@ def show_step_8_content():
     # ==========================================
     # 第5层：报告包装器
     # ==========================================
-
-    def render_report_module(m_id, print_mode, is_first=False):
-        """完整报告模块渲染（标题 + 分析框 + 图表 + 注释）- 样式与 Step 7 绝对同步"""
+def render_report_module(m_id, print_mode, is_first=False):
+        """完整报告模块渲染（标题 + 分析框 + 图表 + 注释）- 纯净版，无动态单位，无AI"""
         mod_data = notes_dict_8.get(m_id, {})
         
         full_title = mod_data.get('title', m_id)
@@ -4069,7 +4068,7 @@ def show_step_8_content():
                     if title_parts:
                         full_title = " - ".join(title_parts)
 
-        # ====== 打印容器 & 网页分割线 (与 Step 7 同步) ======
+        # ====== 打印容器 & 网页分割线 ======
         if print_mode:
             st.markdown("<div class='page-break-container' style='margin:0;padding:0;'>", unsafe_allow_html=True)
         if not print_mode:
@@ -4078,7 +4077,7 @@ def show_step_8_content():
                 unsafe_allow_html=True
             )   
             
-        # ====== 第 1 步：大标题 (与 Step 7 同步字号与间距) ======
+        # ====== 第 1 步：大标题 ======
         title_cls = "page-break-title" if (print_mode and not is_first) else ""
         mt = "0px" if (print_mode and is_first) else "20px"
         font_size = "35px" if print_mode else "30px"
@@ -4091,39 +4090,37 @@ def show_step_8_content():
             unsafe_allow_html=True
         )
 
-        # ====== 第 2 步：分析内容框 / 注释 (模仿 Step 7 的展示格式) ======
+        # ====== 第 2 步：分析内容框 (纯静态读取 Excel 注释，无 AI) ======
         analysis_default = mod_data.get('analysis_default', '')
         analysis_custom = mod_data.get('analysis_custom', '')
         
-        # 为了保持一致，我们将 step8 原有的浅色背景框，稍微向 step7 的严谨风格靠拢，
-        # 但保留 step8 特有的 custom 和 default 两段展示能力。
         if analysis_default or analysis_custom:
             html = '<div style="margin-bottom:10px; text-align:left;">'
             if analysis_default:
                 html += f'<p style="margin:4px 0; color:#333; font-size:14px; line-height:1.6;">{analysis_default}</p>'
             if analysis_custom:
-                # 蓝色高亮显示自定义补充内容
                 html += f'<p style="margin:4px 0; color:#00338D; font-size:14px; font-weight:bold; line-height:1.6;">💡 补充洞察：{analysis_custom}</p>'
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
-        # ====== 第 3 步：图表与顶部单位提示 (与 Step 7 同步) ======
+        # ====== 第 3 步：图表与顶部单位提示 (🌟 修复报错点：直接写死“百万人民币”) ======
+        # 定义哪些图表需要显示百分比
+        is_pct_chart = any(x in m_id for x in ["comp", "ratio", "margin", "csm_trans", "struct"]) or m_id == "asset_struct"
+        
         if print_mode:
-            # 统一加上单位标注
-            unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "csm_trans"in m_id or "struct" in m_id else f"{unit_label}人民币"
+            unit_text = "百分比 (%)" if is_pct_chart else "百万人民币"
             st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
             render_pure_chart_entity(m_id, print_mode)
         else:
             chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
             with chart_col_center:
-                unit_text = "百分比 (%)" if "comp" in m_id or m_id == "asset_struct" or "ratio" in m_id or "margin" in m_id or "csm_trans"in m_id or "struct" in m_id else f"{unit_label}人民币"
+                unit_text = "百分比 (%)" if is_pct_chart else "百万人民币"
                 st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
                 render_pure_chart_entity(m_id, print_mode)
 
-        # ====== 第 4 步：底部注释 (与 Step 7 底部样式同步) ======
+        # ====== 第 4 步：底部注释 ======
         note_text = mod_data.get('note', '')
         if note_text and str(note_text).lower() != 'nan':
-            # 使用与 step7 相同的字体颜色、字号和间距
             st.markdown(
                 f'<div style="margin-top:10px; margin-bottom:20px; text-align:left;">'
                 f'<p style="margin:0; color:#888; font-size:12px; font-style:italic; line-height:1.4;">注：{note_text}</p>'
@@ -4135,7 +4132,7 @@ def show_step_8_content():
             st.markdown("</div>", unsafe_allow_html=True)
 
     # ==========================================
-    # 🌐 网页模式 / 🖨️ 打印模式 的最终执行器 (带封面与封底，与 Step 7 逻辑一致)
+    # 🌐 网页模式 / 🖨️ 打印模式 的最终执行器 (带封面与封底)
     # ==========================================
     if not print_mode:
         st.markdown(
@@ -4149,7 +4146,12 @@ def show_step_8_content():
             import datetime
             today = datetime.date.today()
             date_str = f"{today.year}年{today.month}月"
-            type_str = f"{selected_type}" if selected_type and selected_type != "全部" else ""
+            # 🌟 防止 selected_type 报错，用 session_state 安全获取
+            type_str = st.session_state.get('selected_type', '')
+            if type_str == "全部": 
+                type_str = ""
+            # 🌟 防止 latest_year 报错
+            ly_str = st.session_state.get('latest_year', '2025')
             
             cover_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E6%A0%87%E9%A2%98%E9%A1%B5.png"
             back_url  = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/%E5%B0%81%E5%BA%95%E9%A1%B5.png"
@@ -4169,7 +4171,7 @@ def show_step_8_content():
                         color:white; -webkit-text-fill-color:white;
                         text-shadow:2px 2px 4px rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.3);
                         forced-color-adjust:none; -webkit-print-color-adjust:exact;">
-                        {latest_year}年新会计准则行业表现和洞察<br>{type_str}保险公司<br>
+                        {ly_str}年新会计准则行业表现和洞察<br>{type_str}保险公司<br>
                     </div>
                     <div style="font-size:22px; font-weight:500; margin:0;
                         font-family:Microsoft YaHei,微软雅黑,sans-serif;
