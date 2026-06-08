@@ -4049,7 +4049,8 @@ def show_step_8_content():
     # ==========================================
     # 第5层：报告包装器
     # ==========================================
-def render_report_module(m_id, print_mode, is_first=False):
+
+    def render_report_module(m_id, print_mode, is_first=False):
         """完整报告模块渲染（标题 + 分析框 + 图表 + 注释）- 纯净版，无动态单位，无AI"""
         mod_data = notes_dict_8.get(m_id, {})
         
@@ -4090,21 +4091,39 @@ def render_report_module(m_id, print_mode, is_first=False):
             unsafe_allow_html=True
         )
 
-        # ====== 第 2 步：分析内容框 (纯静态读取 Excel 注释，无 AI) ======
-        analysis_default = mod_data.get('analysis_default', '')
-        analysis_custom = mod_data.get('analysis_custom', '')
+        # ==========================================
+        # ====== 第 2 步：分析内容框 (🌟 重点修复区域) ======
+        # ==========================================
         
+        # 1. 定义超级清洗器：把 pd.NA, None, 'nan', 'null', 空白 全部杀干净
+        def clean_note(val):
+            if pd.isna(val): return ""
+            val_str = str(val).strip()
+            if val_str.lower() in ['nan', 'none', 'null', '']: return ""
+            return val_str
+            
+        analysis_default = clean_note(mod_data.get('analysis_default', ''))
+        analysis_custom = clean_note(mod_data.get('analysis_custom', ''))
+        
+        # 2. 只有当两者至少有一个有真实文字时，才渲染这个带底色的框！
         if analysis_default or analysis_custom:
-            html = '<div style="margin-bottom:10px; text-align:left;">'
+            # 🌟 完美复刻图1：浅灰蓝底色 + KPMG深蓝左侧粗边框
+            html = '<div style="background-color:#F4F7FC; border-left:4px solid #00338D; padding:12px 15px; margin-bottom:20px; text-align:left; border-radius:3px;">'
+            
             if analysis_default:
-                html += f'<p style="margin:4px 0; color:#333; font-size:14px; line-height:1.6;">{analysis_default}</p>'
+                # 默认内容：深蓝色 (#0A1F5C)
+                html += f'<p style="margin:0; color:#0A1F5C; font-size:13px; line-height:1.6;">{analysis_default}</p>'
+                
             if analysis_custom:
-                html += f'<p style="margin:4px 0; color:#00338D; font-size:14px; font-weight:bold; line-height:1.6;">💡 补充洞察：{analysis_custom}</p>'
+                # 自定义内容：亮蓝色 (#1E49E2)，加粗
+                mt_space = "8px" if analysis_default else "0px" # 如果上面有默认文字，中间空出8像素距
+                html += f'<p style="margin:{mt_space} 0 0 0; color:#1E49E2; font-size:13px; font-weight:bold; line-height:1.6;">{analysis_custom}</p>'
+                
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
-        # ====== 第 3 步：图表与顶部单位提示 (🌟 修复报错点：直接写死“百万人民币”) ======
-        # 定义哪些图表需要显示百分比
+
+        # ====== 第 3 步：图表与顶部单位提示 ======
         is_pct_chart = any(x in m_id for x in ["comp", "ratio", "margin", "csm_trans", "struct"]) or m_id == "asset_struct"
         
         if print_mode:
@@ -4118,9 +4137,11 @@ def render_report_module(m_id, print_mode, is_first=False):
                 st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
                 render_pure_chart_entity(m_id, print_mode)
 
+
         # ====== 第 4 步：底部注释 ======
-        note_text = mod_data.get('note', '')
-        if note_text and str(note_text).lower() != 'nan':
+        # 顺手把底部的注释也用清洗器过一遍，防止底部跑出 nan
+        note_text = clean_note(mod_data.get('note', '')) 
+        if note_text:
             st.markdown(
                 f'<div style="margin-top:10px; margin-bottom:20px; text-align:left;">'
                 f'<p style="margin:0; color:#888; font-size:12px; font-style:italic; line-height:1.4;">注：{note_text}</p>'
@@ -4199,6 +4220,4 @@ def render_report_module(m_id, print_mode, is_first=False):
             render_report_module(active_m_id, print_mode=False, is_first=True)
         else:
             st.info("💡 请从左侧导航栏选择要查看的行业分析模块")
-
-
 
