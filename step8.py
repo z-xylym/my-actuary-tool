@@ -804,7 +804,7 @@ def show_step_8_content():
                             latest_year, prev_year
                         )
                         if generated:
-                            df_notes.at[idx, '分析内容-自定义'] = generated
+                            df_notes.loc[idx, '分析内容-自定义'] = str(generated)
             
             # 1. 清洗所有列（去除前后空格）
             for col in df_notes.columns:
