@@ -789,6 +789,7 @@ def show_step_7_content():
     # ==========================================
     st.markdown("<div class='no-print'>", unsafe_allow_html=True)
     with st.expander("⚙️ 公司级图表设置与图片覆盖", expanded=False):
+        # --- 第一排：基础设置 ---
         c0, c1, c2, c3, c4 = st.columns([1, 2, 1, 1, 1])   
         with c0:
             all_types = ["全部"] + sorted([str(x) for x in df_raw['公司类型'].unique() if str(x) != 'nan'])
@@ -797,33 +798,58 @@ def show_step_7_content():
         with c1: 
             raw_ordered_cos = list(dict.fromkeys(df_filtered['公司'].dropna().tolist()))
             selected_cos = st.multiselect("展示公司", options=raw_ordered_cos, default=raw_ordered_cos)
-            st.session_state['selected_cos_cache'] = selected_cos
         with c2: 
             unit_label = st.selectbox("显示单位", ["十亿元", "亿元", "百万元", "十万元"])
             divisor = {"十亿元": 1000, "亿元": 100, "百万元": 1, "十万元": 0.1}[unit_label]
         with c3: highlight_co = st.selectbox("特定追踪", ["无"] + selected_cos)
         with c4: enable_ai = st.toggle("一键AI分析", value=False)
         
+        # --- 第二排：🌟 新增的自定义排序功能 ---
+        st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
+        sc1, sc2, sc3 = st.columns([2, 2, 3])
+        with sc1:
+            # 抓取当前数据中所有可用的指标字段
+            available_fields = sorted([str(x) for x in df_filtered['字段名'].unique() if str(x).strip() not in ['nan', 'None', '']])
+            sort_field = st.selectbox("📊 图表展示顺序依据", ["默认（按列表原始顺序）"] + available_fields)
+        with sc2:
+            sort_order = st.radio("排序方向", ["降序 (从大到小) ⬇️", "升序 (从小到大) ⬆️"], horizontal=True)
+            
+        # 🌟 核心引擎：在传给后续画图程序前，对 selected_cos 进行洗牌重排
+        if sort_field != "默认（按列表原始顺序）" and selected_cos:
+            # 提取所选指标在【最新一年】的数据
+            df_sort = df_filtered[(df_filtered['字段名'] == sort_field) & (df_filtered['报告年份'].astype(str) == str(latest_year))]
+            val_col = "(百万)人民币" if "(百万)人民币" in df_sort.columns else df_sort.columns[-1]
+            
+            is_desc = "降序" in sort_order
+            # 建立 公司名称 -> 数值 的映射字典
+            sort_map = {}
+            for _, r in df_sort.iterrows():
+                val = pd.to_numeric(r.get(val_col, np.nan), errors='coerce')
+                sort_map[str(r['公司']).strip()] = val
+                
+            # 执行排序：有数据的按数据排，没数据的扔到最后面兜底
+            default_val = float('-inf') if is_desc else float('inf')
+            selected_cos = sorted(selected_cos, key=lambda x: sort_map.get(x) if pd.notna(sort_map.get(x)) else default_val, reverse=is_desc)
+
+        # ✅ 将洗牌后的公司列表写入缓存，下方图表直接取用
+        st.session_state['selected_cos_cache'] = selected_cos
+        
         HIGHLIGHT_COLOR, HL_BOX_LINE, HL_BOX_FILL = "#00338D", "rgba(0,51,141,0.35)", "rgba(0,51,141,0.03)"
         
+        # --- 第三排：图片上传 ---
         st.markdown("---")
         st.caption("📸 手动上传图片（png或jpg）")
         if 'manual_upload_images' not in st.session_state: st.session_state.manual_upload_images = {}
         uploaded_files = st.file_uploader("拖入截图文件", type=['png', 'jpg'], accept_multiple_files=True)
         
         if uploaded_files and ordered_modules:
-            # 🌟 核心修改：定义一个你写了代码渲染的 m_id 黑名单集合
-            code_rendered_mids = {"summary_table", "csm_growth_chart", "another_code_chart"} # 在这里填入所有写了代码的模块ID
-            
-            # 过滤出那些“没有写代码渲染”的纯图片/文字模块，供上传匹配
+            code_rendered_mids = {"summary_table", "csm_growth_chart", "another_code_chart"} 
             non_code_modules = [m for m in ordered_modules if m not in code_rendered_mids]
             
             cols = st.columns(2)
             for i, file in enumerate(uploaded_files):
                 with cols[i % 2]:
                     get_name = lambda m: "不匹配/跳过" if m == "不匹配/跳过" else notes_dict.get(m, {}).get('title', m)
-                    
-                    # 🌟 核心修改：将 options 里的 ordered_modules 替换为过滤后的 non_code_modules
                     sel_mid = st.selectbox(
                         f"图片 {file.name} 对应：", 
                         options=["不匹配/跳过"] + non_code_modules, 
@@ -1415,26 +1441,29 @@ def show_step_7_content():
         fig = go.Figure()
         x_indices = list(range(len(selected_cos)))
         
-        # 🌟 提前计算全局最大值，用于动态设置“未披露”灰色占位柱的高度
+        # 🌟 提前计算全局极值，用于动态设置高度和自适应 Y 轴范围
         valid_vals = d['value'].dropna()
         all_max = valid_vals.max() if not valid_vals.empty else 100
+        min_val = valid_vals.min() if not valid_vals.empty else 0   # 新增：抓取最小值，防负数
         abs_max = valid_vals.abs().max() if not valid_vals.empty else 100
-        off = all_max * 0.3
-        placeholder_h = abs_max * 0.15 if abs_max > 0 else 10 # 占位高度约为最大值的15%
+        
+        # 🌟 优化：把 off 改用 abs_max 计算更安全，防止全盘亏损(负数)时箭头重叠
+        off = abs_max * 0.3
+        placeholder_h = abs_max * 0.15 if abs_max > 0 else 10 
         
         for yr, col in zip([str(prev_year), str(latest_year)], ["#FD349C", "#97014F"]):
             df_yr = d[d['报告年份'] == yr].set_index('公司').reindex(selected_cos).reset_index()
             
-            # 🌟 动态分配柱子的属性（遇到缺失值换成灰色未披露）
+            # 动态分配柱子的属性
             y_vals, m_colors, t_texts, t_colors, t_pos = [], [], [], [], []
             for v in df_yr['value']:
-                if pd.isna(v):  # 缺失数据
+                if pd.isna(v):  
                     y_vals.append(placeholder_h)
                     m_colors.append("#CDCDCD")
                     t_texts.append("未披露")
                     t_colors.append("white")
                     t_pos.append("inside")
-                else:           # 正常数据
+                else:           
                     y_vals.append(v)
                     m_colors.append(col)
                     t_texts.append(f"{v:.1f}" if show_labels and v != 0 else "")
@@ -1450,8 +1479,8 @@ def show_step_7_content():
                 textposition=t_pos, 
                 textfont=dict(size=12, color=t_colors),
                 cliponaxis=False,
-                textangle=0,         # 🌟 强制文字横向显示，不随柱子变细而翻转
-                constraintext='none' # 🌟 解除限制，让“未披露”大大方方显示出来
+                textangle=0,         
+                constraintext='none' 
             ))
             
         df_old, df_new = d[d['报告年份'] == str(prev_year)].set_index('公司'), d[d['报告年份'] == str(latest_year)].set_index('公司')
@@ -1459,7 +1488,6 @@ def show_step_7_content():
         for i, co in enumerate(selected_cos):
             if co in df_old.index and co in df_new.index:
                 v0, v1 = df_old.loc[co, 'value'], df_new.loc[co, 'value']
-                # 🌟 加强了安全判定：只有两年都有真实数据，才去算箭头，防止除零或报错
                 if pd.notna(v0) and pd.notna(v1) and v0 != 0:
                     pct = (v1 - v0) / abs(v0)
                     arr, col = ("↗", "#FD349C") if pct >= 0 else ("↘", "#269924")
@@ -1475,7 +1503,22 @@ def show_step_7_content():
             
         x_labels = [f"<span style='color:#00338D;'><b>{co}</b></span>" for co in selected_cos]
         fig.update_xaxes(showgrid=False, zeroline=False, tickvals=x_indices, ticktext=x_labels)
-        fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", zerolinewidth=1)
+        
+        # ==========================================
+        # 🌟 核心修改：动态计算完美的 Y 轴上下边界
+        # ==========================================
+        # 顶部：保证能装下柱子最高点 + 箭头高度(off) + 额外的 20% 呼吸空间
+        y_top = max(0, all_max) + off * 1.2
+        # 底部：如果有负数，向下多留 15% 的兜底空间；如果没有负数，默认以 0 兜底
+        y_bottom = min(0, min_val) * 1.15
+        
+        fig.update_yaxes(
+            showgrid=False, 
+            zeroline=True, 
+            zerolinecolor="#E0E0E0", 
+            zerolinewidth=1,
+            range=[y_bottom, y_top] # 🌟 将计算好的动态上下界喂给图表
+        )
         return fig
 
     # --- 9.税前和净利润补充计算 ---
@@ -1671,7 +1714,7 @@ def show_step_7_content():
         for ann in fig.layout.annotations: ann.update(y=1.03, font_size=co_font_size)
         return fig
 
-    # --- 13. OCI变动分析2 ---    
+    # --- 13. OCI变动分析2 ---   
     def create_asset_liab_oci_chart(df_raw, selected_cos, bar_gap, co_font_size, show_labels, highlight_co="无"):
         d, yrs, fns = df_raw[df_raw['字段名'].isin(['可转损益的负债OCI', 'FVOCI债券公允价值'])].copy(), [str(prev_year), str(latest_year)], ['可转损益的负债OCI', 'FVOCI债券公允价值']
         d['v'] = d['(百万)人民币'] / divisor
@@ -1696,11 +1739,14 @@ def show_step_7_content():
                 t2.append("" if m else (f"{val2:.0f}" if show_labels and val2!=0 else ""))
                 if m: fig.add_annotation(x=f"{y}YE", y=ph_h/2, text="未披露", showarrow=False, font=dict(color="white", size=12), xref=f"x{ci}" if ci>1 else "x", yref="y1", xanchor="center", yanchor="middle")
 
-            fig.add_trace(go.Bar(x=x_lbl, y=v1, marker_color=colors[fns[0]], text=t1, textposition='outside', textfont=dict(size=11, color='#00338D'), width=0.4, offsetgroup=1, showlegend=False, cliponaxis=False, constraintext='none'), row=1, col=ci)
-            fig.add_trace(go.Bar(x=x_lbl, y=v2, marker_color=colors[fns[1]], text=t2, textposition='outside', textfont=dict(size=11, color='#00338D'), width=0.4, offsetgroup=2, showlegend=False, cliponaxis=False, constraintext='none'), row=1, col=ci)
+            # 🌟 核心修改：将单一颜色改为列表 [上一年颜色, 最新年颜色]
+            c1_list = ["#ACEAFF", colors[fns[0]]]
+            c2_list = ["#FFD6E8", colors[fns[1]]]
+
+            fig.add_trace(go.Bar(x=x_lbl, y=v1, marker_color=c1_list, text=t1, textposition='outside', textfont=dict(size=11, color='#00338D'), width=0.4, offsetgroup=1, showlegend=False, cliponaxis=False, constraintext='none'), row=1, col=ci)
+            fig.add_trace(go.Bar(x=x_lbl, y=v2, marker_color=c2_list, text=t2, textposition='outside', textfont=dict(size=11, color='#00338D'), width=0.4, offsetgroup=2, showlegend=False, cliponaxis=False, constraintext='none'), row=1, col=ci)
             fig.add_trace(go.Bar(x=x_lbl, y=my, marker_color="#CDCDCD", width=0.8, offset=-0.4, showlegend=False, cliponaxis=False, hoverinfo='skip'), row=1, col=ci) 
             
-            # 🌟 核心修复：纯粹的 "x domain"，加深边框线颜色为 #B0B0B0，y0拉长到底部平齐
             hl = (str(co).strip() == str(highlight_co).strip())
             xref_str = f"x{ci} domain" if ci > 1 else "x domain"
             yref_str = "y domain"
