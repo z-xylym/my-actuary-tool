@@ -787,15 +787,27 @@ def show_step_8_content():
                 except Exception as e:
                     st.error(f"❌ 上传文件解析失败: {e}")
 
-        # 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
+# 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
     
         if df_notes is not None:
+            # ==========================================
+            # 🌟 终极防线：在所有操作开始前，强制将这两列变为通用对象 (object)
+            # 这样 Pandas 才会允许我们把文本塞进原本全是空值的 float64 列里
+            # ==========================================
+            if '分析内容-自定义' in df_notes.columns:
+                df_notes['分析内容-自定义'] = df_notes['分析内容-自定义'].astype('object')
+            if '分析内容-默认' in df_notes.columns:
+                df_notes['分析内容-默认'] = df_notes['分析内容-默认'].astype('object')
+
             if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
                 for idx, row in df_notes.iterrows():
                     mid = str(row.get('模块ID', '')).strip()
                     if not mid or mid == 'nan':
                         continue
-                    raw_val = row.get('分析内容-自定义')
+                    
+                    # 🌟 修复读取方式
+                    raw_val = df_notes.loc[idx, '分析内容-自定义']
+                    
                     # 修复：用 pd.isna 兼容 float NaN，不依赖字符串比较
                     if pd.isna(raw_val) or str(raw_val).strip() in ('', 'nan', 'None'):
                         generated = generate_custom_analysis(
@@ -804,6 +816,7 @@ def show_step_8_content():
                             latest_year, prev_year
                         )
                         if generated:
+                            # 🌟 修复赋值方式：必须用 .loc 赋值，并且套上 str()
                             df_notes.loc[idx, '分析内容-自定义'] = str(generated)
             
             # 1. 清洗所有列（去除前后空格）
@@ -868,7 +881,6 @@ def show_step_8_content():
         notes_dict_8 = st.session_state.get('step8_notes_dict', {})
         ordered_modules = st.session_state.get('step8_ordered_modules', [])
         first_levels = [x for x in df_notes['一级分类'].unique() if x and x != ''] if df_notes is not None else []
-        
     # ==========================================
     # 3. 侧边栏导航
     # ==========================================
