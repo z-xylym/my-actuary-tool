@@ -790,14 +790,6 @@ def show_step_8_content():
         # 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
     
         if df_notes is not None:
-            # ==========================================
-            # 🌟 核心防崩溃修复：强制把要塞文本的列变成 object 类型
-            # ==========================================
-            if '分析内容-自定义' in df_notes.columns:
-                df_notes['分析内容-自定义'] = df_notes['分析内容-自定义'].astype(object)
-            if '分析内容-默认' in df_notes.columns:
-                df_notes['分析内容-默认'] = df_notes['分析内容-默认'].astype(object)
-
             if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
                 for idx, row in df_notes.iterrows():
                     mid = str(row.get('模块ID', '')).strip()
@@ -812,7 +804,6 @@ def show_step_8_content():
                             latest_year, prev_year
                         )
                         if generated:
-                            # 穿上防护服后，这里塞入字符串就绝对不会再报 TypeError 了！
                             df_notes.at[idx, '分析内容-自定义'] = generated
             
             # 1. 清洗所有列（去除前后空格）
@@ -932,11 +923,11 @@ def show_step_8_content():
     # 行业分析配置（公司类型选择等）
     # ==========================================
     
-    # 🌟 固定的公司类型显示顺序
-    COMPANY_TYPE_ORDER = ["头部", "银行系", "外资系", "养老健康", "小型"]
+    DEFAULT_TYPE_ORDER = ["头部", "银行系", "外资", "养老健康", "小型"]  # 仅作默认，不强制
     
     def sort_company_types(type_list):
-        return sorted(type_list, key=lambda x: COMPANY_TYPE_ORDER.index(x) if x in COMPANY_TYPE_ORDER else 999)
+        order = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
+        return sorted(type_list, key=lambda x: order.index(x) if x in order else 999)
     
     # 公司类型色卡
     KPMG_CATEGORIES = globals().get('KPMG_CATEGORIES', {
@@ -952,39 +943,51 @@ def show_step_8_content():
     COMPANY_TYPE_COLORS = {
         "头部": primary["KPMG Blue"],
         "银行系": primary["Pacific Blue"],
-        "外资系": traffic["Positive Green"],
+        "外资": traffic["Positive Green"],
         "养老健康": traffic["Amber"],
         "小型": primary["Purple"]
     }
     
+    _FALLBACK_COLORS = [
+        primary["Cobalt Blue"],   # #1E49E2 深蓝
+        primary["Pink"],          # #FD349C 粉红
+        traffic["Red"],           # #ED2124 红
+        primary["Light Blue"],    # #ACEAFF 浅蓝（兜底用）
+    ]
+    
     def get_company_color(ct):
-        return COMPANY_TYPE_COLORS.get(ct, "#94A3B8")
+        if ct in COMPANY_TYPE_COLORS:
+            return COMPANY_TYPE_COLORS[ct]
+        return _FALLBACK_COLORS[hash(ct) % len(_FALLBACK_COLORS)]
+
     
     # 1.6 全局配置
     with st.expander("⚙️ 行业分析配置", expanded=False):
-        c1, c2 = st.columns(2)
+        c1, c3 = st.columns(2)  
         with c1:
             all_types = sorted([str(x) for x in df_raw['公司类型'].dropna().unique()])
-            all_types_sorted = [t for t in COMPANY_TYPE_ORDER if t in all_types]
-            for t in all_types:
-                if t not in all_types_sorted:
-                    all_types_sorted.append(t)
-            
+            # 默认顺序：先按DEFAULT_TYPE_ORDER里有的，再追加数据里多出来的
+            default_order = [t for t in DEFAULT_TYPE_ORDER if t in all_types]
+            default_order += [t for t in all_types if t not in default_order]
+    
             selected_types = st.multiselect(
                 "🏢 选择公司类型（可多选）",
-                all_types_sorted,
-                default=[t for t in COMPANY_TYPE_ORDER if t in all_types_sorted]
+                default_order,
+                default=default_order
             )
-            st.session_state['step8_selected_types'] = selected_types  # 👈 存入session
-            
-        with c2:
-            year_1 = st.selectbox("年度1", valid_years, index=len(valid_years)-2)
-            year_2 = st.selectbox("年度2", valid_years, index=len(valid_years)-1)
-            year_list = [int(year_1), int(year_2)]
-    
-    if not selected_types:
-        st.warning("请至少选择一个公司类型")
-        return
+            st.session_state['step8_selected_types'] = selected_types
+        with c3:
+            st.markdown("**📋 公司类型显示顺序**")
+            st.caption("调整下方选项顺序即可改变图表中的展示顺序")
+            type_order = st.multiselect(
+                "拖拽或重新选择顺序",
+                default_order,
+                default=default_order,
+                key="step8_type_order_selector"
+            )
+            # 补上没被选中的（保证所有类型都在顺序里）
+            full_order = type_order + [t for t in default_order if t not in type_order]
+            st.session_state['step8_type_order'] = full_order
     
     # ==========================================
     # 第2层：计算函数库（只负责数据计算，不涉及绘图）
@@ -1970,7 +1973,6 @@ def show_step_8_content():
         return fig
     
     def create_scatter_chart(df_scatter, config, x_label, y_label):
-        """Plotly 版散点热力图 - 紧凑单列合并表格版"""
         import plotly.graph_objects as go
         import numpy as np
         import pandas as pd
@@ -1980,43 +1982,27 @@ def show_step_8_content():
             st.warning("没有有效数据")
             return
     
-        category_colors = {
-            "头部": get_company_color("头部"),
-            "银行系": get_company_color("银行系"),
-            "外资系": get_company_color("外资系"),
-            "养老健康": get_company_color("养老健康"),
-            "小型": get_company_color("小型"),
-        }
-        category_order = ["头部", "银行系", "外资系", "养老健康", "小型"]
+        all_types_in_data = df_scatter['公司类型'].dropna().unique().tolist()
+        _type_order = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
+        category_order = [t for t in _type_order if t in all_types_in_data]
+        category_order += [t for t in all_types_in_data if t not in _type_order]
+        category_colors = {ct: get_company_color(ct) for ct in category_order}
+
+        x_col, y_col = config['x_col'], config['y_col']
     
-        x_col = config['x_col']
-        y_col = config['y_col']
+        CHART_FONT_SIZE, TABLE_FONT_SIZE, TABLE_HEADER_SIZE = 10, 7, 8
+        TABLE_ROW_HEIGHT, TABLE_HEADER_H = 18, 22
     
-        # ── 字体尺寸独立控制 ──────────────────────────────────────────────────────
-        CHART_FONT_SIZE   = 10    # 热力图散点编号、轴标签字体（独立）
-        TABLE_FONT_SIZE   = 6    # 表格单元格字体（独立）
-        TABLE_HEADER_SIZE = 7    # 表头字体
-        TABLE_ROW_HEIGHT  = 13   # 每行高度（压缩以容纳更多行）
-        TABLE_HEADER_H    = 14   # 表头高度
-    
-        # 数据排序
         existing_types = [ct for ct in category_order if ct in df_scatter['公司类型'].values]
-        df_sorted = pd.DataFrame()
-        for ct in existing_types:
-            df_ct = df_scatter[df_scatter['公司类型'] == ct].sort_values(x_col, ascending=False)
-            df_sorted = pd.concat([df_sorted, df_ct])
+        df_sorted = pd.concat([df_scatter[df_scatter['公司类型'] == ct].sort_values(x_col, ascending=False) for ct in existing_types])
         other_types = [ct for ct in df_scatter['公司类型'].unique() if ct not in existing_types]
         for ct in other_types:
-            df_ct = df_scatter[df_scatter['公司类型'] == ct].sort_values(x_col, ascending=False)
-            df_sorted = pd.concat([df_sorted, df_ct])
-    
+            df_sorted = pd.concat([df_sorted, df_scatter[df_scatter['公司类型'] == ct].sort_values(x_col, ascending=False)])
         df_scatter = df_sorted.reset_index(drop=True)
         df_scatter['id'] = range(1, len(df_scatter) + 1)
     
-        x_values = df_scatter[x_col].values
-        y_values = df_scatter[y_col].values
-        min_x, max_x = min(x_values), max(x_values)
-        min_y, max_y = min(y_values), max(y_values)
+        x_values, y_values = df_scatter[x_col].values, df_scatter[y_col].values
+        min_x, max_x, min_y, max_y = min(x_values), max(x_values), min(y_values), max(y_values)
     
         # X轴区间
         if config.get('x_bins_custom') and len(config['x_bins_custom']) > 1:
@@ -2025,8 +2011,7 @@ def show_step_8_content():
         else:
             step = max(10, int((max_x - min_x) / 4 / 10) * 10) if max_x > 10 else max(1, int((max_x - min_x) / 4))
             bins_x = list(np.arange(min_x - 5, max_x + step, step))
-            if len(bins_x) < 2:
-                bins_x = [min_x - 5, max_x + 5]
+            if len(bins_x) < 2: bins_x = [min_x - 5, max_x + 5]
             bins_x = sorted(set(bins_x))
             x_labels = [f"({int(bins_x[i])}, {int(bins_x[i+1])}]" for i in range(len(bins_x) - 1)]
     
@@ -2038,8 +2023,7 @@ def show_step_8_content():
             y_range = max_y - min_y
             step = max(10, int(y_range / 5)) if y_range != 0 else 10
             bins_y = list(np.arange(min_y - 10, max_y + step, step))
-            if len(bins_y) < 2:
-                bins_y = [min_y - 10, max_y + 10]
+            if len(bins_y) < 2: bins_y = [min_y - 10, max_y + 10]
             bins_y = sorted(set(bins_y))
             y_labels = [f"({int(bins_y[i])}%, {int(bins_y[i+1])}%]" for i in range(len(bins_y) - 1)]
     
@@ -2061,17 +2045,12 @@ def show_step_8_content():
     
         def get_position_in_bin(val, bins, bin_idx):
             low, high = bins[bin_idx], bins[bin_idx + 1]
-            if high > low:
-                frac = (val - low) / (high - low)
-                frac = max(0.1, min(0.9, frac))
-            else:
-                frac = 0.5
+            if high > low: frac = max(0.1, min(0.9, (val - low) / (high - low)))
+            else: frac = 0.5
             return bin_idx + frac
     
-        df_scatter['x_pos'] = df_scatter.apply(
-            lambda r: get_position_in_bin(r[x_col], bins_x, int(r['x_bin'])), axis=1)
-        df_scatter['y_pos'] = df_scatter.apply(
-            lambda r: get_position_in_bin(r[y_col], bins_y, int(r['y_bin'])), axis=1)
+        df_scatter['x_pos'] = df_scatter.apply(lambda r: get_position_in_bin(r[x_col], bins_x, int(r['x_bin'])), axis=1)
+        df_scatter['y_pos'] = df_scatter.apply(lambda r: get_position_in_bin(r[y_col], bins_y, int(r['y_bin'])), axis=1)
     
         np.random.seed(42)
         for y in range(ny):
@@ -2088,191 +2067,93 @@ def show_step_8_content():
                         df_scatter.loc[idx, 'x_pos'] = np.clip(df_scatter.loc[idx, 'x_pos'], x + 0.08, x + 0.92)
                         df_scatter.loc[idx, 'y_pos'] = np.clip(df_scatter.loc[idx, 'y_pos'], y + 0.08, y + 0.92)
     
-        # ── 表格数据准备 ──────────────────────────────────────────────────────────
+        # 表格数据（双列布局）
         df_table = df_scatter.copy()
+        rows_per_group = int(np.ceil(len(df_table) / 2))
+        left_df = df_table.iloc[:rows_per_group].copy()
+        right_df = df_table.iloc[rows_per_group:].copy()
+        for df in [left_df, right_df]:
+            while len(df) < rows_per_group:
+                df.loc[len(df)] = {"id": "", "公司": "", "公司类型": ""}
+        table_values = [left_df["id"].astype(str).tolist(), left_df["公司"].tolist(),
+                        right_df["id"].astype(str).tolist(), right_df["公司"].tolist()]
     
-        # ── 修复2：公司名截断放宽到8字，避免列被撑宽 ─────────────────────────────
         def shorten_name(name, max_len=8):
-            if len(name) > max_len:
-                return name[:max_len - 1] + "."
-            return name
+            return name[:max_len - 1] + "." if len(name) > max_len else name
     
-        # ── 修复1：总高度 = 行数×行高 + 表头 + margin，确保所有行可见 ────────────
-        n_rows      = len(df_table)
-        table_body_h = n_rows * TABLE_ROW_HEIGHT + TABLE_HEADER_H + 40   # 40px 缓冲
-        chart_min_h  = 550                                                 # 热力图最小高度
-        total_height = max(table_body_h, chart_min_h) + 70                # +70 留给 legend/margin
+        n_rows = rows_per_group
+        table_body_h = n_rows * TABLE_ROW_HEIGHT + TABLE_HEADER_H + 60
+        total_height = table_body_h + 40  
     
-        # ── subplot：图65% / 表35% ─────────────────────────────────────────────
-        fig = make_subplots(
-            rows=1, cols=2,
-            column_widths=[0.65, 0.35],
-            shared_yaxes=False,
-            horizontal_spacing=0.015,
-            specs=[[{"type": "xy"}, {"type": "table"}]]
-        )
+        fig = make_subplots(rows=1, cols=2, column_widths=[0.65, 0.35],
+                            shared_yaxes=False, horizontal_spacing=0.015,
+                            specs=[[{"type": "xy"}, {"type": "table"}]])
     
-        # ── 热力图 ────────────────────────────────────────────────────────────────
+        # 热力图
         max_count = max(1, int(density.max()))
-        fig.add_trace(
-            go.Heatmap(
-                z=density,
-                x=[i + 0.5 for i in range(nx)],
-                y=[i + 0.5 for i in range(ny)],
-                colorscale=[
-                    [0,    "#FFFFFF"],
-                    [0.15, "#FDEBEC"],
-                    [0.4,  "#F9C7C8"],
-                    [0.7,  "#F39A9C"],
-                    [1.0,  "#ED2124"]
-                ],
-                showscale=False,
-                hoverinfo='none',
-                zmin=0,
-                zmax=max_count,
-                name=""
-            ),
-            row=1, col=1
-        )
-    
-        # 格子内数量标注 —— 使用独立的 CHART_FONT_SIZE
+        fig.add_trace(go.Heatmap(z=density, x=[i + 0.5 for i in range(nx)], y=[i + 0.5 for i in range(ny)],
+                                 colorscale=[[0, "#FFFFFF"], [0.15, "#FDEBEC"], [0.4, "#F9C7C8"],
+                                            [0.7, "#F39A9C"], [1.0, "#ED2124"]],
+                                 showscale=False, hoverinfo='none', zmin=0, zmax=max_count, name=""), row=1, col=1)
         for i in range(ny):
             for j in range(nx):
-                count = int(density[i, j])
-                if count > 0:
-                    fig.add_annotation(
-                        x=j + 0.85, y=i + 0.85,
-                        text=str(count),
-                        showarrow=False,
-                        font=dict(size=CHART_FONT_SIZE - 1, color="#6B7280"),  # ← 独立图字体
-                        row=1, col=1
-                    )
+                if (count := int(density[i, j])) > 0:
+                    fig.add_annotation(x=j + 0.85, y=i + 0.85, text=str(count), showarrow=False,
+                                       font=dict(size=CHART_FONT_SIZE - 1, color="#6B7280"), row=1, col=1)
     
         point_count = len(df_scatter)
         marker_size = max(9, min(14, int(150 / max(1, point_count / 22))))
-    
         for ct in category_order:
             df_ct = df_scatter[df_scatter['公司类型'] == ct]
-            if df_ct.empty:
-                continue
+            if df_ct.empty: continue
             color = category_colors.get(ct, "#1E49E2")
-    
-            fig.add_trace(
-                go.Scatter(
-                    x=df_ct['x_pos'], y=df_ct['y_pos'],
-                    mode='markers', name=ct,
-                    marker=dict(size=marker_size, color=color,
-                                line=dict(width=0.8, color='white')),
-                    hoverinfo='skip', showlegend=True
-                ),
-                row=1, col=1
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=df_ct['x_pos'], y=df_ct['y_pos'],
-                    mode='text', name=ct + "_text",
-                    text=df_ct['id'].astype(str),
-                    textposition='middle center',
-                    # ── 散点编号字体独立于表格 ──
-                    textfont=dict(size=max(6, int(marker_size * 0.52)), color='white'),
-                    showlegend=False, hoverinfo='skip'
-                ),
-                row=1, col=1
-            )
+            fig.add_trace(go.Scatter(x=df_ct['x_pos'], y=df_ct['y_pos'], mode='markers', name=ct,
+                                     marker=dict(size=marker_size, color=color, line=dict(width=0.8, color='white')),
+                                     hoverinfo='skip', showlegend=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=df_ct['x_pos'], y=df_ct['y_pos'], mode='text', name=ct + "_text",
+                                     text=df_ct['id'].astype(str), textposition='middle center',
+                                     textfont=dict(size=max(6, int(marker_size * 0.52)), color='white'),
+                                     showlegend=False, hoverinfo='skip'), row=1, col=1)
     
         for i in range(nx + 1):
-            fig.add_shape(type="line", x0=i, x1=i, y0=0, y1=ny,
-                          line=dict(color="#D9E2EC", width=0.4), layer='above', row=1, col=1)
+            fig.add_shape(type="line", x0=i, x1=i, y0=0, y1=ny, line=dict(color="#D9E2EC", width=0.4), layer='above', row=1, col=1)
         for i in range(ny + 1):
-            fig.add_shape(type="line", x0=0, x1=nx, y0=i, y1=i,
-                          line=dict(color="#D9E2EC", width=0.4), layer='above', row=1, col=1)
+            fig.add_shape(type="line", x0=0, x1=nx, y0=i, y1=i, line=dict(color="#D9E2EC", width=0.4), layer='above', row=1, col=1)
     
-        # ── 修复2：表格列宽重新分配，压窄公司列 ─────────────────────────────────
-        # columnwidth 比例：编号12 / 公司42 / 类型26（合计80，Plotly按比例分配）
-        fill_colors = ['#F8FAFC' if i % 2 == 0 else 'white' for i in range(len(df_table))]
-        type_colors = [category_colors.get(t, "#1F2937") for t in df_table['公司类型'].tolist()]
+        # 表格
+        left_colors = [category_colors.get(t, "#1F2937") for t in left_df["公司类型"]]
+        right_colors = [category_colors.get(t, "#1F2937") for t in right_df["公司类型"]]
+        fig.add_trace(go.Table(
+            columnwidth=[10, 40, 10, 40],
+            header=dict(values=["编号", "公司", "编号", "公司"], fill_color="#00338D",
+                       font=dict(color="white", size=TABLE_HEADER_SIZE), align="center", height=TABLE_HEADER_H),
+            cells=dict(values=table_values, fill_color="white",
+                      font=dict(color=[["#0F172A"] * rows_per_group, left_colors,
+                                       ["#0F172A"] * rows_per_group, right_colors], size=TABLE_FONT_SIZE),
+                      align="center", height=TABLE_ROW_HEIGHT)
+        ), row=1, col=2)
     
-        fig.add_trace(
-            go.Table(
-                columnwidth=[12, 25, 25],
-                header=dict(
-                    values=["编号", "公司", "类型"],
-                    fill_color="#00338D",
-                    font=dict(color='white', size=TABLE_HEADER_SIZE),
-                    align=['center', 'center', 'center'],  # 表头全部居中
-                    height=TABLE_HEADER_H
-                ),
-                cells=dict(
-                    values=[
-                        df_table['id'].astype(str).tolist(),
-                        [shorten_name(str(n)) for n in df_table['公司'].tolist()],
-                        df_table['公司类型'].tolist()
-                    ],
-                    fill_color=[fill_colors, fill_colors, fill_colors],
-                    font=dict(
-                        color=[
-                            ['#0F172A'] * len(df_table),
-                            ['#1F2937'] * len(df_table),
-                            type_colors,
-                        ],
-                        size=[TABLE_FONT_SIZE, TABLE_FONT_SIZE, TABLE_FONT_SIZE]
-                    ),
-                    align=['center', 'center', 'center'],  # 🔴 修改：全部改为 center
-                    height=TABLE_ROW_HEIGHT
-                )
-            ),
-            row=1, col=2
-        )
-            
-        # ── 布局 ─────────────────────────────────────────────────────────────────
-        fig.update_layout(
-            showlegend=True,
-            height=total_height,               # ← 修复1：动态高度确保表格不截断
-            width=1000,
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            margin=dict(l=50, r=30, t=40, b=40),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom", y=1.02,
-                xanchor="center", x=0.33,
-                # ── 图例字体也独立 ──
-                font=dict(size=CHART_FONT_SIZE - 1)
-            )
-        )
-    
-        # ── 坐标轴字体使用 CHART_FONT_SIZE，与表格完全解耦 ──────────────────────
-        fig.update_xaxes(
-            title=dict(text=x_label, font=dict(size=CHART_FONT_SIZE)),
-            tickmode='array',
-            tickvals=[i + 0.5 for i in range(nx)],
-            ticktext=x_labels,
-            tickangle=-20,
-            tickfont=dict(size=CHART_FONT_SIZE - 1, color="#475569"),
-            showgrid=False, showline=True,
-            linecolor="#CBD5E1", linewidth=0.5,
-            range=[-0.1, nx + 0.1],
-            row=1, col=1
-        )
-        fig.update_yaxes(
-            title=dict(text=y_label, font=dict(size=CHART_FONT_SIZE)),
-            tickmode='array',
-            tickvals=[i + 0.5 for i in range(ny)],
-            ticktext=y_labels,
-            tickfont=dict(size=CHART_FONT_SIZE - 1, color="#475569"),
-            showgrid=False, showline=True,
-            linecolor="#CBD5E1", linewidth=0.5,
-            range=[-0.1, ny + 0.1],
-            row=1, col=1
-        )
-    
+        fig.update_layout(showlegend=True, height=total_height, width=1000,
+                         plot_bgcolor='white', paper_bgcolor='white',
+                         margin=dict(l=50, r=30, t=0, b=0),
+                         legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="center", x=0.33,
+                                    font=dict(size=CHART_FONT_SIZE - 1)))
+        fig.update_xaxes(title=dict(text=x_label, font=dict(size=CHART_FONT_SIZE)), tickmode='array',
+                        tickvals=[i + 0.5 for i in range(nx)], ticktext=x_labels, tickangle=-20,
+                        tickfont=dict(size=CHART_FONT_SIZE - 1, color="#475569"),
+                        showgrid=False, showline=True, linecolor="#CBD5E1", linewidth=0.5, range=[-0.1, nx + 0.1], row=1, col=1)
+        fig.update_yaxes(title=dict(text=y_label, font=dict(size=CHART_FONT_SIZE)), tickmode='array',
+                        tickvals=[i + 0.5 for i in range(ny)], ticktext=y_labels,
+                        tickfont=dict(size=CHART_FONT_SIZE - 1, color="#475569"),
+                        showgrid=False, showline=True, linecolor="#CBD5E1", linewidth=0.5, range=[-0.1, ny + 0.1], row=1, col=1)
         fig.update_xaxes(visible=False, row=1, col=2)
         fig.update_yaxes(visible=False, row=1, col=2)
     
         st.markdown('<div style="display: flex; justify-content: center; margin: 0 auto;">', unsafe_allow_html=True)
         st.plotly_chart(fig, use_container_width=False)
         st.markdown('</div>', unsafe_allow_html=True)
-  
+
+
     def create_stack_chart_and_table(distribution_df, labels, metric_name, target_year, show_labels, label_size):
         """创建堆叠柱状图和明细表格"""
         ct_list = [ct for ct in distribution_df.index if distribution_df.loc[ct].sum() > 0]
@@ -2375,7 +2256,21 @@ def show_step_8_content():
                     """        
 
         st.markdown(html_table, unsafe_allow_html=True)
+     
         
+    def add_gray_frame(fig, col_idx):
+        """为指定子图添加灰色边框（V1 样式，留边距）"""
+        fig.add_shape(
+            type="rect",
+            xref="x domain" if col_idx == 1 else f"x{col_idx} domain",
+            yref="y domain" if col_idx == 1 else f"y{col_idx} domain",
+            x0=-0.06, x1=1.06,
+            y0=-0.1, y1=1.15,
+            fillcolor="rgba(0,0,0,0)",
+            line=dict(color="#E0E0E0", width=1),
+            layer="below",
+            row=1, col=col_idx
+        )
     def create_composition_chart_v1(results_by_year, year_list, selected_types, config):
         from plotly.subplots import make_subplots
         
@@ -2390,7 +2285,7 @@ def show_step_8_content():
         # 🌟 和 V2 完全一致
         fig = make_subplots(
             rows=1, cols=len(all_cts), shared_yaxes=True,
-            horizontal_spacing=0.03,  # V2 用的是 0.03
+            horizontal_spacing=0.015, 
             column_titles=[f"<b>{ct}</b>" for ct in all_cts]
         )
         
@@ -2413,25 +2308,15 @@ def show_step_8_content():
                     row=1, col=col_idx
                 )
             
-            # 🌟 和 V2 完全一致的灰色框
-            fig.add_shape(
-                type="rect",
-                xref="x domain" if col_idx == 1 else f"x{col_idx} domain",
-                yref="y domain" if col_idx == 1 else f"y{col_idx} domain",
-                x0=-0.06, x1=1.06,
-                y0=-0.1, y1=1.15,
-                fillcolor="rgba(0,0,0,0)",
-                line=dict(color="#E0E0E0", width=1),
-                layer="below",
-                row=1, col=col_idx
-            )
+            add_gray_frame(fig, col_idx)
+            
         
         # 🌟 和 V2 完全一致的布局
         fig.update_layout(
             barmode='stack',
-            bargap=0.2,
-            height=500,
-            margin=dict(t=50, b=80, l=20, r=20),
+            bargap=0.05,
+            height=380,
+            margin=dict(t=50, b=20, l=130, r=130),
             legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=10)),
             plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
         )
@@ -2452,7 +2337,7 @@ def show_step_8_content():
         from plotly.subplots import make_subplots
         import pandas as pd
         import plotly.graph_objects as go
-    
+        print(f"bar_width = {config.get('bar_width')}") 
         all_cts = [ct for ct in selected_types if ct in results_by_year.get(year_list[0], {})]
         if not all_cts:
             return go.Figure(), pd.DataFrame()
@@ -2481,7 +2366,7 @@ def show_step_8_content():
             rows=1,
             cols=len(all_cts),
             shared_yaxes=True,
-            horizontal_spacing=0.03,
+            horizontal_spacing=0.015,
             column_titles=[f"<b>{ct}</b>" for ct in all_cts]
         )
     
@@ -2536,17 +2421,7 @@ def show_step_8_content():
     
                 cumulative = [cumulative[j] + y_vals[j] for j in range(len(year_list))]
     
-            fig.add_shape(
-                type="rect",
-                xref="x domain" if col_idx == 1 else f"x{col_idx} domain",
-                yref="y domain" if col_idx == 1 else f"y{col_idx} domain",
-                x0=-0.06, x1=1.06, y0=-0.1, y1=1.15,
-                fillcolor="rgba(0,0,0,0)",
-                line=dict(color="#E0E0E0", width=1),
-                layer="below",
-                row=1,
-                col=col_idx
-            )
+            add_gray_frame(fig, col_idx)
     
             for year_idx, year in enumerate(year_list):
                 year_str = f"{year}年"
@@ -2558,14 +2433,15 @@ def show_step_8_content():
         fig.update_layout(
             barmode='stack',
             bargap=0.2,
-            height=500,
-            margin=dict(t=50, b=80, l=20, r=20),
+            height=380,
+            margin=dict(t=50, b=10, l=130, r=130),
             legend=dict(
                 orientation="h",
                 yanchor="top",
-                y=-0.2,
+                y=-0.08,
                 xanchor="center",
                 x=0.5,
+                tracegroupgap=5 ,
                 font=dict(size=10)
             ),
             plot_bgcolor='rgba(0,0,0,0)',
@@ -2592,353 +2468,208 @@ def show_step_8_content():
         return fig, df_avg
 
 
-    def create_profit_composition_chart(results_by_ct, config, excluded_info=None):
-        """绘制行业平均利润构成图 - 强制显示所有公司类型"""
-        import plotly.graph_objects as go
-        
-        if not results_by_ct:
-            fig = go.Figure()
-            fig.add_annotation(text="无有效数据", x=0.5, y=0.5, showarrow=False)
-            return fig, None
-        
-        # ========== 🔥 关键修改：不再过滤异常值，强制显示所有类型 ==========
-        filtered_results = results_by_ct  # 直接使用全部数据，不过滤
-        filtered_excluded = excluded_info if excluded_info else {}
-        
-        # ========== 绘图配置 ==========
-        display_mapping = [
-            ("亏损部分的确认及转回", "亏损部分的确认及转回", "rgb(190, 190, 190)"),
-            ("合同服务边际的释放", "合同服务边际的释放", "rgb(30, 73, 226)"),
-            ("非金融风险调整的变动", "非金融风险调整的变动", "rgb(118, 210, 255)"),
-            ("营运偏差及其他", "营运偏差及其他", "rgb(114, 19, 214)"),
-            ("保费分配法业务净损益", "保费分配法业务净损益", "rgb(253, 52, 156)"),
-            ("再保净损益", "再保净损益", "rgb(9, 142, 126)")
-        ]
-        
-        fig = go.Figure()
-        ct_list = list(filtered_results.keys())
-        x_indices = list(range(len(ct_list)))
-        
-        dark_colors = {"rgb(30, 73, 226)", "rgb(114, 19, 214)", "rgb(9, 142, 126)"}
-        show_labels = config.get('show_labels', True)
-        label_size = config.get('label_size', 11)
-        bar_width = config.get('bar_width', 0.4)
-        
-        # 收集数据
-        all_data = {}
-        for ct in ct_list:
-            all_data[ct] = [filtered_results[ct]['contributions'].get(col_name, 0) for col_name, _, _ in display_mapping]
-        
-        # 🔥 扩大 Y 轴范围，容纳极端值（-500% 到 600%）
-        all_positive_sums = [sum(v for v in all_data[ct] if v > 0) for ct in ct_list]
-        all_negative_sums = [sum(v for v in all_data[ct] if v < 0) for ct in ct_list]
-        y_max = max(max(all_positive_sums) + 50, 200) if all_positive_sums else 200
-        y_min = min(min(all_negative_sums) - 50, -300) if all_negative_sums else -300
-        
-        # 画柱子
-        for idx, (col_name, legend_name, color) in enumerate(display_mapping):
-            y_vals = [all_data[ct][idx] for ct in ct_list]
-            fig.add_trace(go.Bar(
-                name=legend_name, x=x_indices, y=y_vals, width=bar_width,
-                marker_color=color, text=None,
-                hovertemplate="%{fullData.name}<br>%{y:.1f}%<extra></extra>"
-            ))
-        
-        # 手动添加标签（强制显示，即使数值再小）
-        if show_labels:
-            for i, ct in enumerate(ct_list):
-                values = all_data[ct]
-                pos_cursor, neg_cursor = 0.0, 0.0
-                
-                for j, (col_name, legend_name, color) in enumerate(display_mapping):
-                    v = values[j]
-                    # 🔥 不再跳过小数值，全都显示
-                    txt_color = "white" if color in dark_colors else "black"
-                    
-                    if v >= 0:
-                        center_y = pos_cursor + v / 2
-                        pos_cursor += v
-                    else:
-                        center_y = neg_cursor + v / 2
-                        neg_cursor += v
-                    
-                    # 只显示绝对值 >= 1% 的标签，避免太拥挤
-                    if abs(v) >= 1:
-                        fig.add_annotation(
-                            x=i, y=center_y, text=f"{v:.1f}%", showarrow=False,
-                            font=dict(size=label_size, color=txt_color, weight='bold'),
-                            xanchor="center", yanchor="middle", xref="x", yref="y"
-                        )
-        
-        # 灰色背景框
-        for i in range(len(ct_list)):
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=i - 0.46, x1=i + 0.46,
-                          y0=-0.08, y1=1.08, fillcolor="rgba(200, 200, 200, 0.15)",
-                          line=dict(color="rgba(150, 150, 150, 0.6)", width=1.5), layer="below")
-        
-        # Layout - 扩大 Y 轴范围
-        fig.update_layout(
-            barmode='relative', height=600, bargap=0.25,
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(t=50, b=100, l=220, r=80),
-            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05,
-                        traceorder="reversed", font=dict(size=11, color="#00338D")),
-            yaxis=dict(side='right', showgrid=False, range=[y_min, y_max],
-                       tickmode='array', 
-                       tickvals=[-300, -200, -100, 0, 100, 200, 300, 400, 500, 600],
-                       ticktext=["-300%", "-200%", "-100%", "0%", "100%", "200%", "300%", "400%", "500%", "600%"],
-                       zeroline=True, zerolinecolor="#F7860C", zerolinewidth=2)
-        )
-        
-        x_labels = [f"<span style='font-size:{config.get('co_font_size', 14)}px;color:#00338D;'><b>{ct}</b></span>" for ct in ct_list]
-        fig.update_xaxes(showgrid=False, zeroline=False, tickvals=x_indices, ticktext=x_labels, side="top")
-        
-        return fig, None
-
     def create_expense_chart(results_by_year, year_list, selected_types, config):
-        """绘制行业平均费用结构图"""
         from plotly.subplots import make_subplots
         import plotly.graph_objects as go
     
+        COMPANY_TYPE_ORDER = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
         first_year = list(results_by_year.keys())[0]
         available_types = list(results_by_year[first_year].keys())
-        all_cts = [ct for ct in selected_types if ct in available_types]
-    
+        all_cts = [ct for ct in COMPANY_TYPE_ORDER if ct in selected_types and ct in available_types]
+        all_cts.extend([ct for ct in selected_types if ct not in COMPANY_TYPE_ORDER and ct in available_types])
         if not all_cts:
             all_cts = available_types
     
         expense_fields = ["获取费用", "维持费用", "非履约费用"]
-        color_map = {
-            "获取费用": "rgb(30, 73, 226)",
-            "维持费用": "rgb(118, 210, 255)",
-            "非履约费用": "rgb(114, 19, 234)"
-        }
+        color_map = {"获取费用": "rgb(30,73,226)", "维持费用": "rgb(118,210,255)", "非履约费用": "rgb(114,19,234)"}
+        dark_colors = {"获取费用", "非履约费用"}
     
-        fig = make_subplots(
-            rows=1,
-            cols=len(all_cts),
-            shared_yaxes=True,
-            subplot_titles=[f"<b>{ct}</b>" for ct in all_cts],
-            horizontal_spacing=0.02
-        )
-    
-        # 不再额外手工添加 scatter 图例，避免重复
-        # 只让第一个子图的 bar 显示图例
+        fig = make_subplots(rows=1, cols=len(all_cts), shared_yaxes=True, horizontal_spacing=0.02,
+                            subplot_titles=[f"<span style='color:#00338D'><b>{ct}</b></span>" for ct in all_cts])
     
         for i, ct in enumerate(all_cts):
             col_idx = i + 1
-    
-            years_list = []
-            for year in year_list:
-                ratios = results_by_year.get(year, {}).get(ct, {}).get('ratios', {})
-                years_list.append([ratios.get(f, 0) for f in expense_fields])
-    
+            years_list = [[results_by_year.get(year, {}).get(ct, {}).get("ratios", {}).get(f, 0) for f in expense_fields] for year in year_list]
             x_vals = list(range(len(year_list)))
     
             for j, field in enumerate(expense_fields):
-                y_vals = [data[j] for data in years_list]
-                is_dark = field in ["获取费用", "非履约费用"]
+                fig.add_trace(go.Bar(x=x_vals, y=[data[j] for data in years_list], name=field,
+                                     marker_color=color_map[field], width=config["bar_width"], showlegend=(i == 0),
+                                     legendgroup=field, hovertemplate="%{fullData.name}<br>%{y:.1f}%<extra></extra>"), row=1, col=col_idx)
     
-                fig.add_trace(
-                    go.Bar(
-                        x=x_vals,
-                        y=y_vals,
-                        name=field,
-                        marker_color=color_map[field],
-                        text=[f"{v:.0f}%" if config['show_labels'] and v > 0 else "" for v in y_vals],
-                        textposition='inside',
-                        insidetextanchor='middle',
-                        textfont=dict(
-                            size=config['label_size'],
-                            color="white" if is_dark else "#1a1a2e"
-                        ),
-                        width=config['bar_width'],
-                        showlegend=(i == 0),   # 只在第一个子图显示图例
-                        legendgroup=field,
-                        hovertemplate="%{x}<br>%{fullData.name}: %{y:.1f}%<extra></extra>"
-                    ),
-                    row=1, col=col_idx
-                )
+            if config["show_labels"]:
+                pos_stack = [0] * len(year_list)
+                for field in expense_fields:
+                    y_vals = [data[expense_fields.index(field)] for data in years_list]
+                    text_y = [pos_stack[k] + v/2 for k, v in enumerate(y_vals)]
+                    for k, v in enumerate(y_vals):
+                        pos_stack[k] += v
+                    fig.add_trace(go.Scatter(x=x_vals, y=text_y, mode="text",
+                                             text=[f"{v:.0f}%" if abs(v) >= 1 else "" for v in y_vals],
+                                             textfont=dict(size=config["label_size"], color="white" if field in dark_colors else "#1a1a2e"),
+                                             showlegend=False), row=1, col=col_idx)
     
-            # 添加顶部总费用标注
             for year_idx, year in enumerate(year_list):
-                total_val = results_by_year.get(year, {}).get(ct, {}).get('avg_total', 0) / 100
+                total_val = results_by_year.get(year, {}).get(ct, {}).get("avg_total", 0) / 100
+                fig.add_annotation(x=year_idx, y=105, text=f"{total_val:.0f}", showarrow=False,
+                                   font=dict(size=config["label_size"], color="#222"), bgcolor="white", bordercolor="#BBB", borderwidth=1,
+                                   xanchor="center", yanchor="bottom", xref=f"x{col_idx}" if col_idx > 1 else "x", yref=f"y{col_idx}" if col_idx > 1 else "y")
     
-                fig.add_annotation(
-                    x=year_idx,
-                    y=105,
-                    text=f"{total_val:.0f}",   # 不用<b>，避免被标题样式循环误伤
-                    showarrow=False,
-                    font=dict(size=config['label_size'], color="#222"),
-                    bgcolor="white",
-                    bordercolor="#BBB",
-                    borderwidth=1,
-                    xanchor="center",
-                    yanchor="bottom",
-                    xref=f"x{col_idx}" if col_idx > 1 else "x",
-                    yref=f"y{col_idx}" if col_idx > 1 else "y"
-                )
+            fig.add_shape(type="rect", xref="x domain" if col_idx == 1 else f"x{col_idx} domain", yref="y domain",
+                          x0=-0.06, x1=1.06, y0=-0.10, y1=1.15, fillcolor="rgba(0,0,0,0)",
+                          line=dict(color="#E0E0E0", width=1), layer="below", row=1, col=col_idx)
+            fig.update_xaxes(tickvals=x_vals, ticktext=[f"{year}年" for year in year_list], showgrid=False, zeroline=False, showline=False, row=1, col=col_idx)
+            fig.add_hline(y=0, line_color="#D9D9D9", line_width=1, layer="below")
     
-            # 灰色背景框
-            fig.add_shape(
-                type="rect",
-                xref="x domain" if col_idx == 1 else f"x{col_idx} domain",
-                yref="y domain" if col_idx == 1 else f"y{col_idx} domain",
-                x0=-0.08, x1=1.08, y0=-0.1, y1=1.15,
-                fillcolor="rgba(200, 200, 200, 0.15)",
-                line=dict(color="rgba(150, 150, 150, 0.6)", width=1.5),
-                layer="below",
-                row=1, col=col_idx
-            )
-    
-            fig.update_xaxes(
-                tickvals=list(range(len(year_list))),
-                ticktext=[f"{year}年" for year in year_list],
-                showgrid=False,
-                showline=False,
-                zeroline=False,
-                ticks="",
-                row=1, col=col_idx
-            )
-    
-        fig.update_layout(
-            barmode='stack',
-            bargap=0.25,
-            height=550,
-            margin=dict(t=50, b=80, l=10, r=10),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.15,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=12)
-            )
-        )
-    
-        # 单独设置每个子图的y轴
         for i in range(1, len(all_cts) + 1):
-            fig.update_yaxes(
-                range=[0, 115],
-                showgrid=False,
-                zeroline=False,
-                tickformat=".0f",
-                ticksuffix="%",
-                row=1, col=i
-            )
+            fig.update_yaxes(range=[0, 115], showgrid=False, zeroline=False, tickformat=".0f", ticksuffix="%", row=1, col=i)
     
-        # 只改 subplot title，不改总数 annotation
-        title_count = len(all_cts)
-        for idx in range(title_count):
-            fig.layout.annotations[idx].update(
-                y=1.05,
-                font=dict(size=14, color="#00338D")
-            )
+        fig.update_layout(barmode="stack", bargap=0.05, height=380, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                          margin=dict(t=50, b=10, l=130, r=130),
+                          legend=dict(orientation="h", yanchor="top", y=-0.20, xanchor="center", x=0.5, font=dict(size=10)))
+    
+        for idx in range(len(all_cts)):
+            fig.layout.annotations[idx].update(y=1.08, font=dict(size=config.get("co_font_size", 12), color="#00338D"))
     
         return fig
-        
+
+    def create_profit_composition_chart(results_by_ct, config, excluded_info=None):
+        import plotly.graph_objects as go
+    
+        if not results_by_ct:
+            return go.Figure().add_annotation(text="无有效数据", x=0.5, y=0.5, showarrow=False), None
+    
+        display_mapping = [
+            ("亏损部分的确认及转回", "亏损部分的确认及转回", "rgb(190,190,190)"),
+            ("合同服务边际的释放", "合同服务边际的释放", "rgb(30,73,226)"),
+            ("非金融风险调整的变动", "非金融风险调整的变动", "rgb(118,210,255)"),
+            ("营运偏差及其他", "营运偏差及其他", "rgb(114,19,214)"),
+            ("保费分配法业务净损益", "保费分配法业务净损益", "rgb(253,52,156)"),
+            ("再保净损益", "再保净损益", "rgb(9,142,126)")
+        ]
+    
+        ct_list = list(results_by_ct.keys())
+        x_indices = list(range(len(ct_list)))
+        show_labels, label_size, bar_width, co_font_size = config.get("show_labels", True), config.get("label_size", 11), config.get("bar_width", 0.35), config.get("co_font_size", 12)
+        dark_colors = {"rgb(30,73,226)", "rgb(114,19,214)", "rgb(9,142,126)"}
+    
+        all_data = {ct: [results_by_ct[ct]["contributions"].get(col_name, 0) for col_name, _, _ in display_mapping] for ct in ct_list}
+        pos_sums = [sum(v for v in all_data[ct] if v > 0) for ct in ct_list]
+        neg_sums = [sum(v for v in all_data[ct] if v < 0) for ct in ct_list]
+        y_max = max(max(pos_sums) + 50, 200) if pos_sums else 200
+        y_min = min(min(neg_sums) - 50, -300) if neg_sums else -300
+    
+        fig = go.Figure()
+        for idx, (_, legend_name, color) in enumerate(display_mapping):
+            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=[all_data[ct][idx] for ct in ct_list],
+                                 width=bar_width, marker_color=color, hovertemplate="%{fullData.name}<br>%{y:.1f}%<extra></extra>"))
+    
+        if show_labels:
+            for i, ct in enumerate(ct_list):
+                pos_cursor, neg_cursor = 0, 0
+                for j, (_, _, color) in enumerate(display_mapping):
+                    v = all_data[ct][j]
+                    txt_color = "white" if color in dark_colors else "black"
+                    if v >= 0:
+                        center_y, pos_cursor = pos_cursor + v/2, pos_cursor + v
+                    else:
+                        center_y, neg_cursor = neg_cursor + v/2, neg_cursor + v
+                    if abs(v) >= 1:
+                        fig.add_annotation(x=i, y=center_y, text=f"{v:.1f}%", showarrow=False,
+                                           xanchor="center", yanchor="middle", font=dict(size=label_size, color=txt_color))
+    
+        for i in range(len(ct_list)):
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=i-0.46, x1=i+0.46, y0=-0.10, y1=1.10,
+                          fillcolor="rgba(0,0,0,0)", line=dict(color="#E0E0E0", width=1), layer="below")
+    
+        fig.update_layout(barmode="relative", bargap=0.05, height=380, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                          margin=dict(t=50, b=20, l=130, r=130),
+                          legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05,
+                                      traceorder="reversed", font=dict(size=11, color="#00338D")),
+                          yaxis=dict(side="right", showgrid=False, range=[y_min, y_max], tickmode="array",
+                                     tickvals=[-300,-200,-100,0,100,200,300,400,500,600],
+                                     ticktext=["-300%","-200%","-100%","0%","100%","200%","300%","400%","500%","600%"],
+                                     zeroline=True, zerolinecolor="#F7860C", zerolinewidth=2))
+        fig.update_xaxes(tickvals=x_indices, ticktext=[f"<span style='font-size:{co_font_size}px;color:#00338D;'><b>{ct}</b></span>" for ct in ct_list],
+                         side="top", showgrid=False, zeroline=False)
+        return fig, None
    
     def create_profit_mix_chart(results_by_year, year_list, selected_types, config):
-        """绘制行业平均利润构成图（保险利润和投资利润的占比）"""
         from plotly.subplots import make_subplots
-        
-        all_cts = list(results_by_year[list(results_by_year.keys())[0]].keys())
-        c = {'PI': '#FFD6EB', 'PS': '#00B8F5', 'CI': '#FD349C', 'CS': '#00338D'}
-        
-        fig = make_subplots(
-            rows=2, cols=len(all_cts),
-            row_heights=[0.18, 0.82],
-            subplot_titles=[f"<span style='color:#00338D;'><b>{ct}</b></span>" for ct in all_cts],
-            shared_yaxes=True,
-            vertical_spacing=0.15,
-            horizontal_spacing=0.03,
-            specs=[[{"type": "domain"} for _ in all_cts], [{"type": "xy"} for _ in all_cts]]
-        )
-        
+        import plotly.graph_objects as go
+    
+        COMPANY_TYPE_ORDER = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
+        first_year = list(results_by_year.keys())[0]
+        available_types = list(results_by_year[first_year].keys())
+        all_cts = [ct for ct in COMPANY_TYPE_ORDER if ct in selected_types and ct in available_types]
+        all_cts.extend([ct for ct in selected_types if ct not in COMPANY_TYPE_ORDER and ct in available_types])
+    
+        c = {"PI": "#FFD6EB", "PS": "#00B8F5", "CI": "#FD349C", "CS": "#00338D"}
+    
+        fig = make_subplots(rows=2, cols=len(all_cts), row_heights=[0.22, 0.78], vertical_spacing=0.06, horizontal_spacing=0.02,
+                            subplot_titles=[f"<span style='color:#00338D'><b>{ct}</b></span>" for ct in all_cts],
+                            shared_yaxes=True, specs=[[{"type": "domain"} for _ in all_cts], [{"type": "xy"} for _ in all_cts]])
+    
         for i, ct in enumerate(all_cts):
             col_idx = i + 1
-            
             pi_prev = results_by_year.get(year_list[0], {}).get(ct, {}).get("投资利润", 0)
             ps_prev = results_by_year.get(year_list[0], {}).get(ct, {}).get("保险利润", 0)
             pi_curr = results_by_year.get(year_list[1], {}).get(ct, {}).get("投资利润", 0)
             ps_curr = results_by_year.get(year_list[1], {}).get(ct, {}).get("保险利润", 0)
-            
-            fig.add_trace(
-                go.Pie(
-                    labels=['投资', '保险'],
-                    values=[pi_curr, ps_curr],
-                    marker_colors=[c['CI'], c['CS']],
-                    hole=0.75,
-                    textinfo='none',
-                    showlegend=False,
-                    sort=False
-                ),
-                row=1, col=col_idx
-            )
-            
+    
+            fig.add_trace(go.Pie(labels=["投资", "保险"], values=[pi_curr, ps_curr], marker_colors=[c["CI"], c["CS"]],
+                                 hole=0.72, textinfo="none", sort=False, showlegend=False), row=1, col=col_idx)
+    
             if i == 0:
-                for nm, cl in [(f"{year_list[0]}YE 投资利润", c['PI']),
-                               (f"{year_list[0]}YE 保险利润", c['PS']),
-                               (f"{year_list[1]}YE 投资利润", c['CI']),
-                               (f"{year_list[1]}YE 保险利润", c['CS'])]:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[None], y=[None], mode='markers',
-                            marker=dict(color=cl, symbol='square', size=15),
-                            name=nm, showlegend=True
-                        ),
-                        row=2, col=col_idx
-                    )
+                for nm, cl in [(f"{year_list[0]}YE 投资利润", c["PI"]), (f"{year_list[0]}YE 保险利润", c["PS"]),
+                               (f"{year_list[1]}YE 投资利润", c["CI"]), (f"{year_list[1]}YE 保险利润", c["CS"])]:
+                    fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", marker=dict(color=cl, symbol="square", size=12), name=nm), row=2, col=1)
+    
+            fig.add_trace(go.Bar(x=[f"{year_list[0]}YE", f"{year_list[1]}YE"], y=[pi_prev, pi_curr],
+                                 marker_color=[c["PI"], c["CI"]], width=0.35,
+                                 text=[f"{pi_prev:.0f}", f"{pi_curr:.0f}"] if config["show_labels"] else None,
+                                 textposition="outside", cliponaxis=False, showlegend=False), row=2, col=col_idx)
+            fig.add_trace(go.Bar(x=[f"{year_list[0]}YE", f"{year_list[1]}YE"], y=[ps_prev, ps_curr],
+                                 marker_color=[c["PS"], c["CS"]], width=0.35,
+                                 text=[f"{ps_prev:.0f}", f"{ps_curr:.0f}"] if config["show_labels"] else None,
+                                 textposition="outside", cliponaxis=False, showlegend=False), row=2, col=col_idx)
+    
+            # 删掉原来的 fig.add_shape，改成：
+            n = len(all_cts)
+            h_spacing = 0.02
+            col_w = (1 - h_spacing * (n - 1)) / n
+            padding_x = 0.008
+            padding_y = 0.01
             
-            fig.add_trace(
-                go.Bar(
-                    x=[f"{year_list[0]}YE", f"{year_list[1]}YE"],
-                    y=[pi_prev, pi_curr],
-                    marker_color=[c['PI'], c['CI']],
-                    text=[f"{pi_prev:.0f}", f"{pi_curr:.0f}"] if config['show_labels'] else None,
-                    textposition='outside',
-                    textfont=dict(size=12),
-                    cliponaxis=False,
-                    showlegend=False
-                ),
-                row=2, col=col_idx
+            x0 = i * (col_w + h_spacing) - padding_x
+            x1 = x0 + col_w + padding_x * 2
+            fig.add_shape(
+                type="rect", xref="paper", yref="paper",
+                x0=x0, x1=x1,
+                y0=0.0 - padding_y, y1=1.0 + padding_y,
+                fillcolor="rgba(0,0,0,0)",
+                line=dict(color="#E0E0E0", width=1),
+                layer="below"
             )
-            
-            fig.add_trace(
-                go.Bar(
-                    x=[f"{year_list[0]}YE", f"{year_list[1]}YE"],
-                    y=[ps_prev, ps_curr],
-                    marker_color=[c['PS'], c['CS']],
-                    text=[f"{ps_prev:.0f}", f"{ps_curr:.0f}"] if config['show_labels'] else None,
-                    textposition='outside',
-                    textfont=dict(size=12),
-                    cliponaxis=False,
-                    showlegend=False
-                ),
-                row=2, col=col_idx
-            )
-        
-        fig.update_layout(
-            barmode='group',
-            bargap=config['gap'],
-            bargroupgap=0.0,
-            height=500,
-            margin=dict(t=50, b=110, l=40, r=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.15)
-        )
-        
+    
+        all_vals = [results_by_year.get(y, {}).get(ct, {}).get(k, 0) for ct in all_cts for y in year_list for k in ["投资利润", "保险利润"]]
+        ymax = max(all_vals) * 1.35 if all_vals else 100
+        ymin = min(all_vals) * 1.35 if all_vals and min(all_vals) < 0 else 0
+    
         for i in range(1, len(all_cts) + 1):
-            fig.update_xaxes(type='category', showgrid=False, tickangle=0, tickfont=dict(color='gray'), row=2, col=i)
-            fig.update_yaxes(showgrid=False, zeroline=True, zerolinecolor='lightgray', showticklabels=False, row=2, col=i)
-        
+            fig.update_xaxes(type="category", categoryorder="array", categoryarray=[f"{year_list[0]}YE", f"{year_list[1]}YE"],
+                 showgrid=False, showline=False, tickfont=dict(size=10), row=2, col=i)
+            fig.update_yaxes(range=[ymin, ymax], showgrid=False, showticklabels=False, zeroline=True, zerolinecolor="#D9D9D9", zerolinewidth=1, row=2, col=i)
+    
+        fig.update_layout(barmode="group", bargap=config["gap"], bargroupgap=0, height=380,
+                          margin=dict(t=40, b=65, l=30, r=20),
+                          paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                          legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.08, font=dict(size=10)))
+    
         for ann in fig.layout.annotations:
             if "<b>" in str(ann.text):
-                ann.update(y=1.08, font=dict(size=13, weight="bold"))
-        
+                ann.update(y=1.02, font=dict(size=12, color="#00338D"))
+    
         return fig
 
     def create_oci_chart_industry(results_by_ct, year_list, selected_types, config, is_latest=True):
@@ -3004,7 +2735,7 @@ def show_step_8_content():
             barmode='group',
             bargap=config['bar_gap'],
             height=420,
-            margin=dict(t=50, b=40, l=40, r=30),
+            margin=dict(t=50, b=40, l=85, r=85),
             legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=11))
         )
         fig.update_yaxes(range=y_range, showline=False, zeroline=False, showgrid=False, gridcolor='rgba(0,0,0,0)', gridwidth=0)
@@ -3092,7 +2823,7 @@ def show_step_8_content():
         import plotly.graph_objects as go
         
         # 内置配置
-        COMPANY_TYPE_ORDER = ["头部", "银行系", "外资系", "养老健康", "小型"]
+        COMPANY_TYPE_ORDER = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
         ASSET_FIELD_MAP = {"AC": "债权投资", "FVOCI": "其他债权投资", "FVTPL": "交易性金融资产", "指定FVOCI": "其他权益工具投资"}
         ASSET_COLOR_MAP = {"AC": "rgb(0, 184, 245)", "FVOCI": "rgb(114, 19, 234)", "FVTPL": "rgb(253, 52, 156)", "指定FVOCI": "rgb(181, 2, 95)"}
         DARK_BG_FIELDS = {"FVOCI", "指定FVOCI", "AC"}
@@ -3144,175 +2875,64 @@ def show_step_8_content():
         from plotly.subplots import make_subplots
         import plotly.graph_objects as go
     
-        # 数据定义
-        EXPENSE_FIELDS = [
-            "保险获取现金流的摊销（保险服务费用）",
-            "亏损部分的确认及转回",
-            "当期发生的赔款及其他相关费用",
-            "已发生赔款负债相关的履约现金流量变动"
-        ]
+        EXPENSE_FIELDS = ["保险获取现金流的摊销（保险服务费用）", "亏损部分的确认及转回", "当期发生的赔款及其他相关费用", "已发生赔款负债相关的履约现金流量变动"]
+        FIELD_DISPLAY = {"保险获取现金流的摊销（保险服务费用）": "保险获取现金流的摊销", "亏损部分的确认及转回": "亏损部分的确认及转回", "当期发生的赔款及其他相关费用": "当期发生的赔款及费用", "已发生赔款负债相关的履约现金流量变动": "已发生赔款负债变动"}
+        COLOR_MAP = {"保险获取现金流的摊销（保险服务费用）": "rgb(30,73,226)", "亏损部分的确认及转回": "rgb(254,174,215)", "当期发生的赔款及其他相关费用": "rgb(0,163,161)", "已发生赔款负债相关的履约现金流量变动": "rgb(1,184,245)"}
+        COMPANY_TYPE_ORDER = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
     
-        FIELD_DISPLAY = {
-            "保险获取现金流的摊销（保险服务费用）": "保险获取现金流的摊销",
-            "亏损部分的确认及转回": "亏损部分的确认及转回",
-            "当期发生的赔款及其他相关费用": "当期发生的赔款及费用",
-            "已发生赔款负债相关的履约现金流量变动": "已发生赔款负债变动"
-        }
-    
-        COLOR_MAP = {
-            "保险获取现金流的摊销（保险服务费用）": "rgb(30, 73, 226)",
-            "亏损部分的确认及转回": "rgb(254, 174, 215)",
-            "当期发生的赔款及其他相关费用": "rgb(0, 163, 161)",
-            "已发生赔款负债相关的履约现金流量变动": "rgb(1, 184, 245)"
-        }
-    
-        COMPANY_TYPE_ORDER = ["头部", "银行系", "外资系", "养老健康", "小型"]
-    
-        # 绘图区分：按顺序和选择类型
-        all_cts = [ct for ct in COMPANY_TYPE_ORDER if ct in selected_types]
-        other_cts = [ct for ct in selected_types if ct not in COMPANY_TYPE_ORDER]
-        all_cts.extend(other_cts)
-    
+        all_cts = [ct for ct in COMPANY_TYPE_ORDER if ct in selected_types] + [ct for ct in selected_types if ct not in COMPANY_TYPE_ORDER]
         if not all_cts:
-            fig = go.Figure()
-            fig.add_annotation(text="无有效数据", x=0.5, y=0.5, showarrow=False)
+            fig = go.Figure().add_annotation(text="无有效数据", x=0.5, y=0.5, showarrow=False)
             return fig
     
-        fig = make_subplots(
-            rows=1, cols=len(all_cts),
-            shared_yaxes=True,
-            subplot_titles=[f"<b>{ct}</b>" for ct in all_cts],
-            horizontal_spacing=0.02
-        )
+        fig = make_subplots(rows=1, cols=len(all_cts), shared_yaxes=True, horizontal_spacing=0.015,
+                            subplot_titles=[f"<span style='color:#00338D'><b>{ct}</b></span>" for ct in all_cts])
     
-        # 堆叠柱 + 文本标签分离
+        dark_colors = {"rgb(30,73,226)", "rgb(0,163,161)"}
+    
         for i, ct in enumerate(all_cts):
             col_idx = i + 1
-    
-            # 按公司类型提取数据
-            y_vals_dict = {}
-            for f in EXPENSE_FIELDS:
-                y_vals_dict[f] = []
-                for year in year_list:
-                    val = results_by_year.get(year, {}).get(ct, {}).get(f, 0)
-                    y_vals_dict[f].append(val)
-    
-            x_vals = list(range(len(year_list)))  # x 位置
-            x_labels = [f"{year}年" for year in year_list]
-    
-            # 追踪堆叠位置
-            pos_stack = [0] * len(year_list)
-            neg_stack = [0] * len(year_list)
+            y_vals_dict = {f: [results_by_year.get(year, {}).get(ct, {}).get(f, 0) for year in year_list] for f in EXPENSE_FIELDS}
+            x_vals, x_labels = list(range(len(year_list))), [f"{year}年" for year in year_list]
+            pos_stack, neg_stack = [0] * len(year_list), [0] * len(year_list)
     
             for f_name in EXPENSE_FIELDS:
                 y_vals = y_vals_dict[f_name]
+                fig.add_trace(go.Bar(x=x_vals, y=y_vals, name=FIELD_DISPLAY[f_name], marker_color=COLOR_MAP[f_name],
+                                     width=config['bar_width'], showlegend=(i == 0), legendgroup=f_name), row=1, col=col_idx)
     
-                # 绘制柱子
-                fig.add_trace(
-                    go.Bar(
-                        x=x_vals,
-                        y=y_vals,
-                        name=FIELD_DISPLAY[f_name],
-                        marker_color=COLOR_MAP[f_name],
-                        width=config['bar_width'],
-                        showlegend=(i == 0),  # 图例只在第一列显示
-                        legendgroup=f_name
-                    ),
-                    row=1,
-                    col=col_idx
-                )
-    
-                # 单独绘制文字标签
-                text_positions = []
+                text_positions = [pos_stack[j] + v/2 if v >= 0 else neg_stack[j] + v/2 for j, v in enumerate(y_vals)]
                 for j, v in enumerate(y_vals):
-                    if v >= 0:
-                        text_positions.append(pos_stack[j] + v / 2)
-                        pos_stack[j] += v
-                    else:
-                        text_positions.append(neg_stack[j] + v / 2)
-                        neg_stack[j] += v
+                    if v >= 0: pos_stack[j] += v
+                    else: neg_stack[j] += v
     
-                fig.add_trace(
-                    go.Scatter(
-                        x=x_vals,
-                        y=text_positions,
-                        mode="text",
-                        text=[f"{v:.0f}%" if config['show_labels'] else "" for v in y_vals],
-                        textfont=dict(
-                            size=config['label_size'],
-                            color="white" if f_name in ["保险获取现金流的摊销（保险服务费用）", "亏损部分的确认及转回"] else "#1a1a2e",
-                        ),
-                        showlegend=False,  # 不显示图例
-                    ),
-                    row=1,
-                    col=col_idx
-                )
+                fig.add_trace(go.Scatter(x=x_vals, y=text_positions, mode="text",
+                                         text=[f"{v:.0f}%" if config['show_labels'] and abs(v) >= 1 else "" for v in y_vals],
+                                         textfont=dict(size=config['label_size'], color="white" if COLOR_MAP[f_name] in dark_colors else "#1a1a2e"),
+                                         showlegend=False), row=1, col=col_idx)
     
-            # 添加灰色背景框
-            fig.add_shape(
-                type="rect",
-                xref="x domain" if col_idx == 1 else f"x{col_idx} domain",
-                yref="y domain",
-                x0=-0.08,
-                x1=1.08,
-                y0=-0.1,
-                y1=1.15,
-                fillcolor="rgba(200, 200, 200, 0.15)",
-                line=dict(color="rgba(150, 150, 150, 0.6)", width=1.5),
-                layer="below",
-                row=1,
-                col=col_idx
-            )
+            fig.add_shape(type="rect", xref="x domain" if col_idx == 1 else f"x{col_idx} domain", yref="y domain",
+                          x0=-0.06, x1=1.06, y0=-0.10, y1=1.15, fillcolor="rgba(0,0,0,0)",
+                          line=dict(color="#E0E0E0", width=1), layer="below", row=1, col=col_idx)
+            fig.update_xaxes(tickvals=x_vals, ticktext=x_labels, showgrid=False, zeroline=False, row=1, col=col_idx)
     
-            # 添加X轴标签
-            fig.update_xaxes(
-                tickvals=x_vals,
-                ticktext=x_labels,
-                row=1,
-                col=col_idx
-            )
-    
-        # 计算Y轴范围（按堆叠柱子总高度）- 保持你的逻辑不变
-        max_stack_height = []
-        for year in year_list:
-            for ct in all_cts:
-                vals = [
-                    results_by_year.get(year, {}).get(ct, {}).get(f, 0) for f in EXPENSE_FIELDS
-                ]
-                max_stack_height.append(sum(v for v in vals if v > 0))
+        max_stack_height = [sum(v for v in [results_by_year.get(year, {}).get(ct, {}).get(f, 0) for f in EXPENSE_FIELDS] if v > 0)
+                            for year in year_list for ct in all_cts]
         y_max = max(max_stack_height) * 1.15 if max_stack_height else 100
-        fig.update_yaxes(
-            range=[-10, y_max],
-            showgrid=False,
-            zeroline=True,
-            zerolinecolor="#E0E0E0",
-            ticksuffix="%",
-            tickformat=".0f"
-        )
     
-        # ========== 修改1：添加橙色基准线（0%线），与 Step 7 一致 ==========
-        fig.add_hline(y=0, line_color="orange", line_width=1.5, layer="below")
+        fig.update_yaxes(range=[-10, y_max], showgrid=False, zeroline=True, zerolinecolor="#E0E0E0", ticksuffix="%", tickformat=".0f")
+        fig.add_hline(y=0, line_color="#F7860C", line_width=1.5, layer="below")
     
-        # ========== 修改2：图例往下移，与 Step 7 一致 ==========
-        fig.update_layout(
-            barmode="relative",
-            bargap=0.3,
-            height=500,
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            margin=dict(t=40, b=80, l=40, r=40),
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.15,  # 从 -0.1 改成 -0.15
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10)
-            )
-        )
+        fig.update_layout(barmode="relative", bargap=0.05, height=400, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                          margin=dict(t=50, b=20, l=130, r=130),
+                          legend=dict(orientation="h", yanchor="top", y=-0.20, xanchor="center", x=0.5, font=dict(size=10)))
+    
+        for ann in fig.layout.annotations:
+            ann.update(y=1.08, font=dict(size=config.get("co_font_size", 12), color="#00338D"))
     
         return fig
-   
+
+ 
     def create_industry_csm_composition_chart(results_by_ct, target_year, config):
         """
         绘制行业平均摊销前 CSM 构成图
@@ -3328,7 +2948,7 @@ def show_step_8_content():
             "CSM计息": "rgb(147, 157, 253)",            # 浅蓝色
             "CSM调整": "rgb(253, 52, 156)"              # 粉红色
         }
-        COMPANY_TYPE_ORDER = ["头部", "银行系", "外资系", "养老健康", "小型"]
+        COMPANY_TYPE_ORDER = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
         
         # 获取公司类型列表（按固定顺序）
         all_cts = [ct for ct in COMPANY_TYPE_ORDER if ct in results_by_ct.keys()]
@@ -3429,7 +3049,7 @@ def show_step_8_content():
         """统一图表输出"""
         if fig:
             if p_mode:
-                fig.update_layout(width=850, autosize=False)
+                fig.update_layout(width=1500, autosize=False)
                 st.plotly_chart(fig, use_container_width=False)
             else:
                 st.plotly_chart(fig, use_container_width=True)
@@ -3583,13 +3203,11 @@ def show_step_8_content():
                 with c3: bar_width = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
                 with c4: co_font_size = st.slider("公司名称大小", 10, 20, 14, key=f"cfs_{m_id}")
             else:
-                show_labels, label_size, bar_width, co_font_size = True, 12, 0.6, 14
-            
+                show_labels, label_size, bar_width, co_font_size = True, 10, 0.35, 12
+
             config = {'show_labels': show_labels, 'label_size': label_size, 'bar_width': bar_width, 'co_font_size': co_font_size}
-            
             fig = create_composition_chart_v1(results_by_year, year_list, selected_types, config)
-            
-            st.markdown("<p style='text-align:right; font-size:12px; color:#666;'>单位：百分比 (%)</p>", unsafe_allow_html=True)
+
             show_chart(fig, print_mode)
 
         # 图表2：非PAA合同组收入构成分析
@@ -3636,7 +3254,7 @@ def show_step_8_content():
                 with c3: bar_width = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
                 with c4: co_font_size = st.slider("公司名称大小", 10, 20, 14, key=f"cfs_{m_id}")
             else:
-                show_labels, label_size, bar_width, co_font_size = True, 12, 0.6, 14
+                show_labels, label_size, bar_width, co_font_size = True, 10, 0.35, 12
             
             config = {'show_labels': show_labels, 'label_size': label_size, 'bar_width': bar_width, 'co_font_size': co_font_size}
             
@@ -3644,7 +3262,7 @@ def show_step_8_content():
             
             # 输出平均值表格
             if fig and not df_avg.empty:
-                st.markdown("<div style='font-size: 13px; font-weight: bold; margin-bottom: 8px; color:#333;'>各公司平均占比情况 (样本均值)</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size: 13px; font-weight: bold; margin-bottom: 4px; color:#333;'>各公司平均占比情况 (样本均值)</div>", unsafe_allow_html=True)
                 
                 html = "<table style='width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px; margin-bottom: 10px;'>"
                 html += "<tr style='background-color: #00338D; color: white; text-align: center; font-weight: bold;'>"
@@ -3658,82 +3276,62 @@ def show_step_8_content():
                     html += f"<tr><td style='padding: 4px 6px; font-weight: bold; background-color: #F8F9FA; border: 1px solid #EAEAEA;'>{year_str}</td>"
                     for comp in field_map.values():
                         val = df_avg.loc[year_str, comp]
-                        html += f"<td style='padding: 4px 6px; text-align: center; background-color: white; border: 1px solid #EAEAEA;'>{val:.1f}%</td>"
+                        html += f"<td style='padding: 2px 4px; text-align: center; background-color: white; border: 1px solid #EAEAEA;'>{val:.1f}%</td>"
                     html += "</tr>"
                 
                 html += "</table>"
                 st.markdown(html, unsafe_allow_html=True)
-            
-            st.markdown("<p style='text-align:right; font-size:12px; color:#666;'>单位：百分比 (%)</p>", unsafe_allow_html=True)
+                
             show_chart(fig, print_mode)
         #保险服务费用构成
         elif m_id == "industry_exp_1":
-            # 收集数据
             results_by_year = {}
             for year in year_list:
-                year_results = {}
-                for ct in selected_types:
-                    result = calc_industry_expense_composition(df_raw, ct, year)
-                    if result:
-                        year_results[ct] = result
+                year_results = {ct: r for ct in selected_types if (r := calc_industry_expense_composition(df_raw, ct, year))}
                 if year_results:
                     results_by_year[year] = year_results
-            
+        
             if not results_by_year:
                 st.warning("无法计算行业平均费用构成")
                 return
-            
-            # UI 配置（与 Step 7 exp_1 风格一致）
+        
             if not print_mode:
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    show_labels = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
-                with c2:
-                    bar_width = st.slider("柱子宽度", 0.2, 0.8, 0.6, key=f"wid_{m_id}")
-                with c3:
-                    label_size = st.slider("标签大小", 8, 16, 11, key=f"sz_{m_id}")
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: show_labels = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
+                with c2: label_size = st.slider("标签大小", 5, 20, 12, key=f"lsz_{m_id}")
+                with c3: bar_width = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
+                with c4: co_font_size = st.slider("公司名称大小", 10, 20, 14, key=f"cfs_{m_id}")
             else:
-                show_labels, bar_width, label_size = True, 0.6, 11
-            
-            config = {
-                'show_labels': show_labels,
-                'bar_width': bar_width,
-                'label_size': label_size,
-                'co_font_size': 12
-            }
-            
+                show_labels, bar_width, label_size, co_font_size = True, 0.35, 11, 12
+        
+            config = {'show_labels': show_labels, 'bar_width': bar_width, 'label_size': label_size, 'co_font_size': co_font_size}
             fig = create_industry_expense_composition_chart(results_by_year, year_list, selected_types, config)
-            
             st.markdown("<p style='text-align:right; font-size:12px; color:#666;'>单位：百分比 (%)</p>", unsafe_allow_html=True)
             show_chart(fig, print_mode)
+
         # 业务及管理费（新准则分类）
         elif m_id == "industry_exp_struct":
             results_by_year = {}
             for year in year_list:
-                year_results = {}
-                for ct in selected_types:
-                    result = calc_industry_expense_structure(df_raw, ct, year)
-                    if result:
-                        year_results[ct] = result
+                year_results = {ct: r for ct in selected_types if (r := calc_industry_expense_structure(df_raw, ct, year))}
                 if year_results:
                     results_by_year[year] = year_results
-            
+        
             if not results_by_year:
                 st.warning("无法计算行业平均费用结构")
                 return
-            
+        
             if not print_mode:
-                c1, c2, c3 = st.columns(3)
+                c1, c2, c3, c4 = st.columns(4)
                 with c1: show_labels = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
-                with c2: bar_width = st.slider("柱子宽度", 0.2, 0.8, 0.6, key=f"wid_{m_id}")
-                with c3: label_size = st.slider("标签大小", 8, 20, 10, key=f"sz_{m_id}")
+                with c2: label_size = st.slider("标签大小", 5, 20, 10, key=f"sz_{m_id}")
+                with c3: bar_width = st.slider("柱子宽度", 0.1, 1.0, 0.35, 0.05, key=f"wid_{m_id}")
+                with c4: co_font_size = st.slider("公司名称大小", 10, 20, 14, key=f"cfs_{m_id}")
             else:
-                show_labels, bar_width, label_size = True, 0.6, 10
-            
-            config = {'show_labels': show_labels, 'bar_width': bar_width, 'label_size': label_size}
-            
+                show_labels, label_size, bar_width, co_font_size = True, 10, 0.35, 12
+        
+            config = {"show_labels": show_labels, "bar_width": bar_width, "label_size": label_size, "co_font_size": co_font_size}
             fig = create_expense_chart(results_by_year, year_list, selected_types, config)
-            
             st.markdown("<p style='text-align:right; font-size:12px; color:#666;'>单位：百分比 (%)，顶部数字为总费用（亿元）</p>", unsafe_allow_html=True)
             show_chart(fig, print_mode)
 
@@ -3763,7 +3361,7 @@ def show_step_8_content():
                 with c3: bar_width = st.slider("柱宽", 0.2, 0.8, 0.4, key=f"wid_{m_id}")
                 with c4: co_font_size = st.slider("公司字号", 10, 20, 14, key=f"cfs_{m_id}")
             else:
-                show_labels, label_size, bar_width, co_font_size = True, 11, 0.4, 14
+                show_labels, label_size, bar_width, co_font_size = True, 10, 0.35, 12
             
             config = {'show_labels': show_labels, 'label_size': label_size, 
                       'bar_width': bar_width, 'co_font_size': co_font_size}
@@ -3802,7 +3400,7 @@ def show_step_8_content():
                 with c3: bar_width = st.slider("柱宽", 0.2, 0.8, 0.4, key=f"wid_{m_id}")
                 with c4: co_font_size = st.slider("公司字号", 10, 20, 14, key=f"cfs_{m_id}")
             else:
-                show_labels, label_size, bar_width, co_font_size = True, 11, 0.4, 14
+                show_labels, label_size, bar_width, co_font_size = True, 10, 0.35, 12
             
             config = {'show_labels': show_labels, 'label_size': label_size, 
                       'bar_width': bar_width, 'co_font_size': co_font_size}
@@ -3836,7 +3434,7 @@ def show_step_8_content():
                 with c1: show_labels = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
                 with c2: gap = st.slider("柱子间距", 0.2, 0.7, 0.4, key=f"gap_{m_id}")
             else:
-                show_labels, gap = True, 0.4
+                show_labels, gap = True, 0.25
             
             config = {'show_labels': show_labels, 'gap': gap}
             
@@ -4136,23 +3734,18 @@ def show_step_8_content():
         is_pct_chart = any(x in m_id for x in ["comp", "ratio", "margin", "csm_trans", "struct"]) or m_id == "asset_struct"
         
         if print_mode:
-            unit_text = "百分比 (%)" if is_pct_chart else "百万人民币"
-            st.markdown(f"<p style='text-align:right; font-size:11px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
             render_pure_chart_entity(m_id, print_mode)
         else:
             chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
             with chart_col_center:
-                unit_text = "百分比 (%)" if is_pct_chart else "百万人民币"
-                st.markdown(f"<p style='text-align:right; font-size:12px; margin-bottom:2px; color:#666;'>单位：{unit_text}</p>", unsafe_allow_html=True)
                 render_pure_chart_entity(m_id, print_mode)
-
 
         # ====== 第 4 步：底部注释 ======
         # 顺手把底部的注释也用清洗器过一遍，防止底部跑出 nan
         note_text = clean_note(mod_data.get('note', '')) 
         if note_text:
             st.markdown(
-                f'<div style="margin-top:10px; margin-bottom:20px; text-align:left;">'
+                f'<div style="margin-top:2px; margin-bottom:20px; text-align:left;">'
                 f'<p style="margin:0; color:#888; font-size:12px; font-style:italic; line-height:1.4;">注：{note_text}</p>'
                 f'</div>',
                 unsafe_allow_html=True
