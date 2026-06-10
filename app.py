@@ -6324,10 +6324,9 @@ else:
     else:
         # 如果是 普通用户，只开放 6 和 7 两个 Tab
         st.warning("🔒 您当前仅拥有数据可视化与报告生成模块的访问权限。")
-        tab6, tab7, tab8 = st.tabs([
+        tab6, tab7= st.tabs([
             " 📊 Step 6 ／ 自定义对标分析 ",
-            " 🖼️ Step 7 ／ 公司级对标报告 ",
-            " 📈 Step 8 ／ 行业分类统计分析 "
+            " 🖼️ Step 7 ／ 公司级对标报告 "
         ])
         
         # ─────────── Step 6 可视化分析面板 ───────────
@@ -6747,10 +6746,6 @@ else:
         # ─────────── Step 7 固定图的展示和 PPT ───────────
         with tab7:
             show_step_7_content()            
-
-        # ─────────── Step 8 固定图的展示和 PPT ───────────
-        with tab8:
-            show_step_8_content()        
 
 
  
