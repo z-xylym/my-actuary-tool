@@ -11,6 +11,7 @@ import streamlit.components.v1 as components  # 确保引入 components
 import streamlit as st
 import streamlit.components.v1 as components
 import uuid
+import math
 
 def show_step_8_content():
     """行业统计分析 - 完全参照 Step 7 的三层架构"""
@@ -54,8 +55,22 @@ def show_step_8_content():
                 continue
             custom_map[m_id] = {"x_bins_custom": x_bins, "y_bins_custom": y_bins}
         return custom_map
-    
-    
+   
+    # ─────────────────────────────────────────────
+    # 工具函数 3：根据数据自动生成漂亮刻度
+    # ─────────────────────────────────────────────
+    def generate_nice_bins(values, target_bins=6):
+        """根据数据自动生成漂亮刻度"""
+        v = pd.Series(values).dropna()
+        if len(v) < 2: return [0, 1]
+        mn, mx = v.min(), v.max()
+        if mn == mx: return [0, mx * 1.2] if mx else [0, 1]
+        raw_step = (mx - mn) / target_bins
+        mag = 10 ** math.floor(math.log10(abs(raw_step)))
+        step = (1 if raw_step / mag <= 1 else 2 if raw_step / mag <= 2 else 5 if raw_step / mag <= 5 else 10) * mag
+        lo, hi = math.floor(mn / step) * step, math.ceil(mx / step) * step
+        bins = np.arange(lo, hi + step, step).tolist()
+        return bins if len(bins) >= 2 else [lo, hi] if lo != hi else [lo, lo + 1]
 
     # ==========================================
     # 第1层：样式注入与数据准备
@@ -297,727 +312,6 @@ def show_step_8_content():
     # ==========================================
     notes_dict_8, ordered_modules, first_levels = {}, [], []
     df_notes = None
-    
-    def generate_custom_analysis(m_id, df, cos, cy, py):
-            """根据m_id和数据自动生成行业分析内容，返回字符串"""
-            import numpy as np
-     
-            # ── 工具函数1：取某公司类型某字段某年的所有公司均值 ──
-            def gv(field, year, ct):
-                yr = str(int(year)) if year == int(year) else str(year)
-                mask = (
-                    (df['公司类型'] == ct) &
-                    (df['报告年份'].astype(str).str.replace('.0', '', regex=False) == yr) &
-                    (df['字段名'] == field)
-                )
-                vals = df[mask]['(百万)人民币'].dropna()
-                return vals.mean() if not vals.empty else None
-     
-            # ── 工具函数2：涨跌型（各公司类型均值同比）──
-            def rise_fall(field, year_c, year_p, unit="亿元", scale=100,
-                          actual_field=None):
-                f = actual_field or field
-                rises, falls = [], []
-                for ct in cos:
-                    c = gv(f, year_c, ct)
-                    p = gv(f, year_p, ct)
-                    if c is None or p is None or p == 0:
-                        continue
-                    chg  = (c - p) / abs(p)
-                    val_c = c / scale
-                    (rises if chg >= 0 else falls).append((ct, chg, val_c))
-                parts = []
-                if rises:
-                    rises.sort(key=lambda x: -x[1])
-                    parts.append(
-                        f"{len(rises)}类机构均值上升，其中{rises[0][0]}增幅最大"
-                        f"（+{rises[0][1]:.1%}，均值约{rises[0][2]:.0f}{unit}）"
-                    )
-                if falls:
-                    falls.sort(key=lambda x: x[1])
-                    parts.append(
-                        f"{len(falls)}类机构均值下降，其中{falls[0][0]}降幅最大"
-                        f"（{falls[0][1]:.1%}，均值约{falls[0][2]:.0f}{unit}）"
-                    )
-                return "；".join(parts) + "。" if parts else ""
-     
-            # ── 工具函数3：构成型 ──
-            def composition_by_type(fields_display, year):
-                lines = []
-                for ct in cos:
-                    totals = {f: abs(gv(f, year, ct) or 0) for f in fields_display}
-                    grand  = sum(totals.values())
-                    if grand == 0:
-                        continue
-                    main_f   = max(totals, key=totals.get)
-                    main_pct = totals[main_f] / grand * 100
-                    lines.append(
-                        f"{ct}以{fields_display[main_f]}为主（占比约{main_pct:.1f}%）"
-                    )
-                return "；".join(lines) + "。" if lines else ""
-     
-            # ── 工具函数4：计算字段的涨跌描述（两个字段相减）──
-            def calc_two_field_diff(field_a, field_b, year_c, year_p,
-                                    unit="亿元", scale=100):
-                """net = field_a - field_b，对每个公司类型计算均值并同比"""
-                lines = []
-                for ct in cos:
-                    a_c = gv(field_a, year_c, ct)
-                    b_c = gv(field_b, year_c, ct)
-                    a_p = gv(field_a, year_p, ct)
-                    b_p = gv(field_b, year_p, ct)
-                    if a_c is None:
-                        continue
-                    net_c = ((a_c or 0) - (b_c or 0)) / scale
-                    net_p = ((a_p or 0) - (b_p or 0)) / scale \
-                            if a_p is not None else None
-                    if net_p and net_p != 0:
-                        chg       = (net_c - net_p) / abs(net_p)
-                        direction = "升" if chg >= 0 else "降"
-                        lines.append(
-                            f"{ct}均值约{net_c:.0f}{unit}（同比{direction}{abs(chg):.1%}）"
-                        )
-                    else:
-                        lines.append(f"{ct}均值约{net_c:.0f}{unit}")
-                return "；".join(lines) + "。" if lines else ""
-     
-            # ── 工具函数5：分布图通用描述（各类型参与公司数量）──
-            def dist_count_summary(year):
-                lines = []
-                for ct in cos:
-                    yr   = str(int(year)) if year == int(year) else str(year)
-                    mask = (
-                        (df['公司类型'] == ct) &
-                        (df['报告年份'].astype(str)
-                         .str.replace('.0', '', regex=False) == yr)
-                    )
-                    n = df[mask]['公司'].nunique()
-                    if n > 0:
-                        lines.append(f"{ct}{n}家")
-                return "样本：" + "、".join(lines) + "。" if lines else ""
-     
-            try:
-                # ============================================================
-                # 散点图 ── SCATTER_AXIS_META 的 15 个 m_id
-                # ============================================================
-     
-                # 1. 保险服务收入
-                if m_id == "industry_inc_total":
-                    return rise_fall("保险服务收入", cy, py,
-                                     actual_field="保险服务收入合计")
-     
-                # 2. 净投资回报
-                if m_id == "industry_inv_return":
-                    return rise_fall("净投资回报", cy, py,
-                                     actual_field="净投资回报")
-     
-                # 3. 保险服务费用
-                if m_id == "industry_exp_total":
-                    return rise_fall("保险服务费用", cy, py,
-                                     actual_field="保险服务费用合计")
-     
-                # 4. 承保财务净损益（= 承保财务损益 - 分出再保险财务损益）
-                if m_id == "industry_uw_profit":
-                    return calc_two_field_diff(
-                        "承保财务损益", "分出再保险财务损益", cy, py
-                    )
-     
-                # 5. 保险服务业绩（= 保险服务收入合计 - 保险服务费用合计）
-                if m_id == "industry_perf_total":
-                    return calc_two_field_diff(
-                        "保险服务收入合计", "保险服务费用合计", cy, py
-                    )
-     
-                # 6. 投资利润（= 净投资回报 - 承保财务净损益）
-                if m_id == "industry_inv_profit":
-                    lines = []
-                    for ct in cos:
-                        nr_c = gv("净投资回报",        cy, ct)
-                        uw_c = gv("承保财务损益",       cy, ct)
-                        re_c = gv("分出再保险财务损益", cy, ct)
-                        nr_p = gv("净投资回报",        py, ct)
-                        uw_p = gv("承保财务损益",       py, ct)
-                        re_p = gv("分出再保险财务损益", py, ct)
-                        if nr_c is None:
-                            continue
-                        net_uw_c = (uw_c or 0) - (re_c or 0)
-                        net_uw_p = (uw_p or 0) - (re_p or 0)
-                        inv_c    = ((nr_c or 0) - net_uw_c) / 100
-                        inv_p    = ((nr_p or 0) - net_uw_p) / 100 \
-                                   if nr_p is not None else None
-                        if inv_p and inv_p != 0:
-                            chg       = (inv_c - inv_p) / abs(inv_p)
-                            direction = "升" if chg >= 0 else "降"
-                            lines.append(
-                                f"{ct}均值约{inv_c:.0f}亿元（同比{direction}{abs(chg):.1%}）"
-                            )
-                        else:
-                            lines.append(f"{ct}均值约{inv_c:.0f}亿元")
-                    return "；".join(lines) + "。" if lines else ""
-     
-                # 7. 净利润
-                if m_id == "industry_net_profit":
-                    return rise_fall("净利润", cy, py, actual_field="净利润")
-     
-                # 8. 税前利润
-                if m_id == "industry_tax_profit":
-                    return rise_fall("税前利润", cy, py, actual_field="税前利润总额")
-     
-                # 9. 其他综合收益
-                if m_id == "industry_oci_profit":
-                    return rise_fall("其他综合收益", cy, py, actual_field="其他综合收益")
-     
-                # 10. 综合收益总额
-                if m_id == "industry_total_profit":
-                    return rise_fall("综合收益总额", cy, py, actual_field="综合收益总额")
-     
-                # 11. CSM余额
-                if m_id == "industry_csm_bal":
-                    return rise_fall("CSM余额", cy, py, actual_field="CSM期末余额")
-     
-                # 12. 净资产
-                if m_id == "industry_equity_trend":
-                    return rise_fall("净资产", cy, py, actual_field="期末股东权益")
-     
-                # 13. CSM/净资产占比（= CSM期末余额 × 0.75 / 期末股东权益 × 100）
-                if m_id == "industry_csm_equity":
-                    lines = []
-                    for ct in cos:
-                        csm_c = gv("CSM期末余额",  cy, ct)
-                        eq_c  = gv("期末股东权益", cy, ct)
-                        csm_p = gv("CSM期末余额",  py, ct)
-                        eq_p  = gv("期末股东权益", py, ct)
-                        if csm_c is None or not eq_c:
-                            continue
-                        ratio_c = csm_c * 0.75 / eq_c * 100
-                        if csm_p and eq_p:
-                            ratio_p = csm_p * 0.75 / eq_p * 100
-                            chg     = ratio_c - ratio_p   # 百分点变化
-                            sign    = "+" if chg >= 0 else ""
-                            lines.append(
-                                f"{ct}均值约{ratio_c:.1f}%（同比{sign}{chg:.1f}个百分点）"
-                            )
-                        else:
-                            lines.append(f"{ct}均值约{ratio_c:.1f}%")
-                    return "；".join(lines) + "。" if lines else ""
-     
-                # 14. 新业务CSM
-                if m_id == "industry_nb_csm":
-                    return rise_fall("新业务CSM", cy, py,
-                                     actual_field="新业务CSM（集团口径）")
-     
-                # 15. 新业务LC亏损率（= 新业务亏损合同 / 新业务未来现金流入现值（亏损）× 100）
-                if m_id == "industry_lc_loss_ratio":
-                    lines = []
-                    for ct in cos:
-                        lc_c  = gv("新业务亏损合同（LC）——非PAA",  cy, ct)
-                        pv_c  = gv("新业务未来现金流入现值（亏损）", cy, ct)
-                        lc_p  = gv("新业务亏损合同（LC）——非PAA",  py, ct)
-                        pv_p  = gv("新业务未来现金流入现值（亏损）", py, ct)
-                        if lc_c is None or not pv_c:
-                            continue
-                        ratio_c = lc_c / pv_c * 100
-                        if lc_p and pv_p:
-                            ratio_p = lc_p / pv_p * 100
-                            chg     = ratio_c - ratio_p
-                            sign    = "+" if chg >= 0 else ""
-                            lines.append(
-                                f"{ct}均值约{ratio_c:.1f}%（同比{sign}{chg:.1f}个百分点）"
-                            )
-                        else:
-                            lines.append(f"{ct}均值约{ratio_c:.1f}%")
-                    return "；".join(lines) + "。" if lines else ""
-     
-                # ============================================================
-                # 堆叠分布图 ── STACK_DIST_META 的 4 个 m_id
-                # ============================================================
-     
-                # 16. CSM/BEL占比分布（= CSM期末余额 / BEL期末余额 × 100）
-                if m_id == "industry_csm_ratio":
-                    lines = []
-                    for ct in cos:
-                        csm_c = gv("CSM期末余额", cy, ct)
-                        bel_c = gv("BEL期末余额", cy, ct)
-                        if csm_c is None or not bel_c:
-                            continue
-                        ratio = csm_c / bel_c * 100
-                        lines.append(f"{ct}行业均值约{ratio:.1f}%")
-                    count_str = dist_count_summary(cy)
-                    ratio_str = "；".join(lines) + "。" if lines else ""
-                    return count_str + ratio_str
-     
-                # 17. CSM持续率分布（= 新业务CSM / CSM摊销 × 100）
-                if m_id == "industry_csm_continuity_ratio":
-                    lines = []
-                    for ct in cos:
-                        nb_c    = gv("新业务CSM（集团口径）", cy, ct)
-                        amort_c = gv("CSM摊销",               cy, ct)
-                        if nb_c is None or not amort_c:
-                            continue
-                        ratio = -nb_c / amort_c * 100
-                        lines.append(f"{ct}行业均值约{ratio:.1f}%")
-                    count_str = dist_count_summary(cy)
-                    ratio_str = "；".join(lines) + "。" if lines else ""
-                    return count_str + ratio_str
-     
-                # 18. CSM摊销比率分布（= CSM摊销 / (期末CSM - CSM摊销) × 100）
-                if m_id == "industry_csm_amort_ratio":
-                    lines = []
-                    for ct in cos:
-                        amort_c = gv("CSM摊销",     cy, ct)
-                        end_c   = gv("CSM期末余额", cy, ct)
-                        if amort_c is None or end_c is None:
-                            continue
-                        denom = end_c - amort_c
-                        if denom == 0:
-                            continue
-                        ratio = -amort_c / denom * 100
-                        lines.append(f"{ct}行业均值约{ratio:.1f}%")
-                    count_str = dist_count_summary(cy)
-                    ratio_str = "；".join(lines) + "。" if lines else ""
-                    return count_str + ratio_str
-     
-                # 19. 新业务IFRS利润率分布（= (新业务CSM - LC) / 未来现金流入现值 × 100）
-                if m_id == "industry_nb_ifrs_margin":
-                    lines = []
-                    for ct in cos:
-                        nb_c  = gv("新业务CSM（集团口径）",       cy, ct)
-                        lc_c  = gv("新业务亏损合同（LC）——非PAA", cy, ct)
-                        pv_c  = gv("新业务未来现金流入现值",       cy, ct)
-                        if nb_c is None or not pv_c:
-                            continue
-                        ratio = ((nb_c or 0) - (lc_c or 0)) / pv_c * 100
-                        lines.append(f"{ct}行业均值约{ratio:.1f}%")
-                    count_str = dist_count_summary(cy)
-                    ratio_str = "；".join(lines) + "。" if lines else ""
-                    return count_str + ratio_str
-     
-                # ============================================================
-                # 构成类图表（13 个 m_id）
-                # ============================================================
-     
-                if m_id == "industry_comp_1":
-                    return composition_by_type({
-                        "采用保费分配法计量的保险合同保险服务收入": "PAA合同收入",
-                        "未采用保费分配法计量的保险合同保险服务收入": "非PAA合同收入",
-                    }, cy)
-     
-                if m_id == "industry_comp_2":
-                    return composition_by_type({
-                        "合同服务边际的摊销": "合同服务边际释放",
-                        "非金融风险调整的变动": "非金融风险调整变动",
-                        "预计当期发生的保险服务费用": "预期保险服务费用",
-                        "保险获取现金流的摊销（保险服务收入）": "保险获取现金流摊销",
-                    }, cy)
-     
-                if m_id == "industry_exp_1":
-                    return composition_by_type({
-                        "保险获取现金流的摊销（保险服务费用）": "保险获取现金流摊销",
-                        "亏损部分的确认及转回": "亏损部分确认及转回",
-                        "当期发生的赔款及其他相关费用": "当期赔款及费用",
-                        "已发生赔款负债相关的履约现金流量变动": "已发生赔款负债变动",
-                    }, cy)
-     
-                if m_id == "industry_exp_struct":
-                    lines = []
-                    for ct in cos:
-                        vals = {
-                            "获取费用": abs(gv("获取费用",  cy, ct) or 0),
-                            "维持费用": abs(gv("维持费用",  cy, ct) or 0),
-                            "非履约费用": abs(gv("非履约费用", cy, ct) or 0),
-                        }
-                        grand = sum(vals.values())
-                        if grand == 0:
-                            continue
-                        main_f = max(vals, key=vals.get)
-                        lines.append(
-                            f"{ct}以{main_f}为主（占比约{vals[main_f]/grand*100:.1f}%）"
-                        )
-                    return "；".join(lines) + "。" if lines else ""
-     
-                if m_id == "industry_prof_2025":
-                    csm_lines = [
-                        f"{ct}约{gv('合同服务边际的释放', cy, ct):.1f}%"
-                        for ct in cos
-                        if gv("合同服务边际的释放", cy, ct) is not None
-                    ]
-                    csm_str  = "合同服务边际的释放均值：" + "、".join(csm_lines) + "。" \
-                               if csm_lines else ""
-                    comp_str = composition_by_type({
-                        "亏损部分的确认及转回": "亏损部分确认及转回",
-                        "合同服务边际的释放":   "合同服务边际释放",
-                        "非金融风险调整的变动": "非金融风险调整变动",
-                        "营运偏差及其他":       "营运偏差及其他",
-                        "保费分配法业务净损益": "保费分配法净损益",
-                        "再保净损益":           "再保净损益",
-                    }, cy)
-                    return (comp_str + csm_str).strip()
-     
-                if m_id == "industry_prof_2024":
-                    csm_lines = [
-                        f"{ct}约{gv('合同服务边际的释放', py, ct):.1f}%"
-                        for ct in cos
-                        if gv("合同服务边际的释放", py, ct) is not None
-                    ]
-                    csm_str  = "合同服务边际的释放均值：" + "、".join(csm_lines) + "。" \
-                               if csm_lines else ""
-                    comp_str = composition_by_type({
-                        "亏损部分的确认及转回": "亏损部分确认及转回",
-                        "合同服务边际的释放":   "合同服务边际释放",
-                        "非金融风险调整的变动": "非金融风险调整变动",
-                        "营运偏差及其他":       "营运偏差及其他",
-                        "保费分配法业务净损益": "保费分配法净损益",
-                        "再保净损益":           "再保净损益",
-                    }, py)
-                    return (comp_str + csm_str).strip()
-     
-                if m_id == "industry_prof_mix":
-                    lines = []
-                    for ct in cos:
-                        ins = gv("保险利润", cy, ct) or 0
-                        inv = gv("投资利润", cy, ct) or 0
-                        tot = ins + inv
-                        if tot == 0:
-                            continue
-                        dominant = "保险利润" if ins / tot >= 0.5 else "投资利润"
-                        lines.append(
-                            f"{ct}以{dominant}为主（保险利润占比{ins/tot:.0%}）"
-                        )
-                    return "；".join(lines) + "。" if lines else ""
-     
-                if m_id == "industry_oci_deep":
-                    lines = []
-                    for ct in cos:
-                        liab = gv("可转损益的负债OCI",  cy, ct) or 0
-                        bond = gv("FVOCI债券公允价值", cy, ct) or 0
-                        if liab == 0 and bond == 0:
-                            continue
-                        dominant = "负债端OCI" if abs(liab) >= abs(bond) \
-                                   else "FVOCI债券公允价值变动"
-                        lines.append(f"{ct}主要驱动为{dominant}")
-                    return "；".join(lines) + "。" if lines else ""
-     
-                if m_id == "industry_oci_year_lat":
-                    return composition_by_type({
-                        "净利润":         "净利润",
-                        "可转损益OCI合计":  "可转损益OCI",
-                        "不可转损益OCI合计": "不可转损益OCI",
-                    }, cy)
-     
-                if m_id == "industry_oci_year_pre":
-                    return composition_by_type({
-                        "净利润":         "净利润",
-                        "可转损益OCI合计":  "可转损益OCI",
-                        "不可转损益OCI合计": "不可转损益OCI",
-                    }, py)
-     
-                if m_id == "industry_asset_struct":
-                    return composition_by_type({
-                        "AC":      "AC（债权投资）",
-                        "FVOCI":   "FVOCI（其他债权投资）",
-                        "FVTPL":   "FVTPL（交易性金融资产）",
-                        "指定FVOCI": "指定FVOCI（其他权益工具）",
-                    }, cy)
-     
-                if m_id == "industry_csm_comp_lat":
-                    return composition_by_type({
-                        "新业务CSM（集团口径）": "新业务CSM",
-                        "CSM计息":             "CSM计息",
-                        "CSM调整":             "CSM调整",
-                    }, cy)
-     
-                if m_id == "industry_csm_comp_pre":
-                    return composition_by_type({
-                        "新业务CSM（集团口径）": "新业务CSM",
-                        "CSM计息":             "CSM计息",
-                        "CSM调整":             "CSM调整",
-                    }, py)
-     
-            except Exception as e:
-                return f"（自动生成失败：{e}）"
-     
-            return ""   # 无匹配的 m_id 返回空字符串，不报错
-    
-
-    with st.expander("📥 行业分析注释输入", expanded=False):
-        # 1. 上传自定义坐标轴刻度表 (保持不变)
-        uploaded_bins_file = st.file_uploader(
-            "📊 上传自定义坐标轴刻度表（Excel）",
-            type=["xlsx", "xls"], key="custom_bins_uploader",
-            help="表头必须包含：m_id, x_bins, y_bins。可选列：enable（0=禁用）、note"
-        )
-        if uploaded_bins_file is not None:
-            try:
-                custom_bins_map = load_custom_bins_excel(uploaded_bins_file)
-                st.session_state["custom_bins_map"] = custom_bins_map
-                st.success(f"✅ 已加载 {len(custom_bins_map)} 个图的自定义刻度配置")
-            except Exception as e:
-                st.error(f"❌ 刻度表读取失败：{e}")
-    
-        if st.session_state.get("custom_bins_map"):
-            if st.button("清除自定义刻度配置", key="clear_custom_bins"):
-                del st.session_state["custom_bins_map"]
-                st.success("已清除自定义刻度配置，恢复默认")
-    
-        # ==========================================
-        # 2. 注释表来源选择
-        # 🌟 核心修改 1：把 value=False 改成 value=True，让它默认就是打开状态！
-        # ==========================================
-        use_default = st.toggle("使用默认注释表", value=True, key="step8_use_default")
-    
-        df_notes = None
-
-        if use_default:
-            try:
-                with st.spinner("🚀 正在从云端加载默认注释表，请稍候..."):
-                    # 🌟 核心修改 2：替换为 raw.githubusercontent.com 的原生读取链接
-                    default_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF-step8.xlsx"
-                    df_notes = pd.read_excel(default_url)
-                st.success("✅ 内置默认注释表从云端加载成功！")
-            except Exception as e:
-                st.error(f"❌ 云端下载失败，报错原因: {e}")
-                # 贴心加上排错提示
-                st.info("💡 排错指南：\n1. 请确认你的 GitHub 仓库是 Public（公开）的，如果是 Private 则代码无法直接读取。\n2. 请确认文件已经成功 Push 到 GitHub，且没有拼写错误。")
-        else:
-            notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'], key="step8_notes")
-            if notes_file:
-                try:
-                    df_notes = pd.read_excel(notes_file)
-                    st.success("✅ 自定义注释表上传成功！")
-                except Exception as e:
-                    st.error(f"❌ 上传文件解析失败: {e}")
-
-# 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
-    
-        if df_notes is not None:
-            # ==========================================
-            # 🌟 终极防线：在所有操作开始前，强制将这两列变为通用对象 (object)
-            # 这样 Pandas 才会允许我们把文本塞进原本全是空值的 float64 列里
-            # ==========================================
-            if '分析内容-自定义' in df_notes.columns:
-                df_notes['分析内容-自定义'] = df_notes['分析内容-自定义'].astype('object')
-            if '分析内容-默认' in df_notes.columns:
-                df_notes['分析内容-默认'] = df_notes['分析内容-默认'].astype('object')
-
-            if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
-                for idx, row in df_notes.iterrows():
-                    mid = str(row.get('模块ID', '')).strip()
-                    if not mid or mid == 'nan':
-                        continue
-                    
-                    # 🌟 修复读取方式
-                    raw_val = df_notes.loc[idx, '分析内容-自定义']
-                    
-                    # 修复：用 pd.isna 兼容 float NaN，不依赖字符串比较
-                    if pd.isna(raw_val) or str(raw_val).strip() in ('', 'nan', 'None'):
-                        generated = generate_custom_analysis(
-                            mid, df_raw,
-                            st.session_state.get('step8_selected_types', []),
-                            latest_year, prev_year
-                        )
-                        if generated:
-                            # 🌟 修复赋值方式：必须用 .loc 赋值，并且套上 str()
-                            df_notes.loc[idx, '分析内容-自定义'] = str(generated)
-            
-            # 1. 清洗所有列（去除前后空格）
-            for col in df_notes.columns:
-                df_notes[col] = df_notes[col].astype(str).str.strip()
-            
-            # 2. 确保必要的列存在（如果不存在则创建空列）
-            required_cols = ['模块ID', '一级分类', '二级分类', '对应图表名称', '分析内容-默认', '分析内容-自定义', '注释内容']
-            for col in required_cols:
-                if col not in df_notes.columns:
-                    df_notes[col] = ''
-            
-            # 3. 清洗空值（将 nan 转为空字符串）
-            for col in ['一级分类', '二级分类', '对应图表名称', '模块ID']:
-                if col in df_notes.columns:
-                    df_notes[col] = df_notes[col].replace(['nan', 'NaN', 'NAN', 'None'], '')
-            
-            # 4. 二级分类为空时，强制填入"全部"
-            if '二级分类' in df_notes.columns:
-                df_notes['二级分类'] = df_notes['二级分类'].apply(
-                    lambda x: "全部" if str(x).strip() == "" else str(x).strip()
-                )
-            
-            # 5. 构建 notes_dict_8 字典（合并两个分析字段）
-            for _, r in df_notes.iterrows():
-                m_id = str(r.get('模块ID', '')).strip()
-                if not m_id:
-                    continue
-                
-                # 合并分析内容：优先使用自定义，若自定义为空则用默认
-                analysis_default = str(r.get('分析内容-默认', '')).strip()
-                analysis_custom = str(r.get('分析内容-自定义', '')).strip()
-                
-                # 最终显示的分析内容（优先自定义）
-                final_analysis = analysis_custom if analysis_custom else analysis_default
-                
-                notes_dict_8[m_id] = {
-                    'title': str(r.get('对应图表名称', '')).strip(),
-                    'analysis': final_analysis,           # 合并后的分析内容
-                    'analysis_default': analysis_default,  # 保留默认供后续使用
-                    'analysis_custom': analysis_custom,    # 保留自定义供后续使用
-                    'note': str(r.get('注释内容', '')).strip(),
-                    '一级分类': str(r.get('一级分类', '')).strip(),
-                    '二级分类': str(r.get('二级分类', '')).strip(),
-                    'remark': str(r.get('话术', '')).strip() if '话术' in df_notes.columns else ''
-                }
-                
-                if m_id not in ordered_modules:
-                    ordered_modules.append(m_id)
-            
-            # 6. 提取一级分类列表
-            first_levels = [x for x in df_notes['一级分类'].unique() if x and x != '']
-            
-            # 7. 存入 session_state
-            st.session_state['step8_notes_dict'] = notes_dict_8
-            st.session_state['step8_ordered_modules'] = ordered_modules
-            st.session_state['step8_df_notes'] = df_notes.copy()
-    
-    # 如果未加载，则尝试从session_state取
-    if df_notes is None and 'step8_df_notes' in st.session_state:
-        df_notes = st.session_state['step8_df_notes'].copy()
-        notes_dict_8 = st.session_state.get('step8_notes_dict', {})
-        ordered_modules = st.session_state.get('step8_ordered_modules', [])
-        first_levels = [x for x in df_notes['一级分类'].unique() if x and x != ''] if df_notes is not None else []
-    # ==========================================
-    # 3. 侧边栏导航
-    # ==========================================
-    
-    print_mode = False
-    active_m_id = None
-    active_chart_name = None
-    
-    with st.sidebar:
-        st.markdown("<h3 style='color: #00338D; font-size: 18px;'>行业分析导航</h3>", unsafe_allow_html=True)
-    
-        if first_levels:
-            main_nav = st.radio("📁 一级模块", first_levels + ["🖨️ 一键显示全部 (打印/导出)"], key="step8_main")
-    
-            if main_nav == "🖨️ 一键显示全部 (打印/导出)":
-                print_mode = True
-                st.info("💡 点击下方按钮导出 PDF")
-                components.html(
-                    """<button onclick="window.parent.print()" style="width:100%; padding:12px; background:#00338D; color:white; border:none; border-radius:6px; cursor:pointer;">立即导出 PDF 报告</button>""",
-                    height=60
-                )
-            else:
-                df_sub1 = df_notes[df_notes['一级分类'] == main_nav]
-                sec_levels = [x for x in df_sub1['二级分类'].unique() if x and x != '']
-    
-                if len(sec_levels) == 0:
-                    charts = [x for x in df_sub1['对应图表名称'].unique() if x and x != '']
-                    chart_nav = st.radio("📊 具体图表", charts, key="step8_chart")
-                    row = df_sub1[df_sub1['对应图表名称'] == chart_nav].iloc[0]
-                    active_m_id = row['模块ID']
-                    active_chart_name = row['对应图表名称']
-                else:
-                    sub_nav = st.radio("📂 二级模块", ["全部"] + sec_levels, key="step8_sub")
-                    if sub_nav != "全部":
-                        df_sub2 = df_sub1[df_sub1['二级分类'] == sub_nav]
-                        charts = [x for x in df_sub2['对应图表名称'].unique() if x and x != '']
-                        chart_nav = st.radio("📊 具体图表", charts, key="step8_chart")
-                        row = df_sub2[df_sub2['对应图表名称'] == chart_nav].iloc[0]
-                        active_m_id = row['模块ID']
-                        active_chart_name = row['对应图表名称']
-                    else:
-                        charts = [x for x in df_sub1['对应图表名称'].unique() if x and x != '']
-                        chart_nav = st.radio("📊 具体图表", charts, key="step8_chart")
-                        row = df_sub1[df_sub1['对应图表名称'] == chart_nav].iloc[0]
-                        active_m_id = row['模块ID']
-                        active_chart_name = row['对应图表名称']
-        else:
-            st.warning("⚠️ 请先上传包含层级信息的注释表")
-            return
-        
-    # ==========================================
-    # 行业分析配置（公司类型选择等）
-    # ==========================================
-    
-    DEFAULT_TYPE_ORDER = ["头部", "银行系", "外资", "养老健康", "小型"]  # 仅作默认，不强制
-    
-    def sort_company_types(type_list):
-        order = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
-        return sorted(type_list, key=lambda x: order.index(x) if x in order else 999)
-    
-    # 公司类型色卡
-    KPMG_CATEGORIES = globals().get('KPMG_CATEGORIES', {
-        "Primary Colors": {
-            "KPMG Blue": "#00338D", "Cobalt Blue": "#1E49E2",
-            "Light Blue": "#ACEAFF", "Pacific Blue": "#00B8F5", 
-            "Purple": "#7213EA", "Pink": "#FD349C"
-        },
-        "Traffic Light": {"Red": "#ED2124", "Amber": "#F1C44D", "Positive Green": "#269924"}
-    })
-    primary = KPMG_CATEGORIES["Primary Colors"]
-    traffic = KPMG_CATEGORIES["Traffic Light"]
-    COMPANY_TYPE_COLORS = {
-        "头部": primary["KPMG Blue"],
-        "银行系": primary["Pacific Blue"],
-        "外资": traffic["Positive Green"],
-        "养老健康": traffic["Amber"],
-        "小型": primary["Purple"]
-    }
-    
-    _FALLBACK_COLORS = [
-        primary["Cobalt Blue"],   # #1E49E2 深蓝
-        primary["Pink"],          # #FD349C 粉红
-        traffic["Red"],           # #ED2124 红
-        primary["Light Blue"],    # #ACEAFF 浅蓝（兜底用）
-    ]
-    
-    def get_company_color(ct):
-        if ct in COMPANY_TYPE_COLORS:
-            return COMPANY_TYPE_COLORS[ct]
-        return _FALLBACK_COLORS[hash(ct) % len(_FALLBACK_COLORS)]
-
-    
-    # 1.6 全局配置
-    with st.expander("⚙️ 行业分析配置", expanded=False):
-        c1, c3 = st.columns(2)  
-        with c1:
-            all_types = sorted([str(x) for x in df_raw['公司类型'].dropna().unique()])
-            # 默认顺序：先按DEFAULT_TYPE_ORDER里有的，再追加数据里多出来的
-            default_order = [t for t in DEFAULT_TYPE_ORDER if t in all_types]
-            default_order += [t for t in all_types if t not in default_order]
-    
-            selected_types = st.multiselect(
-                "🏢 选择公司类型（可多选）",
-                default_order,
-                default=default_order
-            )
-            st.session_state['step8_selected_types'] = selected_types
-        with c3:
-            st.markdown("**📋 公司类型显示顺序**")
-            st.caption("调整下方选项顺序即可改变图表中的展示顺序")
-            type_order = st.multiselect(
-                "拖拽或重新选择顺序",
-                default_order,
-                default=default_order,
-                key="step8_type_order_selector"
-            )
-            # 补上没被选中的（保证所有类型都在顺序里）
-            full_order = type_order + [t for t in default_order if t not in type_order]
-            st.session_state['step8_type_order'] = full_order
-    
-    # ==========================================
-    # 第2层：计算函数库（只负责数据计算，不涉及绘图）
-    # ==========================================
-
-
-    
-    def parse_bins_input(bins_str):
-        """解析区间输入字符串，返回排序后的列表或 None"""
-        if not bins_str or str(bins_str).strip() == "":
-            return None
-        try:
-            bins = sorted(set([float(x.strip()) for x in str(bins_str).split(",") if str(x).strip()]))
-            if len(bins) < 2:
-                return None
-            return bins
-        except:
-            return None
     
     def calc_scatter_data(df, selected_types, latest_year, prev_year, field_name, display_name):
         """计算散点图数据（支持计算字段）"""
@@ -1407,27 +701,17 @@ def show_step_8_content():
             # 营运偏差 = 保险利润 - 各项和
             operating_var = insurance_profit - csm_amort - ra_change + lc_recog - paa_result - reinsurance
             
-            # 🔥 关键修改：防止除零错误
-            if insurance_profit == 0:
-                # 如果保险利润为0，所有贡献设为0
-                contribution = {
-                    "合同服务边际的释放": 0.0,
-                    "非金融风险调整的变动": 0.0,
-                    "亏损部分的确认及转回": 0.0,
-                    "营运偏差及其他": 0.0,
-                    "保费分配法业务净损益": 0.0,
-                    "再保净损益": 0.0
-                }
-            else:
-                # 正常计算各项贡献百分比
-                contribution = {
-                    "合同服务边际的释放": csm_amort / insurance_profit * 100,
-                    "非金融风险调整的变动": ra_change / insurance_profit * 100,
-                    "亏损部分的确认及转回": -lc_recog / insurance_profit * 100,
-                    "营运偏差及其他": operating_var / insurance_profit * 100,
-                    "保费分配法业务净损益": paa_result / insurance_profit * 100,
-                    "再保净损益": reinsurance / insurance_profit * 100
-                }
+           # 与 app.py 保持一致：分母用各展示项绝对值之和，而非保险利润
+            display_vals = {
+                "亏损部分的确认及转回": -lc_recog,
+                "合同服务边际的释放":   csm_amort,
+                "非金融风险调整的变动": ra_change,
+                "营运偏差及其他":       operating_var,
+                "保费分配法业务净损益": paa_result,
+                "再保净损益":           reinsurance,
+            }
+            total = sum(abs(v) for v in display_vals.values()) or 1
+            contribution = {k: v / total * 100 for k, v in display_vals.items()}
             
             company_contributions.append(contribution)
         
@@ -1705,188 +989,31 @@ def show_step_8_content():
         return result
 
     # SCATTER_AXIS_META：散点图统一配置
-
     SCATTER_AXIS_META = {
-        # 1. 保险服务收入
-        "industry_inc_total": {
-            "title": "保险服务收入",
-            "x_field": "保险服务收入",
-            "y_field": "保险服务收入增长率",
-            "x_label": "保险服务收入区间（亿元）",
-            "y_label": "保险服务收入增长率区间（%）",
-            "default_x": "0,100,200,500,1000,2000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 2. 净投资回报
-        "industry_inv_return": {
-            "title": "净投资回报",
-            "x_field": "净投资回报",
-            "y_field": "净投资回报增长率",
-            "x_label": "净投资回报区间（亿元）",
-            "y_label": "净投资回报增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 3. 保险服务费用
-        "industry_exp_total": {
-            "title": "保险服务费用",
-            "x_field": "保险服务费用",
-            "y_field": "保险服务费用增长率",
-            "x_label": "保险服务费用区间（亿元）",
-            "y_label": "保险服务费用增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 4. 承保财务净损益（计算字段）
-        "industry_uw_profit": {
-            "title": "承保财务净损益",
-            "x_field": "承保财务净损益",
-            "y_field": "承保财务净损益增长率",
-            "x_label": "承保财务净损益区间（亿元）",
-            "y_label": "承保财务净损益增长率区间（%）",
-            "default_x": "-1000,-500,-200,-100,0,100,200,500",
-            "default_y": "-1000,-500,-200,-100,0,100,200,500",
-        },
-        # 5. 保险服务业绩（计算字段）
-        "industry_perf_total": {
-            "title": "保险服务业绩",
-            "x_field": "保险服务业绩",
-            "y_field": "保险服务业绩增长率",
-            "x_label": "保险服务业绩区间（亿元）",
-            "y_label": "保险服务业绩增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 6. 投资利润（计算字段）
-        "industry_inv_profit": {
-            "title": "投资利润",
-            "x_field": "投资利润",
-            "y_field": "投资利润增长率",
-            "x_label": "投资利润区间（亿元）",
-            "y_label": "投资利润增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 7. 净利润
-        "industry_net_profit": {
-            "title": "净利润",
-            "x_field": "净利润",
-            "y_field": "净利润增长率",
-            "x_label": "净利润区间（亿元）",
-            "y_label": "净利润增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 8. 税前利润
-        "industry_tax_profit": {
-            "title": "税前利润",
-            "x_field": "税前利润",
-            "y_field": "税前利润增长率",
-            "x_label": "税前利润区间（亿元）",
-            "y_label": "税前利润增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 9. 其他综合收益
-        "industry_oci_profit": {
-            "title": "其他综合收益",
-            "x_field": "其他综合收益",
-            "y_field": "其他综合收益增长率",
-            "x_label": "其他综合收益区间（亿元）",
-            "y_label": "其他综合收益增长率区间（%）",
-            "default_x": "-500,-200,-100,0,100,200,500",
-            "default_y": "-1000,-500,-200,0,200,500,1000",
-        },
-        # 10. 综合收益总额
-        "industry_total_profit": {
-            "title": "综合收益总额",
-            "x_field": "综合收益总额",
-            "y_field": "综合收益总额增长率",
-            "x_label": "综合收益总额区间（亿元）",
-            "y_label": "综合收益总额增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,0,100,200,500,1000",
-        },
-        # 11. CSM余额
-        "industry_csm_bal": {
-            "title": "CSM余额",
-            "x_field": "CSM余额",
-            "y_field": "CSM余额增长率",
-            "x_label": "CSM余额区间（亿元）",
-            "y_label": "CSM余额增长率区间（%）",
-            "default_x": "0,100,500,1000,2000,5000",
-            "default_y": "-50,-20,0,20,50,100,200",
-        },
-        # 12. 净资产
-        "industry_equity_trend": {
-            "title": "净资产",
-            "x_field": "净资产",
-            "y_field": "净资产增长率",
-            "x_label": "净资产区间（亿元）",
-            "y_label": "净资产增长率区间（%）",
-            "default_x": "0,100,500,1000,2000,5000",
-            "default_y": "-50,-20,0,20,50,100,200",
-        },
-        # 13. CSM/净资产占比（计算字段，变化是百分点）
-        "industry_csm_equity": {
-            "title": "CSM/净资产占比",
-            "x_field": "CSM/净资产占比",
-            "y_field": "CSM/净资产占比增长率",
-            "x_label": "CSM/净资产占比（%）",
-            "y_label": "占比变化（百分点）",
-            "default_x": "0,20,40,60,80,100,120",
-            "default_y": "-20,-10,-5,0,5,10,20",
-        },
-        # 14. 新业务CSM
-        "industry_nb_csm": {
-            "title": "新业务CSM",
-            "x_field": "新业务CSM",
-            "y_field": "新业务CSM增长率",
-            "x_label": "新业务CSM区间（亿元）",
-            "y_label": "新业务CSM增长率区间（%）",
-            "default_x": "0,50,100,200,500,1000",
-            "default_y": "-100,-50,-20,0,20,50,100",
-        },
-        # 15. 新业务LC亏损率（计算字段，变化是百分点）
-        "industry_lc_loss_ratio": {
-            "title": "新业务LC亏损率",
-            "x_field": "新业务LC亏损率",
-            "y_field": "新业务LC亏损率增长率",
-            "x_label": "LC亏损率（%）",
-            "y_label": "LC亏损率变化（百分点）",
-            "default_x": "0,10,20,30,40,50,60,70,80,90,100",
-            "default_y": "-50,-30,-20,-10,0,10,20,30,50",
-        },
+        "industry_inc_total": {"title": "保险服务收入", "x_field": "保险服务收入", "y_field": "保险服务收入增长率", "x_label": "保险服务收入区间（亿元）", "y_label": "保险服务收入增长率区间（%）", "default_x": "0,100,200,500,1000,2000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_inv_return": {"title": "净投资回报", "x_field": "净投资回报", "y_field": "净投资回报增长率", "x_label": "净投资回报区间（亿元）", "y_label": "净投资回报增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_exp_total": {"title": "保险服务费用", "x_field": "保险服务费用", "y_field": "保险服务费用增长率", "x_label": "保险服务费用区间（亿元）", "y_label": "保险服务费用增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_uw_profit": {"title": "承保财务净损益", "x_field": "承保财务净损益", "y_field": "承保财务净损益增长率", "x_label": "承保财务净损益区间（亿元）", "y_label": "承保财务净损益增长率区间（%）", "default_x": "-1000,-500,-200,-100,0,100,200,500", "default_y": "-1000,-500,-200,-100,0,100,200,500"},
+        "industry_perf_total": {"title": "保险服务业绩", "x_field": "保险服务业绩", "y_field": "保险服务业绩增长率", "x_label": "保险服务业绩区间（亿元）", "y_label": "保险服务业绩增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_inv_profit": {"title": "投资利润", "x_field": "投资利润", "y_field": "投资利润增长率", "x_label": "投资利润区间（亿元）", "y_label": "投资利润增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_net_profit": {"title": "净利润", "x_field": "净利润", "y_field": "净利润增长率", "x_label": "净利润区间（亿元）", "y_label": "净利润增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_tax_profit": {"title": "税前利润", "x_field": "税前利润", "y_field": "税前利润增长率", "x_label": "税前利润区间（亿元）", "y_label": "税前利润增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_oci_profit": {"title": "其他综合收益", "x_field": "其他综合收益", "y_field": "其他综合收益增长率", "x_label": "其他综合收益区间（亿元）", "y_label": "其他综合收益增长率区间（%）", "default_x": "-500,-200,-100,0,100,200,500", "default_y": "-1000,-500,-200,0,200,500,1000"},
+        "industry_total_profit": {"title": "综合收益总额", "x_field": "综合收益总额", "y_field": "综合收益总额增长率", "x_label": "综合收益总额区间（亿元）", "y_label": "综合收益总额增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,0,100,200,500,1000"},
+        "industry_csm_bal": {"title": "CSM余额", "x_field": "CSM余额", "y_field": "CSM余额增长率", "x_label": "CSM余额区间（亿元）", "y_label": "CSM余额增长率区间（%）", "default_x": "0,100,500,1000,2000,5000", "default_y": "-50,-20,0,20,50,100,200"},
+        "industry_equity_trend": {"title": "净资产", "x_field": "净资产", "y_field": "净资产增长率", "x_label": "净资产区间（亿元）", "y_label": "净资产增长率区间（%）", "default_x": "0,100,500,1000,2000,5000", "default_y": "-50,-20,0,20,50,100,200"},
+        "industry_csm_equity": {"title": "CSM/净资产占比", "x_field": "CSM/净资产占比", "y_field": "CSM/净资产占比增长率", "x_label": "CSM/净资产占比（%）", "y_label": "占比变化（百分点）", "default_x": "0,20,40,60,80,100,120", "default_y": "-20,-10,-5,0,5,10,20"},
+        "industry_nb_csm": {"title": "新业务CSM", "x_field": "新业务CSM", "y_field": "新业务CSM增长率", "x_label": "新业务CSM区间（亿元）", "y_label": "新业务CSM增长率区间（%）", "default_x": "0,50,100,200,500,1000", "default_y": "-100,-50,-20,0,20,50,100"},
+        "industry_lc_loss_ratio": {"title": "新业务LC亏损率", "x_field": "新业务LC亏损率", "y_field": "新业务LC亏损率增长率", "x_label": "LC亏损率（%）", "y_label": "LC亏损率变化（百分点）", "default_x": "0,10,20,30,40,50,60,70,80,90,100", "default_y": "-50,-30,-20,-10,0,10,20,30,50"},
     }
     
     # STACK_DIST_META：堆叠分布图统一配置
     STACK_DIST_META = {
-        "industry_csm_ratio": {
-            "name": "CSM/BEL占比",
-            "calc_func": calc_csm_bel_ratio,
-            "default_x": "0,20,40,60,80,100,120",
-            "y_label": "公司数量",
-        },
-        "industry_csm_continuity_ratio": {
-            "name": "CSM持续率",
-            "calc_func": calc_csm_continuity_ratio,
-            "default_x": "0,50,100,150,200,300",
-            "y_label": "公司数量",
-        },
-        "industry_csm_amort_ratio": {
-            "name": "CSM摊销比率",
-            "calc_func": calc_csm_amort_ratio,
-            "default_x": "0,5,10,15,20,30",
-            "y_label": "公司数量",
-        },
-        "industry_nb_ifrs_margin": {
-            "name": "新业务IFRS利润率",
-            "calc_func": calc_nb_ifrs_margin,
-            "default_x": "0,10,20,30,40,50",
-            "y_label": "公司数量",
-        },
-    }   
-   
+        "industry_csm_ratio": {"name": "CSM/BEL占比", "calc_func": calc_csm_bel_ratio, "default_x": "0,20,40,60,80,100,120", "y_label": "公司数量"},
+        "industry_csm_continuity_ratio": {"name": "CSM持续率", "calc_func": calc_csm_continuity_ratio, "default_x": "0,50,100,150,200,300", "y_label": "公司数量"},
+        "industry_csm_amort_ratio": {"name": "CSM摊销比率", "calc_func": calc_csm_amort_ratio, "default_x": "0,5,10,15,20,30", "y_label": "公司数量"},
+        "industry_nb_ifrs_margin": {"name": "新业务IFRS利润率", "calc_func": calc_nb_ifrs_margin, "default_x": "0,10,20,30,40,50", "y_label": "公司数量"},
+    }
     
    
     def get_uploaded_bins_by_mid(m_id):
@@ -1913,14 +1040,15 @@ def show_step_8_content():
             if uploaded_x or uploaded_y:
                 st.caption(f"已上传：X = {bins_to_str(uploaded_x) or '（空）'}；Y = {bins_to_str(uploaded_y) or '（空）'}")
 
-            st.text_input("X 轴刻度（英文逗号分隔）", key=x_text_key, placeholder=bins_to_str(default_x_bins))
-            st.text_input("Y 轴刻度（英文逗号分隔）", key=y_text_key, placeholder=bins_to_str(default_y_bins))
-
-            if st.button("恢复默认刻度", key=f"reset_bins_{m_id}", use_container_width=True):
-                st.session_state[use_upload_key] = False
-                st.session_state[x_text_key] = bins_to_str(default_x_bins)
-                st.session_state[y_text_key] = bins_to_str(default_y_bins)
-                st.rerun()
+            # 🌟 用 form 包裹，文本框内按回车不会立即触发 rerun，
+            # 只有点击"应用"按钮才会真正生效，避免误触
+            with st.form(key=f"bins_form_{m_id}"):
+                x_input = st.text_input("X 轴刻度（英文逗号分隔）", value=st.session_state[x_text_key], placeholder=bins_to_str(default_x_bins))
+                y_input = st.text_input("Y 轴刻度（英文逗号分隔）", value=st.session_state[y_text_key], placeholder=bins_to_str(default_y_bins))
+                if st.form_submit_button("应用", use_container_width=True):
+                    st.session_state[x_text_key] = x_input
+                    st.session_state[y_text_key] = y_input
+                    st.rerun()
 
         if st.session_state[use_upload_key] and (uploaded_x or uploaded_y):
             x_bins = uploaded_x or default_x_bins
@@ -1962,6 +1090,693 @@ def show_step_8_content():
         
         # 3. 最后使用默认值
         return parse_bins_input(default_x)
+    
+    # ==========================================
+    # CHART_CATEGORY_MAP：m_id → 图表分析类型
+    #   "scatter"     -> 散点图（热力图式分析）：均值/增长率/区间分布
+    #   "composition" -> 构成图：主要构成类别 + 占比均值
+    #   "stack_dist"  -> 堆叠分布图：主要集中区间
+    # ==========================================
+    CHART_CATEGORY_MAP = {}
+    for _m in SCATTER_AXIS_META:
+        CHART_CATEGORY_MAP[_m] = "scatter"
+    for _m in STACK_DIST_META:
+        CHART_CATEGORY_MAP[_m] = "stack_dist"
+    for _m in [
+        "industry_comp_1", "industry_comp_2", "industry_exp_1", "industry_exp_struct",
+        "industry_prof_2025", "industry_prof_2024", "industry_prof_mix", "industry_oci_deep",
+        "industry_oci_year_lat", "industry_oci_year_pre", "industry_asset_struct",
+        "industry_csm_comp_lat", "industry_csm_comp_pre",
+    ]:
+        CHART_CATEGORY_MAP[_m] = "composition"
+
+    # ── 各 composition m_id 对应的"展示字段名 → 中文短名"映射 ──
+    COMPOSITION_FIELD_MAP = {
+        "industry_comp_1": (
+            {"采用保费分配法计量的保险合同保险服务收入": "PAA合同收入",
+             "未采用保费分配法计量的保险合同保险服务收入": "非PAA合同收入"},
+            "two_cat", None,
+        ),
+        "industry_comp_2": (
+            {"合同服务边际的摊销": "合同服务边际释放",
+             "非金融风险调整的变动": "非金融风险调整变动",
+             "预计当期发生的保险服务费用": "预期保险服务费用",
+             "保险获取现金流的摊销（保险服务收入）": "保险获取现金流摊销"},
+            "general", "保险服务收入合计",
+        ),
+        "industry_exp_1": (
+            {"保险获取现金流的摊销（保险服务费用）": "保险获取现金流摊销",
+             "亏损部分的确认及转回": "亏损部分确认及转回",
+             "当期发生的赔款及其他相关费用": "当期赔款及费用",
+             "已发生赔款负债相关的履约现金流量变动": "已发生赔款负债变动"},
+            "general", "保险服务费用合计",
+        ),
+        "industry_oci_year_lat": (
+            {"净利润": "净利润", "可转损益OCI合计": "可转损益OCI", "不可转损益OCI合计": "不可转损益OCI"},
+            "oci", None,
+        ),
+        "industry_oci_year_pre": (
+            {"净利润": "净利润", "可转损益OCI合计": "可转损益OCI", "不可转损益OCI合计": "不可转损益OCI"},
+            "oci", None,
+        ),
+        "industry_asset_struct": (
+            {"AC": "AC（债权投资）", "FVOCI": "FVOCI（其他债权投资）",
+             "FVTPL": "FVTPL（交易性金融资产）", "指定FVOCI": "指定FVOCI（其他权益工具）"},
+            "asset", None,
+        ),
+        "industry_csm_comp_lat": (
+            {"新业务CSM（集团口径）": "新业务CSM", "CSM计息": "CSM计息", "CSM调整": "CSM调整"},
+            "csm", None,
+        ),
+        "industry_csm_comp_pre": (
+            {"新业务CSM（集团口径）": "新业务CSM", "CSM计息": "CSM计息", "CSM调整": "CSM调整"},
+            "csm", None,
+        ),
+    }
+
+    def generate_custom_analysis(m_id, df, cos, cy, py):
+            """根据m_id和数据自动生成行业分析内容，返回字符串"""
+            import numpy as np
+     
+            # ── 工具函数1：取某公司类型某字段某年的所有公司均值 ──
+            def gv(field, year, ct):
+                yr = str(int(year)) if year == int(year) else str(year)
+                mask = (
+                    (df['公司类型'] == ct) &
+                    (df['报告年份'].astype(str).str.replace('.0', '', regex=False) == yr) &
+                    (df['字段名'] == field)
+                )
+                vals = df[mask]['(百万)人民币'].dropna()
+                return vals.mean() if not vals.empty else None
+     
+            # ── 工具函数2：涨跌型（各公司类型均值同比）──
+            def rise_fall(field, year_c, year_p, unit="亿元", scale=100,
+                          actual_field=None):
+                f = actual_field or field
+                rises, falls = [], []
+                for ct in cos:
+                    c = gv(f, year_c, ct)
+                    p = gv(f, year_p, ct)
+                    if c is None or p is None or p == 0:
+                        continue
+                    chg  = (c - p) / abs(p)
+                    val_c = c / scale
+                    (rises if chg >= 0 else falls).append((ct, chg, val_c))
+                parts = []
+                if rises:
+                    rises.sort(key=lambda x: -x[1])
+                    parts.append(
+                        f"{len(rises)}类机构均值上升，其中{rises[0][0]}增幅最大"
+                        f"（+{rises[0][1]:.1%}，均值约{rises[0][2]:.0f}{unit}）"
+                    )
+                if falls:
+                    falls.sort(key=lambda x: x[1])
+                    parts.append(
+                        f"{len(falls)}类机构均值下降，其中{falls[0][0]}降幅最大"
+                        f"（{falls[0][1]:.1%}，均值约{falls[0][2]:.0f}{unit}）"
+                    )
+                return "；".join(parts) + "。" if parts else ""
+     
+            # ── 工具函数3：构成型 ──
+            def composition_by_type(fields_display, year):
+                lines = []
+                for ct in cos:
+                    totals = {f: abs(gv(f, year, ct) or 0) for f in fields_display}
+                    grand  = sum(totals.values())
+                    if grand == 0:
+                        continue
+                    main_f   = max(totals, key=totals.get)
+                    main_pct = totals[main_f] / grand * 100
+                    lines.append(
+                        f"{ct}以{fields_display[main_f]}为主（占比约{main_pct:.1f}%）"
+                    )
+                return "；".join(lines) + "。" if lines else ""
+     
+            # ── 工具函数4：计算字段的涨跌描述（两个字段相减）──
+            def calc_two_field_diff(field_a, field_b, year_c, year_p,
+                                    unit="亿元", scale=100):
+                """net = field_a - field_b，对每个公司类型计算均值并同比"""
+                lines = []
+                for ct in cos:
+                    a_c = gv(field_a, year_c, ct)
+                    b_c = gv(field_b, year_c, ct)
+                    a_p = gv(field_a, year_p, ct)
+                    b_p = gv(field_b, year_p, ct)
+                    if a_c is None:
+                        continue
+                    net_c = ((a_c or 0) - (b_c or 0)) / scale
+                    net_p = ((a_p or 0) - (b_p or 0)) / scale \
+                            if a_p is not None else None
+                    if net_p and net_p != 0:
+                        chg       = (net_c - net_p) / abs(net_p)
+                        direction = "升" if chg >= 0 else "降"
+                        lines.append(
+                            f"{ct}均值约{net_c:.0f}{unit}（同比{direction}{abs(chg):.1%}）"
+                        )
+                    else:
+                        lines.append(f"{ct}均值约{net_c:.0f}{unit}")
+                return "；".join(lines) + "。" if lines else ""
+     
+            # ── 工具函数5：分布图通用描述（各类型参与公司数量）──
+            def dist_count_summary(year):
+                lines = []
+                for ct in cos:
+                    yr   = str(int(year)) if year == int(year) else str(year)
+                    mask = (
+                        (df['公司类型'] == ct) &
+                        (df['报告年份'].astype(str)
+                         .str.replace('.0', '', regex=False) == yr)
+                    )
+                    n = df[mask]['公司'].nunique()
+                    if n > 0:
+                        lines.append(f"{ct}{n}家")
+                return "样本：" + "、".join(lines) + "。" if lines else ""
+     
+            # ── 工具函数：获取某 m_id 的 X/Y 轴 bins（与图表展示一致：上传Excel > 页面输入 > 默认）──
+            def get_axis_bins_for_mid(m_id, default_x_str, default_y_str):
+                uploaded_x, uploaded_y = get_uploaded_bins_by_mid(m_id)
+                use_upload_key = f"use_uploaded_bins_{m_id}"
+                x_text_key = f"x_bins_text_{m_id}"
+                y_text_key = f"y_bins_text_{m_id}"
+                default_x = parse_bins_input(default_x_str)
+                default_y = parse_bins_input(default_y_str)
+
+                if st.session_state.get(use_upload_key) and (uploaded_x or uploaded_y):
+                    x_bins = uploaded_x or default_x
+                    y_bins = uploaded_y or default_y
+                else:
+                    x_bins = parse_bins_input_safe(st.session_state.get(x_text_key, ""), default_x)
+                    y_bins = parse_bins_input_safe(st.session_state.get(y_text_key, ""), default_y)
+                return x_bins or default_x, y_bins or default_y
+
+            # ── 工具函数：判断某值落在哪个区间，返回区间字符串 ──
+            def find_bin_label(val, bins):
+                if val is None or bins is None or len(bins) < 2:
+                    return None
+                if val <= bins[0]:
+                    return f"({bins[0]:.0f}以下)"
+                if val > bins[-1]:
+                    return f"({bins[-1]:.0f}以上)"
+                for i in range(len(bins) - 1):
+                    lo, hi = bins[i], bins[i + 1]
+                    if lo < val <= hi:
+                        lbl_lo = f"{lo:.0f}" if lo == int(lo) else f"{lo:.1f}"
+                        lbl_hi = f"{hi:.0f}" if hi == int(hi) else f"{hi:.1f}"
+                        return f"({lbl_lo}, {lbl_hi}]"
+                return None
+
+            # ── 工具函数：找出一组数值中出现次数最多的区间标签 ──
+            def most_common_bin(vals, bins):
+                from collections import Counter
+                labels = [find_bin_label(v, bins) for v in vals if v is not None]
+                labels = [l for l in labels if l is not None]
+                if not labels:
+                    return None, 0, 0
+                cnt = Counter(labels)
+                top_label, top_count = cnt.most_common(1)[0]
+                return top_label, top_count, len(labels)
+
+            try:
+                category = CHART_CATEGORY_MAP.get(m_id)
+
+                # ============================================================
+                # 1. 散点图（热力图式分析）
+                #    每个公司类型：X轴指标24年均值、25年均值、增长率；
+                #    X轴/Y轴主要集中区间
+                # ============================================================
+                if category == "scatter":
+                    meta = SCATTER_AXIS_META.get(m_id)
+                    if not meta:
+                        return ""
+
+                    df_scatter = calc_scatter_data(
+                        df, cos, cy, py, meta["x_field"], meta["title"]
+                    )
+                    if df_scatter is None or df_scatter.empty:
+                        return ""
+
+                    x_col = meta["title"]
+                    y_col = f"{meta['title']}增长率"
+                    x_bins, y_bins = get_axis_bins_for_mid(m_id, meta.get("default_x", ""), meta.get("default_y", ""))
+
+                    lines = []
+                    for ct in cos:
+                        df_ct = df_scatter[df_scatter['公司类型'] == ct]
+                        if df_ct.empty:
+                            continue
+
+                        x_vals = df_ct[x_col].dropna()
+                        if x_vals.empty:
+                            continue
+
+                        x_mean_cy = x_vals.mean()
+                        # 25年均值 / 24年均值 反推：增长率 = (cy - py) / |py|
+                        # 利用每家公司增长率与当前值反推上一年值，再求均值
+                        py_vals = []
+                        for _, row in df_ct.iterrows():
+                            xc = row[x_col]
+                            g = row.get(y_col)
+                            if xc is None or pd.isna(xc) or g is None or pd.isna(g):
+                                continue
+                            denom = (1 + g / 100)
+                            if denom == 0:
+                                continue
+                            py_vals.append(xc / denom)
+                        x_mean_py = (sum(py_vals) / len(py_vals)) if py_vals else None
+
+                        if x_mean_py and x_mean_py != 0:
+                            growth = (x_mean_cy - x_mean_py) / abs(x_mean_py) * 100
+                            growth_str = f"{'+' if growth >= 0 else ''}{growth:.1f}%"
+                            py_str = f"{x_mean_py:.1f}"
+                        else:
+                            growth_str = "—"
+                            py_str = "—"
+
+                        # X轴 / Y轴主要集中区间
+                        x_label, x_cnt, x_total = most_common_bin(x_vals.tolist(), x_bins)
+                        y_vals = df_ct[y_col].dropna().tolist()
+                        y_label, y_cnt, y_total = most_common_bin(y_vals, y_bins)
+
+                        seg = (
+                            f"{ct}：{meta['title']}24年均值约{x_mean_py if isinstance(x_mean_py, str) else py_str}亿元，"
+                            f"25年均值约{x_mean_cy:.1f}亿元，均值增长率约{growth_str}"
+                        )
+                        if x_label:
+                            seg += f"；{meta['title']}主要集中在{x_label}区间（{x_cnt}/{x_total}家）"
+                        if y_label:
+                            seg += f"，{meta['title']}增长率主要集中在{y_label}区间（{y_cnt}/{y_total}家）"
+                        lines.append(seg + "。")
+
+                    return "".join(lines)
+
+                # ============================================================
+                # 2. 构成图（类别平均值分析）
+                #    每个公司类型：主要构成类别 + 占比均值
+                # ============================================================
+                if category == "composition":
+                    cfg = COMPOSITION_FIELD_MAP.get(m_id)
+
+                    # ---- 特殊处理：无固定字段映射、需走专属计算函数的几类 ----
+                    if m_id == "industry_exp_struct":
+                        lines = []
+                        for ct in cos:
+                            res = calc_industry_expense_structure(df, ct, cy)
+                            if not res:
+                                continue
+                            ratios = res['ratios']
+                            main_f = max(ratios, key=ratios.get)
+                            lines.append(f"{ct}费用构成主要为{main_f}，占比均值为{ratios[main_f]:.1f}%。")
+                        return "".join(lines)
+
+                    if m_id in ("industry_prof_2025", "industry_prof_2024"):
+                        target_year = cy if m_id == "industry_prof_2025" else py
+                        lines = []
+                        for ct in cos:
+                            res, _ = calc_industry_profit_composition(df, ct, target_year)
+                            if not res:
+                                continue
+                            contrib = res['contributions']
+                            main_f = max(contrib, key=lambda k: abs(contrib[k]))
+                            lines.append(f"{ct}保险服务业绩主要构成为{main_f}，占比均值为{contrib[main_f]:.1f}%。")
+                        return "".join(lines)
+
+                    if m_id == "industry_prof_mix":
+                        lines = []
+                        for ct in cos:
+                            res = calc_industry_profit_mix(df, ct, cy)
+                            if not res:
+                                continue
+                            main_f = max(res, key=res.get)
+                            lines.append(f"{ct}利润构成主要为{main_f}，占比均值为{res[main_f]:.1f}%。")
+                        return "".join(lines)
+
+                    if m_id == "industry_oci_deep":
+                        lines = []
+                        for ct in cos:
+                            res = calc_industry_oci_deep(df, ct, cy)
+                            if not res:
+                                continue
+                            main_f = max(res, key=lambda k: abs(res[k]))
+                            lines.append(f"{ct}其他综合收益变动主要驱动为{main_f}，均值约{res[main_f]:.1f}（百万人民币）。")
+                        return "".join(lines)
+
+                    # ---- 通用字段映射类 ----
+                    if not cfg:
+                        return ""
+                    fields_display, mode, denom_field = cfg
+                    fields = list(fields_display.keys())
+
+                    target_year = py if m_id.endswith("_pre") else cy
+
+                    lines = []
+                    for ct in cos:
+                        result = None
+                        if mode == "two_cat":
+                            result = calc_industry_two_cat_composition(df, ct, target_year, fields)
+                        elif mode == "general" and denom_field:
+                            result = calc_industry_composition(df, ct, target_year, fields, denom_field)
+                        elif mode == "oci":
+                            res_oci = calc_industry_oci_composition(df, ct, target_year)
+                            if res_oci:
+                                total = abs(res_oci.get('综合收益总额', 0)) or 1
+                                result = {f: abs(res_oci.get(f, 0)) / total * 100 for f in fields}
+                        elif mode == "asset":
+                            result = calc_industry_asset_composition(df, ct, target_year)
+                        elif mode == "csm":
+                            result = calc_industry_csm_composition(df, ct, target_year)
+
+                        if not result:
+                            continue
+
+                        main_f = max(fields, key=lambda f: abs(result.get(f, 0)))
+                        main_pct = result.get(main_f, 0)
+                        display_name = fields_display.get(main_f, main_f)
+                        lines.append(f"{ct}主要构成为{display_name}，占比均值为{main_pct:.1f}%。")
+
+                    return "".join(lines)
+
+                # ============================================================
+                # 3. 堆叠分布图（区间图分析）
+                #    每个公司类型：主要集中在哪个区间
+                # ============================================================
+                if category == "stack_dist":
+                    meta = STACK_DIST_META.get(m_id)
+                    if not meta:
+                        return ""
+
+                    x_bins = get_dist_bins(m_id, meta.get("default_x", ""))
+                    dist_df, labels = calc_stack_distribution(
+                        df, cos, cy, meta["calc_func"], x_bins_custom=x_bins
+                    )
+                    if dist_df is None or dist_df.empty or not labels:
+                        return ""
+
+                    lines = []
+                    for ct in cos:
+                        if ct not in dist_df.index:
+                            continue
+                        row = dist_df.loc[ct]
+                        total = row.sum()
+                        if total == 0:
+                            continue
+                        top_label = row.idxmax()
+                        top_count = row[top_label]
+                        lines.append(
+                            f"{ct}的{meta['name']}主要集中在{top_label}区间"
+                            f"（{int(top_count)}/{int(total)}家）。"
+                        )
+
+                    count_str = dist_count_summary(cy)
+                    return count_str + "".join(lines)
+
+                return ""
+
+            except Exception as e:
+                return f"（自动生成失败：{e}）"
+
+            return ""   # 无匹配的 m_id 返回空字符串，不报错
+    
+
+    with st.expander("📥 行业分析注释输入", expanded=False):
+        # 1. 上传自定义坐标轴刻度表 (保持不变)
+        uploaded_bins_file = st.file_uploader(
+            "📊 上传自定义坐标轴刻度表（Excel）",
+            type=["xlsx", "xls"], key="custom_bins_uploader",
+            help="表头必须包含：m_id, x_bins, y_bins。可选列：enable（0=禁用）、note"
+        )
+        if uploaded_bins_file is not None:
+            try:
+                custom_bins_map = load_custom_bins_excel(uploaded_bins_file)
+                st.session_state["custom_bins_map"] = custom_bins_map
+                st.success(f"✅ 已加载 {len(custom_bins_map)} 个图的自定义刻度配置")
+            except Exception as e:
+                st.error(f"❌ 刻度表读取失败：{e}")
+    
+        if st.session_state.get("custom_bins_map"):
+            if st.button("清除自定义刻度配置", key="clear_custom_bins"):
+                del st.session_state["custom_bins_map"]
+                st.success("已清除自定义刻度配置，恢复默认")
+    
+        # ==========================================
+        # 2. 注释表来源选择
+        # 🌟 核心修改 1：把 value=False 改成 value=True，让它默认就是打开状态！
+        # ==========================================
+        use_default = st.toggle("使用默认注释表", value=True, key="step8_use_default")
+    
+        df_notes = None
+
+        if use_default:
+            try:
+                with st.spinner("🚀 正在从云端加载默认注释表，请稍候..."):
+                    # 🌟 核心修改 2：替换为 raw.githubusercontent.com 的原生读取链接
+                    default_url = "https://raw.githubusercontent.com/z-xylym/my-actuary-tool/main/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF-step8.xlsx"
+                    df_notes = pd.read_excel(default_url)
+                st.success("✅ 内置默认注释表从云端加载成功！")
+            except Exception as e:
+                st.error(f"❌ 云端下载失败，报错原因: {e}")
+                # 贴心加上排错提示
+                st.info("💡 排错指南：\n1. 请确认你的 GitHub 仓库是 Public（公开）的，如果是 Private 则代码无法直接读取。\n2. 请确认文件已经成功 Push 到 GitHub，且没有拼写错误。")
+        else:
+            notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'], key="step8_notes")
+            if notes_file:
+                try:
+                    df_notes = pd.read_excel(notes_file)
+                    st.success("✅ 自定义注释表上传成功！")
+                except Exception as e:
+                    st.error(f"❌ 上传文件解析失败: {e}")
+
+# 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
+    
+        if df_notes is not None:
+            # ==========================================
+            # 🌟 终极防线：在所有操作开始前，强制将这两列变为通用对象 (object)
+            # 这样 Pandas 才会允许我们把文本塞进原本全是空值的 float64 列里
+            # ==========================================
+            if '分析内容-自定义' in df_notes.columns:
+                df_notes['分析内容-自定义'] = df_notes['分析内容-自定义'].astype('object')
+            if '分析内容-默认' in df_notes.columns:
+                df_notes['分析内容-默认'] = df_notes['分析内容-默认'].astype('object')
+
+            if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
+                for idx, row in df_notes.iterrows():
+                    mid = str(row.get('模块ID', '')).strip()
+                    if not mid or mid == 'nan':
+                        continue
+                    
+                    # 🌟 修复读取方式
+                    raw_val = df_notes.loc[idx, '分析内容-自定义']
+                    
+                    # 修复：用 pd.isna 兼容 float NaN，不依赖字符串比较
+                    if pd.isna(raw_val) or str(raw_val).strip() in ('', 'nan', 'None'):
+                        generated = generate_custom_analysis(
+                            mid, df_raw,
+                            st.session_state.get('step8_selected_types', []),
+                            latest_year, prev_year
+                        )
+                        if generated:
+                            # 🌟 修复赋值方式：必须用 .loc 赋值，并且套上 str()
+                            df_notes.loc[idx, '分析内容-自定义'] = str(generated)
+            
+            # 1. 清洗所有列（去除前后空格）
+            for col in df_notes.columns:
+                df_notes[col] = df_notes[col].astype(str).str.strip()
+            
+            # 2. 确保必要的列存在（如果不存在则创建空列）
+            required_cols = ['模块ID', '一级分类', '二级分类', '对应图表名称', '分析内容-默认', '分析内容-自定义', '注释内容']
+            for col in required_cols:
+                if col not in df_notes.columns:
+                    df_notes[col] = ''
+            
+            # 3. 清洗空值（将 nan 转为空字符串）
+            for col in ['一级分类', '二级分类', '对应图表名称', '模块ID']:
+                if col in df_notes.columns:
+                    df_notes[col] = df_notes[col].replace(['nan', 'NaN', 'NAN', 'None'], '')
+            
+            # 4. 二级分类为空时，强制填入"全部"
+            if '二级分类' in df_notes.columns:
+                df_notes['二级分类'] = df_notes['二级分类'].apply(
+                    lambda x: "全部" if str(x).strip() == "" else str(x).strip()
+                )
+            
+            # 5. 构建 notes_dict_8 字典（合并两个分析字段）
+            for _, r in df_notes.iterrows():
+                m_id = str(r.get('模块ID', '')).strip()
+                if not m_id:
+                    continue
+                
+                # 合并分析内容：优先使用自定义，若自定义为空则用默认
+                analysis_default = str(r.get('分析内容-默认', '')).strip()
+                analysis_custom = str(r.get('分析内容-自定义', '')).strip()
+                
+                # 最终显示的分析内容（优先自定义）
+                final_analysis = analysis_custom if analysis_custom else analysis_default
+                
+                notes_dict_8[m_id] = {
+                    'title': str(r.get('对应图表名称', '')).strip(),
+                    'analysis': final_analysis,           # 合并后的分析内容
+                    'analysis_default': analysis_default,  # 保留默认供后续使用
+                    'analysis_custom': analysis_custom,    # 保留自定义供后续使用
+                    'note': str(r.get('注释内容', '')).strip(),
+                    '一级分类': str(r.get('一级分类', '')).strip(),
+                    '二级分类': str(r.get('二级分类', '')).strip(),
+                    'remark': str(r.get('话术', '')).strip() if '话术' in df_notes.columns else ''
+                }
+                
+                if m_id not in ordered_modules:
+                    ordered_modules.append(m_id)
+            
+            # 6. 提取一级分类列表
+            first_levels = [x for x in df_notes['一级分类'].unique() if x and x != '']
+            
+            # 7. 存入 session_state
+            st.session_state['step8_notes_dict'] = notes_dict_8
+            st.session_state['step8_ordered_modules'] = ordered_modules
+            st.session_state['step8_df_notes'] = df_notes.copy()
+    
+    # 如果未加载，则尝试从session_state取
+    if df_notes is None and 'step8_df_notes' in st.session_state:
+        df_notes = st.session_state['step8_df_notes'].copy()
+        notes_dict_8 = st.session_state.get('step8_notes_dict', {})
+        ordered_modules = st.session_state.get('step8_ordered_modules', [])
+        first_levels = [x for x in df_notes['一级分类'].unique() if x and x != ''] if df_notes is not None else []
+        
+    # ==========================================
+    # 3. 侧边栏导航
+    # ==========================================
+    
+    print_mode = False
+    active_m_id = None
+    active_chart_name = None
+    
+    with st.sidebar:
+        st.markdown("<h3 style='color: #00338D; font-size: 18px;'>行业分析导航</h3>", unsafe_allow_html=True)
+    
+        if first_levels:
+            main_nav = st.radio("📁 一级模块", first_levels + ["🖨️ 一键显示全部 (打印/导出)"], key="step8_main")
+    
+            if main_nav == "🖨️ 一键显示全部 (打印/导出)":
+                print_mode = True
+                st.info("💡 点击下方按钮导出 PDF")
+                components.html(
+                    """<button onclick="window.parent.print()" style="width:100%; padding:12px; background:#00338D; color:white; border:none; border-radius:6px; cursor:pointer;">立即导出 PDF 报告</button>""",
+                    height=60
+                )
+            else:
+                df_sub1 = df_notes[df_notes['一级分类'] == main_nav]
+                sec_levels = [x for x in df_sub1['二级分类'].unique() if x and x != '']
+    
+                if len(sec_levels) == 0:
+                    charts = [x for x in df_sub1['对应图表名称'].unique() if x and x != '']
+                    chart_nav = st.radio("📊 具体图表", charts, key="step8_chart")
+                    row = df_sub1[df_sub1['对应图表名称'] == chart_nav].iloc[0]
+                    active_m_id = row['模块ID']
+                    active_chart_name = row['对应图表名称']
+                else:
+                    sub_nav = st.radio("📂 二级模块", ["全部"] + sec_levels, key="step8_sub")
+                    if sub_nav != "全部":
+                        df_sub2 = df_sub1[df_sub1['二级分类'] == sub_nav]
+                        charts = [x for x in df_sub2['对应图表名称'].unique() if x and x != '']
+                        chart_nav = st.radio("📊 具体图表", charts, key="step8_chart")
+                        row = df_sub2[df_sub2['对应图表名称'] == chart_nav].iloc[0]
+                        active_m_id = row['模块ID']
+                        active_chart_name = row['对应图表名称']
+                    else:
+                        charts = [x for x in df_sub1['对应图表名称'].unique() if x and x != '']
+                        chart_nav = st.radio("📊 具体图表", charts, key="step8_chart")
+                        row = df_sub1[df_sub1['对应图表名称'] == chart_nav].iloc[0]
+                        active_m_id = row['模块ID']
+                        active_chart_name = row['对应图表名称']
+        else:
+            st.warning("⚠️ 请先上传包含层级信息的注释表")
+            return
+        
+    # ==========================================
+    # 行业分析配置（公司类型选择等）
+    # ==========================================
+    
+    DEFAULT_TYPE_ORDER = ["头部", "银行系", "外资", "养老健康", "小型"]  # 仅作默认，不强制
+    
+    def sort_company_types(type_list):
+        order = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
+        return sorted(type_list, key=lambda x: order.index(x) if x in order else 999)
+    
+    # 公司类型色卡
+    KPMG_CATEGORIES = globals().get('KPMG_CATEGORIES', {
+        "Primary Colors": {
+            "KPMG Blue": "#00338D", "Cobalt Blue": "#1E49E2",
+            "Light Blue": "#ACEAFF", "Pacific Blue": "#00B8F5", 
+            "Purple": "#7213EA", "Pink": "#FD349C"
+        },
+        "Traffic Light": {"Red": "#ED2124", "Amber": "#F1C44D", "Positive Green": "#269924"}
+    })
+    primary = KPMG_CATEGORIES["Primary Colors"]
+    traffic = KPMG_CATEGORIES["Traffic Light"]
+    COMPANY_TYPE_COLORS = {
+        "头部": primary["KPMG Blue"],
+        "银行系": primary["Pacific Blue"],
+        "外资": traffic["Positive Green"],
+        "养老健康": traffic["Amber"],
+        "小型": primary["Purple"]
+    }
+    
+    _FALLBACK_COLORS = [
+        primary["Cobalt Blue"],   # #1E49E2 深蓝
+        primary["Pink"],          # #FD349C 粉红
+        traffic["Red"],           # #ED2124 红
+        primary["Light Blue"],    # #ACEAFF 浅蓝（兜底用）
+    ]
+    
+    def get_company_color(ct):
+        if ct in COMPANY_TYPE_COLORS:
+            return COMPANY_TYPE_COLORS[ct]
+        return _FALLBACK_COLORS[hash(ct) % len(_FALLBACK_COLORS)]
+
+    
+    # 1.6 全局配置
+    with st.expander("⚙️ 行业分析配置", expanded=False):
+        c1, c3 = st.columns(2)  
+        with c1:
+            all_types = sorted([str(x) for x in df_raw['公司类型'].dropna().unique()])
+            # 默认顺序：先按DEFAULT_TYPE_ORDER里有的，再追加数据里多出来的
+            default_order = [t for t in DEFAULT_TYPE_ORDER if t in all_types]
+            default_order += [t for t in all_types if t not in default_order]
+    
+            selected_types = st.multiselect(
+                "🏢 选择公司类型（可多选）",
+                default_order,
+                default=default_order
+            )
+            st.session_state['step8_selected_types'] = selected_types
+        with c3:
+            st.markdown("**📋 公司类型显示顺序**")
+            st.caption("调整下方选项顺序即可改变图表中的展示顺序")
+            type_order = st.multiselect(
+                "拖拽或重新选择顺序",
+                default_order,
+                default=default_order,
+                key="step8_type_order_selector"
+            )
+            # 补上没被选中的（保证所有类型都在顺序里）
+            full_order = type_order + [t for t in default_order if t not in type_order]
+            st.session_state['step8_type_order'] = full_order
+    
+    # ==========================================
+    # 第2层：计算函数库（只负责数据计算，不涉及绘图）
+    # ==========================================
+
+
+    
+    def parse_bins_input(bins_str):
+        """解析区间输入字符串，返回排序后的列表或 None"""
+        if not bins_str or str(bins_str).strip() == "":
+            return None
+        try:
+            bins = sorted(set([float(x.strip()) for x in str(bins_str).split(",") if str(x).strip()]))
+            if len(bins) < 2:
+                return None
+            return bins
+        except:
+            return None
     
     # ==========================================
     # 第3层：绘图函数（只负责画图，不计算数据）
@@ -2209,7 +2024,7 @@ def show_step_8_content():
         
         fig.update_layout(
             title=dict(text=f"{metric_name}分布 - {target_year}年", x=0.5, xanchor='center', font=dict(size=14, color="#00338D")),
-            barmode='stack', bargap=0.02, bargroupgap=0, height=380,
+            barmode='stack', bargap=0.02, bargroupgap=0, height=280,
             width=900,
             autosize=False,
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -2224,14 +2039,14 @@ def show_step_8_content():
                 title_font=dict(size=10)
             ),
             legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5, font=dict(size=9)),
-            margin=dict(t=40, b=10, l=40, r=20)
+            margin=dict(t=40, b=0, l=40, r=20)
         )
         
         col1, col2, col3 = st.columns([1, 2.5, 1])
         with col2:
             st.plotly_chart(fig, use_container_width=False, config={'displayModeBar': False})
         
-        # ========== 2. 明细表格 ==========
+       # 2. 明细表格（稍微放大版）
         html_rows = []
         for i, ct in enumerate(ct_list):
             color = COMPANY_TYPE_COLORS.get(ct, "#94A3B8")
@@ -2240,35 +2055,34 @@ def show_step_8_content():
             
             row_bg = "#F8FAFC" if i % 2 == 0 else "white"
             
-            # 🌟 公司列左对齐
-            row_cells = f'<td style="padding: 4px 6px; border: 1px solid #EAEAEA; background-color: {color}; color: white; font-weight: bold; font-size: 9px; text-align: left;">{ct}</td>'
+            row_cells = f'<td style="padding: 3px 5px; border: 1px solid #EAEAEA; background-color: {color}; color: white; font-weight: bold; font-size: 9px; text-align: left;">{ct}</td>'
             for v in values:
-                row_cells += f'<td style="padding: 4px 6px; text-align: center; border: 1px solid #EAEAEA; background-color: {row_bg}; font-size: 9px;">{int(v)}家</td>'
-            row_cells += f'<td style="padding: 4px 6px; text-align: center; border: 1px solid #EAEAEA; background-color: {row_bg}; font-weight: bold; font-size: 9px;">{total}家</td>'
+                row_cells += f'<td style="padding: 3px 5px; text-align: center; border: 1px solid #EAEAEA; background-color: {row_bg}; font-size: 9px;">{int(v)}家</td>'
+            row_cells += f'<td style="padding: 3px 5px; text-align: center; border: 1px solid #EAEAEA; background-color: {row_bg}; font-weight: bold; font-size: 9px;">{total}家</td>'
             
             html_rows.append(f"<tr>{row_cells}</tr>")
-            html_table = f"""
-                    <div style="margin-top: 5px; max-height: 350px; overflow-y: auto; display: flex; justify-content: center;">
-                        <div>
-                            <p style="font-size: 11px; font-weight: bold; margin-bottom: 5px; margin-top: 5px; text-align: left;">分布数据明细</p>
-                            <table style="width: 1000px; border-collapse: collapse; font-family: sans-serif;">
-                                <thead>
-                                    <tr style="background-color: #00338D; color: white;">
-                                        <th style="padding: 5px 6px; border: 1px solid white; text-align: left; font-size: 9px;">公司类型</th>
-                                        {"".join([f'<th style="padding: 5px 6px; border: 1px solid white; text-align: center; font-size: 9px;">{label}</th>' for label in labels])}
-                                        <th style="padding: 5px 6px; border: 1px solid white; text-align: center; font-size: 9px;">合计</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {''.join(html_rows)}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    """        
-
+        
+        html_table = f"""
+        <div style="margin-top: 0px; max-height: 300px; overflow-y: auto; display: flex; justify-content: center;">
+            <div>
+                <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; margin-top: 0px; text-align: left;">分布数据明细</p>
+                <table style="width: 1000px; border-collapse: collapse; font-family: sans-serif;">
+                    <thead>
+                        <tr style="background-color: #00338D; color: white;">
+                            <th style="padding: 4px 5px; border: 1px solid white; text-align: left; font-size: 9px;">公司类型</th>
+                            {"".join([f'<th style="padding: 4px 5px; border: 1px solid white; text-align: center; font-size: 9px;">{label}</th>' for label in labels])}
+                            <th style="padding: 4px 5px; border: 1px solid white; text-align: center; font-size: 9px;">合计</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {''.join(html_rows)}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        """
         st.markdown(html_table, unsafe_allow_html=True)
-     
+             
         
     def add_gray_frame(fig, col_idx):
         """为指定子图添加灰色边框（V1 样式，留边距）"""
@@ -2290,7 +2104,7 @@ def show_step_8_content():
         if not all_cts:
             return go.Figure()
         
-        fields = ["采用保费分配法计量的保险合同保险服务收入", "未采用保费分配法计量的保险合同保险服务收入"]
+        fields = ["未采用保费分配法计量的保险合同保险服务收入", "采用保费分配法计量的保险合同保险服务收入"]
         short_names = {"采用保费分配法计量的保险合同保险服务收入": "采用保费分配法", "未采用保费分配法计量的保险合同保险服务收入": "未采用保费分配法"}
         color_map = {"采用保费分配法计量的保险合同保险服务收入": "#510DBC", "未采用保费分配法计量的保险合同保险服务收入": "#C7A0F7"}
         
@@ -2329,7 +2143,7 @@ def show_step_8_content():
             bargap=0.05,
             height=380,
             margin=dict(t=50, b=20, l=130, r=130),
-            legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5, font=dict(size=10)),
+            legend=dict(orientation="h", yanchor="top", y=-0.4, xanchor="center", x=0.5, font=dict(size=10)),
             plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
         )
         
@@ -2545,37 +2359,22 @@ def show_step_8_content():
     
         return fig
 
+
     def create_profit_composition_chart(results_by_ct, config, excluded_info=None):
         import plotly.graph_objects as go
-    
         if not results_by_ct:
             return go.Figure().add_annotation(text="无有效数据", x=0.5, y=0.5, showarrow=False), None
-    
-        display_mapping = [
-            ("亏损部分的确认及转回", "亏损部分的确认及转回", "rgb(190,190,190)"),
-            ("合同服务边际的释放", "合同服务边际的释放", "rgb(30,73,226)"),
-            ("非金融风险调整的变动", "非金融风险调整的变动", "rgb(118,210,255)"),
-            ("营运偏差及其他", "营运偏差及其他", "rgb(114,19,214)"),
-            ("保费分配法业务净损益", "保费分配法业务净损益", "rgb(253,52,156)"),
-            ("再保净损益", "再保净损益", "rgb(9,142,126)")
-        ]
-    
-        ct_list = list(results_by_ct.keys())
-        x_indices = list(range(len(ct_list)))
+        display_mapping = [("亏损部分的确认及转回", "亏损部分的确认及转回", "rgb(190,190,190)"), ("合同服务边际的释放", "合同服务边际的释放", "rgb(30,73,226)"), ("非金融风险调整的变动", "非金融风险调整的变动", "rgb(118,210,255)"), ("营运偏差及其他", "营运偏差及其他", "rgb(114,19,214)"), ("保费分配法业务净损益", "保费分配法业务净损益", "rgb(253,52,156)"), ("再保净损益", "再保净损益", "rgb(9,142,126)")]
+        ct_list, x_indices = list(results_by_ct.keys()), list(range(len(results_by_ct.keys())))
         show_labels, label_size, bar_width, co_font_size = config.get("show_labels", True), config.get("label_size", 11), config.get("bar_width", 0.35), config.get("co_font_size", 12)
         dark_colors = {"rgb(30,73,226)", "rgb(114,19,214)", "rgb(9,142,126)"}
-    
         all_data = {ct: [results_by_ct[ct]["contributions"].get(col_name, 0) for col_name, _, _ in display_mapping] for ct in ct_list}
         pos_sums = [sum(v for v in all_data[ct] if v > 0) for ct in ct_list]
         neg_sums = [sum(v for v in all_data[ct] if v < 0) for ct in ct_list]
-        y_max = max(max(pos_sums) + 50, 200) if pos_sums else 200
-        y_min = min(min(neg_sums) - 50, -300) if neg_sums else -300
-    
+        y_max, y_min = (max(pos_sums) + 20 if pos_sums else 120), (min(neg_sums) - 20 if neg_sums else -20)
         fig = go.Figure()
         for idx, (_, legend_name, color) in enumerate(display_mapping):
-            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=[all_data[ct][idx] for ct in ct_list],
-                                 width=bar_width, marker_color=color, hovertemplate="%{fullData.name}<br>%{y:.1f}%<extra></extra>"))
-    
+            fig.add_trace(go.Bar(name=legend_name, x=x_indices, y=[all_data[ct][idx] for ct in ct_list], width=bar_width, marker_color=color, hovertemplate="%{fullData.name}<br>%{y:.1f}%<extra></extra>"))
         if show_labels:
             for i, ct in enumerate(ct_list):
                 pos_cursor, neg_cursor = 0, 0
@@ -2583,29 +2382,19 @@ def show_step_8_content():
                     v = all_data[ct][j]
                     txt_color = "white" if color in dark_colors else "black"
                     if v >= 0:
-                        center_y, pos_cursor = pos_cursor + v/2, pos_cursor + v
+                        center_y = pos_cursor + v / 2
+                        pos_cursor += v
                     else:
-                        center_y, neg_cursor = neg_cursor + v/2, neg_cursor + v
+                        center_y = neg_cursor + v / 2
+                        neg_cursor += v
                     if abs(v) >= 1:
-                        fig.add_annotation(x=i, y=center_y, text=f"{v:.1f}%", showarrow=False,
-                                           xanchor="center", yanchor="middle", font=dict(size=label_size, color=txt_color))
-    
+                        fig.add_annotation(x=i, y=center_y, text=f"{v:.1f}%", showarrow=False, xanchor="center", yanchor="middle", font=dict(size=label_size, color=txt_color))
         for i in range(len(ct_list)):
-            fig.add_shape(type="rect", xref="x", yref="paper", x0=i-0.46, x1=i+0.46, y0=-0.10, y1=1.10,
-                          fillcolor="rgba(0,0,0,0)", line=dict(color="#E0E0E0", width=1), layer="below")
-    
-        fig.update_layout(barmode="relative", bargap=0.05, height=380, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                          margin=dict(t=50, b=20, l=130, r=130),
-                          legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05,
-                                      traceorder="reversed", font=dict(size=11, color="#00338D")),
-                          yaxis=dict(side="right", showgrid=False, range=[y_min, y_max], tickmode="array",
-                                     tickvals=[-300,-200,-100,0,100,200,300,400,500,600],
-                                     ticktext=["-300%","-200%","-100%","0%","100%","200%","300%","400%","500%","600%"],
-                                     zeroline=True, zerolinecolor="#F7860C", zerolinewidth=2))
-        fig.update_xaxes(tickvals=x_indices, ticktext=[f"<span style='font-size:{co_font_size}px;color:#00338D;'><b>{ct}</b></span>" for ct in ct_list],
-                         side="top", showgrid=False, zeroline=False)
+            fig.add_shape(type="rect", xref="x", yref="paper", x0=i - 0.46, x1=i + 0.46, y0=0, y1=1, fillcolor="rgba(0,0,0,0)", line=dict(color="#E0E0E0", width=1), layer="below")
+        fig.update_layout(barmode="relative", bargap=0.05, height=380, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, b=20, l=130, r=130), legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.05, traceorder="reversed", font=dict(size=11, color="#00338D")), yaxis=dict(side="right", showgrid=False, range=[y_min, y_max], tickformat=".0f", ticksuffix="%", tickmode="auto", nticks=8, zeroline=True, zerolinecolor="#F7860C", zerolinewidth=2))
+        fig.update_xaxes(tickvals=x_indices, ticktext=[f"<span style='font-size:{co_font_size}px;color:#00338D;'><b>{ct}</b></span>" for ct in ct_list], side="top", showgrid=False, zeroline=False)
         return fig, None
-   
+
     def create_profit_mix_chart(results_by_year, year_list, selected_types, config):
         from plotly.subplots import make_subplots
         import plotly.graph_objects as go
@@ -2836,7 +2625,7 @@ def show_step_8_content():
         
         # 内置配置
         COMPANY_TYPE_ORDER = st.session_state.get('step8_type_order', DEFAULT_TYPE_ORDER)
-        ASSET_FIELD_MAP = {"AC": "债权投资", "FVOCI": "其他债权投资", "FVTPL": "交易性金融资产", "指定FVOCI": "其他权益工具投资"}
+        ASSET_FIELD_MAP = {"AC": "债权投资<br>（以摊余成本法计量）", "FVOCI": "其他债权投资<br>（以公允价值计量入其他综合收益）", "FVTPL": "交易性金融资产<br>（以公允价值计量入损益）", "指定FVOCI": "其他权益工具投资<br>（以公允价值计量入其他综合收益）"}
         ASSET_COLOR_MAP = {"AC": "rgb(0, 184, 245)", "FVOCI": "rgb(114, 19, 234)", "FVTPL": "rgb(253, 52, 156)", "指定FVOCI": "rgb(181, 2, 95)"}
         DARK_BG_FIELDS = {"FVOCI", "指定FVOCI", "AC"}
         
@@ -2936,7 +2725,7 @@ def show_step_8_content():
         fig.add_hline(y=0, line_color="#F7860C", line_width=1.5, layer="below")
     
         fig.update_layout(barmode="relative", bargap=0.05, height=400, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          margin=dict(t=50, b=20, l=130, r=130),
+                          margin=dict(t=50, b=20, l=150, r=150),
                           legend=dict(orientation="h", yanchor="top", y=-0.20, xanchor="center", x=0.5, font=dict(size=10)))
     
         for ann in fig.layout.annotations:
@@ -3077,41 +2866,22 @@ def show_step_8_content():
         # ==========================================
         if m_id in SCATTER_AXIS_META:
             meta = SCATTER_AXIS_META[m_id]
-    
-            df_scatter = calc_scatter_data(
-                df_raw, selected_types, latest_year, prev_year,
-                meta["x_field"], meta["title"]
-            )
-    
+            df_scatter = calc_scatter_data(df_raw, selected_types, latest_year, prev_year, meta["x_field"], meta["title"])
             if df_scatter.empty:
                 st.warning(f"缺少 {meta['x_field']} 字段")
                 return
-    
+            auto_x_bins = generate_nice_bins(df_scatter[meta["x_field"]])
+            auto_y_bins = generate_nice_bins(df_scatter[meta["y_field"]])
             if not print_mode:
-                # 非打印模式：渲染弹窗
                 _, btn_col = st.columns([6, 1])
                 with btn_col:
-                    x_bins, y_bins = render_axis_bin_popover(
-                        m_id=m_id,
-                        title=meta["title"],
-                        default_x_bins=parse_bins_input(meta["default_x"]),
-                        default_y_bins=parse_bins_input(meta["default_y"])
-                    )
+                    x_bins, y_bins = render_axis_bin_popover(m_id, meta["title"], auto_x_bins, auto_y_bins)
             else:
-                # 打印模式：直接用上传刻度或默认值
                 uploaded_x, uploaded_y = get_uploaded_bins_by_mid(m_id)
-                x_bins = uploaded_x or parse_bins_input(meta["default_x"])
-                y_bins = uploaded_y or parse_bins_input(meta["default_y"])
-    
-            config = {
-                "x_col": meta["x_field"],
-                "y_col": meta["y_field"],
-                "x_bins_custom": x_bins,
-                "y_bins_custom": y_bins,
-            }
-    
+                x_bins, y_bins = uploaded_x or auto_x_bins, uploaded_y or auto_y_bins
+            config = {"x_col": meta["x_field"], "y_col": meta["y_field"], "x_bins_custom": x_bins, "y_bins_custom": y_bins}
             create_scatter_chart(df_scatter, config, meta["x_label"], meta["y_label"])
-            return  # 散点图处理完直接返回
+            return     
         # ==========================================
         # 统一处理所有堆叠分布图
         # ==========================================
@@ -3148,18 +2918,16 @@ def show_step_8_content():
                         else:
                             st.caption("未检测到上传的刻度配置")
                         
-                        # 🌟 6. 手动输入区间（和热力图完全一致）
-                        st.text_input(
-                            "X 轴区间（英文逗号分隔）", 
-                            key=x_text_key, 
-                            placeholder=meta["default_x"]
-                        )
-                        
-                        # 🌟 7. 恢复默认按钮（和热力图完全一致）
-                        if st.button("恢复默认刻度", key=f"reset_dist_{m_id}", use_container_width=True):
-                            st.session_state[use_upload_key] = bool(uploaded_x)
-                            st.session_state[x_text_key] = meta["default_x"]
-                            st.rerun()
+                        # 🌟 6. 手动输入区间（用 form 包裹，需点击"应用"才生效）
+                        with st.form(key=f"dist_bins_form_{m_id}"):
+                            x_input = st.text_input(
+                                "X 轴区间（英文逗号分隔）",
+                                value=st.session_state[x_text_key],
+                                placeholder=meta["default_x"]
+                            )
+                            if st.form_submit_button("应用", use_container_width=True):
+                                st.session_state[x_text_key] = x_input
+                                st.rerun()
                 
                 # 🌟 8. 根据复选框决定使用哪个配置（和热力图完全一致）
                 if st.session_state[use_upload_key] and uploaded_x:
@@ -3295,32 +3063,37 @@ def show_step_8_content():
                 st.markdown(html, unsafe_allow_html=True)
                 
             show_chart(fig, print_mode)
-        #保险服务费用构成
+
+        # 保险服务费用构成
         elif m_id == "industry_exp_1":
-            results_by_year = {}
-            for year in year_list:
-                year_results = {ct: r for ct in selected_types if (r := calc_industry_expense_composition(df_raw, ct, year))}
-                if year_results:
-                    results_by_year[year] = year_results
-        
-            if not results_by_year:
-                st.warning("无法计算行业平均费用构成")
-                return
-        
+            results_by_year = {year: {ct: r for ct in selected_types if (r := calc_industry_expense_composition(df_raw, ct, year))} for year in year_list}
+            if not results_by_year: st.warning("无法计算行业平均费用构成"); return
             if not print_mode:
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: show_labels = st.toggle("显示数据标签", value=True, key=f"lab_{m_id}")
                 with c2: label_size = st.slider("标签大小", 5, 20, 12, key=f"lsz_{m_id}")
                 with c3: bar_width = st.slider("柱子宽度", 0.1, 1.0, 0.6, 0.05, key=f"wid_{m_id}")
                 with c4: co_font_size = st.slider("公司名称大小", 10, 20, 14, key=f"cfs_{m_id}")
-            else:
-                show_labels, bar_width, label_size, co_font_size = True, 0.35, 11, 12
-        
+            else: show_labels, bar_width, label_size, co_font_size = True, 0.35, 11, 12
             config = {'show_labels': show_labels, 'bar_width': bar_width, 'label_size': label_size, 'co_font_size': co_font_size}
             fig = create_industry_expense_composition_chart(results_by_year, year_list, selected_types, config)
-            st.markdown("<p style='text-align:right; font-size:12px; color:#666;'>单位：百分比 (%)</p>", unsafe_allow_html=True)
+            # 表格
+            fields = ["保险获取现金流的摊销（保险服务费用）", "亏损部分的确认及转回", "当期发生的赔款及其他相关费用", "已发生赔款负债相关的履约现金流量变动"]
+            display = {"保险获取现金流的摊销（保险服务费用）": "保险获取现金流摊销", "亏损部分的确认及转回": "亏损部分确认及转回", "当期发生的赔款及其他相关费用": "当期赔款及费用", "已发生赔款负债相关的履约现金流量变动": "已发生赔款负债变动"}
+            colors = {"保险获取现金流的摊销（保险服务费用）": "rgb(30,73,226)", "亏损部分的确认及转回": "rgb(254,174,215)", "当期发生的赔款及其他相关费用": "rgb(0,163,161)", "已发生赔款负债相关的履约现金流量变动": "rgb(1,184,245)"}
+            all_vals = {f: [] for f in fields}
+            for ct in selected_types:
+                for year in year_list:
+                    if ct in results_by_year.get(year, {}):
+                        for f in fields: all_vals[f].append(results_by_year[year][ct].get(f, 0))
+            avg = {f: np.mean(all_vals[f]) for f in fields if all_vals[f]}
+            if avg:
+                st.markdown("<div style='font-size:13px;font-weight:bold;margin-bottom:6px;color:#333;'>各公司平均占比情况 (样本均值)</div>", unsafe_allow_html=True)
+                html = f"<table style='width:100%;border-collapse:collapse;font-family:sans-serif;font-size:11px;margin-bottom:15px;'><tr style='background-color:#00338D;color:white;text-align:center;font-weight:bold;'><th style='padding:6px 8px;border:1px solid white;'>项目</th>{''.join([f'<th style=\"padding:6px 8px;background-color:{colors[f]};color:white;border:1px solid white;\">{display[f]}</th>' for f in fields])}</tr><tr style='background-color:#F8F9FA;'><td style='padding:6px 8px;font-weight:bold;border:1px solid #EAEAEA;'>全部公司</td>{''.join([f'<td style=\"padding:6px 8px;text-align:center;border:1px solid #EAEAEA;\">{avg[f]:.1f}%</td>' for f in fields])}</tr></table>"
+                st.markdown(html, unsafe_allow_html=True)
+            st.markdown("<p style='text-align:right;font-size:12px;color:#666;margin-top:-10px;'>单位：百分比 (%)</p>", unsafe_allow_html=True)
             show_chart(fig, print_mode)
-
+        
         # 业务及管理费（新准则分类）
         elif m_id == "industry_exp_struct":
             results_by_year = {}
@@ -3834,4 +3607,3 @@ def show_step_8_content():
             render_report_module(active_m_id, print_mode=False, is_first=True)
         else:
             st.info("💡 请从左侧导航栏选择要查看的行业分析模块")
-
