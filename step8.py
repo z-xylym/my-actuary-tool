@@ -495,7 +495,7 @@ def show_step_8_content():
         ratios_list = list(company_ratios.values())
         if x_bins_custom and len(x_bins_custom) > 1:
             bins = sorted(set(x_bins_custom))
-            labels = [f"({int(bins[i])}, {int(bins[i+1])})" for i in range(len(bins) - 1)]
+            labels = [f"({int(bins[i])}%, {int(bins[i+1])}%)" for i in range(len(bins) - 1)]
         else:
             min_r, max_r = min(ratios_list), max(ratios_list)
             n_bins = min(6, max(2, len(set(ratios_list))))
@@ -504,7 +504,7 @@ def show_step_8_content():
             else:
                 step = (max_r - min_r) / n_bins
                 bins = [min_r + i * step for i in range(n_bins + 1)]
-            labels = [f"({bins[i]:.1f}, {bins[i+1]:.1f})" for i in range(len(bins) - 1)]
+            labels = [f"({bins[i]:.1f}%, {bins[i+1]:.1f}%)" for i in range(len(bins) - 1)]
         
         # 3. 按公司类型统计分布
         distribution = {ct: {lbl: 0 for lbl in labels} for ct in selected_types}
@@ -1074,20 +1074,20 @@ def show_step_8_content():
             return fallback
         
     def get_dist_bins(m_id, default_x):
-        """获取堆叠分布图的 X 轴区间（优先级：上传Excel > 页面输入 > 默认）"""
-        # 1. 优先使用上传 Excel 的 x_bins
+        """获取堆叠分布图的 X 轴区间（优先级：上传Excel(若勾选优先) > 页面输入 > 默认）"""
         uploaded_x, _ = get_uploaded_bins_by_mid(m_id)
-        if uploaded_x:
+        use_upload_key = f"dist_use_upload_{m_id}"
+        x_text_key = f"dist_x_bins_text_{m_id}"
+
+        # 1. 勾选了"优先使用上传Excel"且确实有上传配置
+        if st.session_state.get(use_upload_key) and uploaded_x:
             return uploaded_x
-        
-        # 2. 其次使用页面手工输入
-        use_custom = st.session_state.get(f"{m_id}_dist_use_custom_bins", False)
-        if use_custom:
-            # 改成 parse_bins_input
-            x_bins = parse_bins_input(st.session_state.get(f"{m_id}_dist_x_bins", default_x))
-            if x_bins:
-                return x_bins
-        
+
+        # 2. 其次使用页面手工输入（与弹窗中的 text_input 同一个 key）
+        x_bins = parse_bins_input_safe(st.session_state.get(x_text_key, ""), None)
+        if x_bins:
+            return x_bins
+
         # 3. 最后使用默认值
         return parse_bins_input(default_x)
     
@@ -1153,6 +1153,26 @@ def show_step_8_content():
             "csm", None,
         ),
     }
+
+    # ── 工具函数：获取某 m_id 当前生效的 X/Y 轴刻度 ──
+    # 优先级：上传Excel(若勾选优先) > 用户在弹窗中输入并"应用"的刻度 > 自动/默认刻度
+    # 被 generate_custom_analysis（分析文字）和 render_pure_chart_entity（打印模式图表）共用，
+    # 确保两者使用的坐标轴刻度始终一致。
+    def get_axis_bins_for_mid(m_id, default_x_str, default_y_str):
+        uploaded_x, uploaded_y = get_uploaded_bins_by_mid(m_id)
+        use_upload_key = f"use_uploaded_bins_{m_id}"
+        x_text_key = f"x_bins_text_{m_id}"
+        y_text_key = f"y_bins_text_{m_id}"
+        default_x = parse_bins_input(default_x_str)
+        default_y = parse_bins_input(default_y_str)
+
+        if st.session_state.get(use_upload_key) and (uploaded_x or uploaded_y):
+            x_bins = uploaded_x or default_x
+            y_bins = uploaded_y or default_y
+        else:
+            x_bins = parse_bins_input_safe(st.session_state.get(x_text_key, ""), default_x)
+            y_bins = parse_bins_input_safe(st.session_state.get(y_text_key, ""), default_y)
+        return x_bins or default_x, y_bins or default_y
 
     def generate_custom_analysis(m_id, df, cos, cy, py):
             """根据m_id和数据自动生成行业分析内容，返回字符串"""
@@ -1253,22 +1273,6 @@ def show_step_8_content():
                 return "样本：" + "、".join(lines) + "。" if lines else ""
      
             # ── 工具函数：获取某 m_id 的 X/Y 轴 bins（与图表展示一致：上传Excel > 页面输入 > 默认）──
-            def get_axis_bins_for_mid(m_id, default_x_str, default_y_str):
-                uploaded_x, uploaded_y = get_uploaded_bins_by_mid(m_id)
-                use_upload_key = f"use_uploaded_bins_{m_id}"
-                x_text_key = f"x_bins_text_{m_id}"
-                y_text_key = f"y_bins_text_{m_id}"
-                default_x = parse_bins_input(default_x_str)
-                default_y = parse_bins_input(default_y_str)
-
-                if st.session_state.get(use_upload_key) and (uploaded_x or uploaded_y):
-                    x_bins = uploaded_x or default_x
-                    y_bins = uploaded_y or default_y
-                else:
-                    x_bins = parse_bins_input_safe(st.session_state.get(x_text_key, ""), default_x)
-                    y_bins = parse_bins_input_safe(st.session_state.get(y_text_key, ""), default_y)
-                return x_bins or default_x, y_bins or default_y
-
             # ── 工具函数：判断某值落在哪个区间，返回区间字符串 ──
             def find_bin_label(val, bins):
                 if val is None or bins is None or len(bins) < 2:
@@ -1317,7 +1321,15 @@ def show_step_8_content():
 
                     x_col = meta["title"]
                     y_col = f"{meta['title']}增长率"
-                    x_bins, y_bins = get_axis_bins_for_mid(m_id, meta.get("default_x", ""), meta.get("default_y", ""))
+                    # 🌟 与 render_pure_chart_entity 保持一致：
+                    # 当用户未自定义/未上传刻度时，图表用的是基于当前数据
+                    # 自动生成的"漂亮刻度"(generate_nice_bins)，而不是
+                    # SCATTER_AXIS_META 里写死的 default_x/default_y。
+                    # 这里同样以 auto_x_bins/auto_y_bins 作为回退默认值，
+                    # 确保文字描述的区间与图表实际展示的区间一致。
+                    auto_x_bins = generate_nice_bins(df_scatter[x_col])
+                    auto_y_bins = generate_nice_bins(df_scatter[y_col])
+                    x_bins, y_bins = get_axis_bins_for_mid(m_id, bins_to_str(auto_x_bins), bins_to_str(auto_y_bins))
 
                     lines = []
                     for ct in cos:
@@ -1486,8 +1498,7 @@ def show_step_8_content():
                             f"（{int(top_count)}/{int(total)}家）。"
                         )
 
-                    count_str = dist_count_summary(cy)
-                    return count_str + "".join(lines)
+                    return "".join(lines)
 
                 return ""
 
@@ -1557,6 +1568,11 @@ def show_step_8_content():
             if '分析内容-默认' in df_notes.columns:
                 df_notes['分析内容-默认'] = df_notes['分析内容-默认'].astype('object')
 
+            # 🌟 记录哪些 m_id 的"分析内容-自定义"原本为空、由系统自动生成
+            # （这些模块在每次渲染时都要按当前坐标轴刻度重新生成，
+            #  而不是使用这里写入的、可能已过期的快照值）
+            auto_generated_mids = set()
+
             if '模块ID' in df_notes.columns and '分析内容-自定义' in df_notes.columns:
                 for idx, row in df_notes.iterrows():
                     mid = str(row.get('模块ID', '')).strip()
@@ -1568,6 +1584,7 @@ def show_step_8_content():
                     
                     # 修复：用 pd.isna 兼容 float NaN，不依赖字符串比较
                     if pd.isna(raw_val) or str(raw_val).strip() in ('', 'nan', 'None'):
+                        auto_generated_mids.add(mid)
                         generated = generate_custom_analysis(
                             mid, df_raw,
                             st.session_state.get('step8_selected_types', []),
@@ -1619,7 +1636,8 @@ def show_step_8_content():
                     'note': str(r.get('注释内容', '')).strip(),
                     '一级分类': str(r.get('一级分类', '')).strip(),
                     '二级分类': str(r.get('二级分类', '')).strip(),
-                    'remark': str(r.get('话术', '')).strip() if '话术' in df_notes.columns else ''
+                    'remark': str(r.get('话术', '')).strip() if '话术' in df_notes.columns else '',
+                    'is_auto_generated': m_id in auto_generated_mids,  # 🌟 标记：自定义分析是否为系统自动生成
                 }
                 
                 if m_id not in ordered_modules:
@@ -2877,8 +2895,12 @@ def show_step_8_content():
                 with btn_col:
                     x_bins, y_bins = render_axis_bin_popover(m_id, meta["title"], auto_x_bins, auto_y_bins)
             else:
-                uploaded_x, uploaded_y = get_uploaded_bins_by_mid(m_id)
-                x_bins, y_bins = uploaded_x or auto_x_bins, uploaded_y or auto_y_bins
+                # 🌟 打印模式：复用单图模式下用户自定义/上传的刻度
+                # （与 get_axis_bins_for_mid 保持一致的优先级：
+                #  上传Excel(若勾选优先) > 用户在弹窗中输入的刻度 > 自动刻度）
+                x_bins, y_bins = get_axis_bins_for_mid(
+                    m_id, bins_to_str(auto_x_bins), bins_to_str(auto_y_bins)
+                )
             config = {"x_col": meta["x_field"], "y_col": meta["y_field"], "x_bins_custom": x_bins, "y_bins_custom": y_bins}
             create_scatter_chart(df_scatter, config, meta["x_label"], meta["y_label"])
             return     
@@ -2935,11 +2957,8 @@ def show_step_8_content():
                 else:
                     x_bins = parse_bins_input_safe(st.session_state[x_text_key], parse_bins_input(meta["default_x"]))
             else:
-                # 打印模式：优先使用上传配置
-                if uploaded_x:
-                    x_bins = uploaded_x
-                else:
-                    x_bins = parse_bins_input(meta["default_x"])
+                # 🌟 打印模式：复用单图模式下用户自定义/上传的刻度
+                x_bins = get_dist_bins(m_id, meta["default_x"])
                 show_labels, label_size = True, 11
             
             # 调用计算函数
@@ -3496,6 +3515,20 @@ def show_step_8_content():
             
         analysis_default = clean_note(mod_data.get('analysis_default', ''))
         analysis_custom = clean_note(mod_data.get('analysis_custom', ''))
+
+        # 🌟 若该模块的"分析内容-自定义"原本由系统自动生成（Excel中为空），
+        # 则每次渲染时都按当前坐标轴刻度实时重新生成，避免文字与图表脱节
+        if mod_data.get('is_auto_generated'):
+            try:
+                live_generated = generate_custom_analysis(
+                    m_id, df_raw,
+                    st.session_state.get('step8_selected_types', []),
+                    latest_year, prev_year
+                )
+            except Exception:
+                live_generated = ""
+            if live_generated:
+                analysis_custom = clean_note(live_generated)
         
         # 2. 只有当两者至少有一个有真实文字时，才渲染这个带底色的框！
         if analysis_default or analysis_custom:
